@@ -445,6 +445,9 @@ export const POS = () => {
     async function startCamera() {
       try {
         setCameraError('');
+        if (!navigator?.mediaDevices?.getUserMedia) {
+          throw new Error('الكاميرا غير مدعومة أو غير متاحة في هذا المتصفح');
+        }
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
         });
