@@ -12,6 +12,7 @@ export const env = {
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'accessories_store',
+    ssl: process.env.DB_SSL === 'true' || process.env.NODE_ENV === 'production',
   },
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET || 'access_token_secret_key_accessories_store_2026',

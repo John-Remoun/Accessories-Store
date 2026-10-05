@@ -45,10 +45,15 @@ if (env.nodeEnv === 'development') {
 // Serve Static Uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+import { ensureDbConnected } from './common/middleware/db.middleware';
+
 // Health Check Endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'UP', message: 'Accessories Store Backend API is healthy' });
 });
+
+// Database connection middleware for Serverless / Express
+app.use(ensureDbConnected);
 
 // API v1 Routes
 app.use('/api/v1/auth', authRoutes);

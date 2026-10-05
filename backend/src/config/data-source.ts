@@ -19,7 +19,8 @@ export const AppDataSource = new DataSource({
   username: env.db.username,
   password: env.db.password,
   database: env.db.database,
-  synchronize: env.nodeEnv === 'development',
+  ssl: env.db.ssl ? { rejectUnauthorized: false } : false,
+  synchronize: true,
   logging: env.nodeEnv === 'development',
   entities: [
     UserEntity,
