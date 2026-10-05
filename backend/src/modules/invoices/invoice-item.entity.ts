@@ -1,0 +1,49 @@
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { InvoiceEntity } from './invoice.entity';
+import { ProductEntity } from '../products/product.entity';
+import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
+
+@Entity('invoice_items')
+export class InvoiceItemEntity {
+  @PrimaryGeneratedColumn('uuid')
+  id!: string;
+
+  @Column({ type: 'varchar', length: 100 })
+  invoiceId!: string;
+
+  @ManyToOne(() => InvoiceEntity, (invoice) => invoice.invoiceItems, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'invoiceId' })
+  invoice!: InvoiceEntity;
+
+  @Column({ type: 'varchar', length: 100 })
+  productId!: string;
+
+  @ManyToOne(() => ProductEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'productId' })
+  product!: ProductEntity;
+
+  @Column({ type: 'varchar', length: 100 })
+  physicalItemId!: string;
+
+  @ManyToOne(() => PhysicalItemEntity, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'physicalItemId' })
+  physicalItem!: PhysicalItemEntity;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  unitPrice!: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  unitCost!: number;
+
+  @Column({ type: 'int', default: 1 })
+  quantity!: number;
+
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  profit!: number;
+
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+}
