@@ -23,6 +23,11 @@ class StoreService {
   constructor() {
     this.state = this.loadState();
     this.syncWithBackend();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => this.syncWithBackend());
+      setInterval(() => this.syncWithBackend(), 8000);
+    }
   }
 
   public async syncWithBackend() {

@@ -28,12 +28,12 @@ export const Products = () => {
 
   // Dynamic active branch state with URL parameter & localStorage sync
   const [activeBranchId, setActiveBranchId] = useState<string>(() => {
-    return localStorage.getItem('last_active_branch') || user?.branchId || 'b1';
+    return localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
   });
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const bId = params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b1';
+    const bId = params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
     setActiveBranchId(bId);
 
     if (params.get('lowStock') === 'true') {
