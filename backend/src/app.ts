@@ -33,7 +33,16 @@ const apiLimiter = rateLimit({
 });
 
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({ origin: env.corsOrigin, credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (origin.includes('vercel.app') || origin.includes('localhost') || origin === env.corsOrigin) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true
+}));
 app.use(apiLimiter);
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));

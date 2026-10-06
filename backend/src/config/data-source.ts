@@ -12,14 +12,21 @@ import { InvoiceItemEntity } from '../modules/invoices/invoice-item.entity';
 import { FixedExpenseEntity } from '../modules/fixed-expenses/fixed-expense.entity';
 import { ProductCompositionEntity } from '../modules/compositions/composition.entity';
 
+const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: env.db.host,
-  port: env.db.port,
-  username: env.db.username,
-  password: env.db.password,
-  database: env.db.database,
-  ssl: env.db.ssl ? { rejectUnauthorized: false } : false,
+  ...(dbUrl 
+    ? { url: dbUrl } 
+    : {
+        host: env.db.host,
+        port: env.db.port,
+        username: env.db.username,
+        password: env.db.password,
+        database: env.db.database,
+      }
+  ),
+  ssl: env.db.ssl || Boolean(dbUrl) ? { rejectUnauthorized: false } : false,
   synchronize: true,
   logging: env.nodeEnv === 'development',
   entities: [
