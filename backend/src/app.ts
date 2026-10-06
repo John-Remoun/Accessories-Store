@@ -64,18 +64,24 @@ app.get('/health', (req: Request, res: Response) => {
 // Database connection middleware for Serverless / Express
 app.use(ensureDbConnected);
 
-// API v1 Routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/branches', branchRoutes);
-app.use('/api/v1/categories', categoryRoutes);
-app.use('/api/v1/products', productRoutes);
-app.use('/api/v1/physical-items', physicalItemRoutes);
-app.use('/api/v1/customers', customerRoutes);
-app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/fixed-expenses', fixedExpenseRoutes);
-app.use('/api/v1/compositions', compositionRoutes);
-app.use('/api/v1/upload', uploadRoutes);
+// API Router
+const apiRouter = express.Router();
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/users', userRoutes);
+apiRouter.use('/branches', branchRoutes);
+apiRouter.use('/categories', categoryRoutes);
+apiRouter.use('/products', productRoutes);
+apiRouter.use('/physical-items', physicalItemRoutes);
+apiRouter.use('/customers', customerRoutes);
+apiRouter.use('/invoices', invoiceRoutes);
+apiRouter.use('/fixed-expenses', fixedExpenseRoutes);
+apiRouter.use('/compositions', compositionRoutes);
+apiRouter.use('/upload', uploadRoutes);
+
+// Support all possible Vercel / Express request path variations:
+app.use('/api/v1', apiRouter);
+app.use('/v1', apiRouter);
+app.use('/api', apiRouter);
 
 // Global Error Handler
 app.use(errorHandler);
