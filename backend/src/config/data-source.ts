@@ -26,7 +26,7 @@ export const AppDataSource = new DataSource({
         database: env.db.database,
       }
   ),
-  ssl: env.db.ssl || Boolean(dbUrl) ? { rejectUnauthorized: false } : false,
+  ssl: (env.db.ssl || Boolean(dbUrl)) ? { rejectUnauthorized: false } : false,
   synchronize: true,
   logging: env.nodeEnv === 'development',
   entities: [
@@ -42,6 +42,6 @@ export const AppDataSource = new DataSource({
     FixedExpenseEntity,
     ProductCompositionEntity,
   ],
-  migrations: ['src/db/migrations/*.ts'],
+  migrations: [],
   subscribers: [],
 });
