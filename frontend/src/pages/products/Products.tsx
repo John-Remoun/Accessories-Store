@@ -755,161 +755,159 @@ export const Products = () => {
       {/* ADD NEW PRODUCT MODAL DIALOG */}
       {/* ------------------------------------------------------------------------- */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-xl bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-xl bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl flex flex-col max-h-[85vh]" dir="rtl">
           
-          <DialogHeader className="p-5 border-b border-border bg-muted/20">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
             <DialogTitle className="font-serif text-lg font-bold flex items-center gap-2">
               <Sparkles size={20} className="text-amber-500" />
               <span>إضافة منتج جديد لـ {currentBranchName}</span>
             </DialogTitle>
           </DialogHeader>
           
-          <ScrollArea className="p-4 sm:p-6 max-h-[60vh] sm:max-h-[68vh] flex-1">
-            <div className="space-y-5 text-xs">
-              
-              {/* Form Error Banner */}
-              {formError && (
-                <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-600 font-bold rounded-xl">
-                  {formError}
-                </div>
-              )}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 text-xs scrollbar-none">
+            
+            {/* Form Error Banner */}
+            {formError && (
+              <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-600 font-bold rounded-xl">
+                {formError}
+              </div>
+            )}
 
-              {/* Product Name Arabic & Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">
-                    اسم المنتج بالعربية <span className="text-rose-500">*</span>
-                  </Label>
-                  <Input 
-                    placeholder="مثال: سلسلة فضة عيار 925..." 
-                    value={npNameAr} 
-                    onChange={e => {
-                      setNpNameAr(e.target.value);
-                      if (e.target.value.trim()) setFormError('');
-                    }} 
-                    className="rounded-xl h-11 text-xs" 
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-foreground">
-                    الفئة (خاتم، سلسلة...) <span className="text-rose-500">*</span>
-                  </Label>
-                  <CustomSelect
-                    value={npCategory}
-                    onChange={(val) => {
-                      setNpCategory(val);
-                      const cats = store.getCategories();
-                      const selCat = cats.find(c => c.id === val);
-                      const prefix = selCat ? selCat.nameAr.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3) || 'ACC' : 'ACC';
-                      const randomNum = Math.floor(10000 + Math.random() * 90000);
-                      setNpSku(`${prefix}-${randomNum}`);
-                    }}
-                    placeholder="اختر الفئة..."
-                    options={categories.map(c => ({
-                      value: c.id,
-                      label: c.nameAr
-                    }))}
-                  />
-                </div>
+            {/* Product Name Arabic & Category */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">
+                  اسم المنتج بالعربية <span className="text-rose-500">*</span>
+                </Label>
+                <Input 
+                  placeholder="مثال: سلسلة فضة عيار 925..." 
+                  value={npNameAr} 
+                  onChange={e => {
+                    setNpNameAr(e.target.value);
+                    if (e.target.value.trim()) setFormError('');
+                  }} 
+                  className="rounded-xl h-11 text-xs" 
+                />
               </div>
 
-              {/* Pricing & Cost Inputs */}
-              <div className="bg-muted/20 p-4 rounded-2xl border border-border/60 space-y-4">
-                <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
-                  <DollarSign size={16} className="text-amber-500" />
-                  <span>تحديد التكلفة وأسعار البيع بالفرع (ج.م)</span>
-                </h4>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">
+                  الفئة (خاتم، سلسلة...) <span className="text-rose-500">*</span>
+                </Label>
+                <CustomSelect
+                  value={npCategory}
+                  onChange={(val) => {
+                    setNpCategory(val);
+                    const cats = store.getCategories();
+                    const selCat = cats.find(c => c.id === val);
+                    const prefix = selCat ? selCat.nameAr.replace(/[^a-zA-Z]/g, '').toUpperCase().slice(0, 3) || 'ACC' : 'ACC';
+                    const randomNum = Math.floor(10000 + Math.random() * 90000);
+                    setNpSku(`${prefix}-${randomNum}`);
+                  }}
+                  placeholder="اختر الفئة..."
+                  options={categories.map(c => ({
+                    value: c.id,
+                    label: c.nameAr
+                  }))}
+                />
+              </div>
+            </div>
 
-                {/* Cost Price - Full Row */}
-                <div className="space-y-1.5 bg-rose-500/10 p-3.5 rounded-xl border border-rose-500/20">
-                  <Label className="text-rose-600 font-bold text-xs">سعر التكلفة (واقف عليا بكام)</Label>
+            {/* Pricing & Cost Inputs */}
+            <div className="bg-muted/20 p-4 rounded-2xl border border-border/60 space-y-4">
+              <h4 className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                <DollarSign size={16} className="text-amber-500" />
+                <span>تحديد التكلفة وأسعار البيع بالفرع (ج.م)</span>
+              </h4>
+
+              {/* Cost Price - Full Row */}
+              <div className="space-y-1.5 bg-rose-500/10 p-3.5 rounded-xl border border-rose-500/20">
+                <Label className="text-rose-600 font-bold text-xs">سعر التكلفة (واقف عليا بكام)</Label>
+                <Input 
+                  type="number" 
+                  min={0}
+                  value={npCost || ''} 
+                  onChange={e => setNpCost(Number(e.target.value))} 
+                  className="rounded-xl h-11 font-mono font-bold text-sm bg-background" 
+                />
+              </div>
+
+              {/* Price 1, Price 2, Price 3, Price 4 - 4 Columns Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="space-y-1.5 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
+                  <Label className="text-amber-500 font-bold text-xs">سعر 1</Label>
                   <Input 
                     type="number" 
                     min={0}
-                    value={npCost || ''} 
-                    onChange={e => setNpCost(Number(e.target.value))} 
-                    className="rounded-xl h-11 font-mono font-bold text-sm bg-background" 
+                    value={npPrice1 || ''} 
+                    onChange={e => setNpPrice1(Number(e.target.value))} 
+                    className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
                   />
                 </div>
 
-                {/* Price 1, Price 2, Price 3, Price 4 - 4 Columns Row */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div className="space-y-1.5 bg-amber-500/10 p-2.5 rounded-xl border border-amber-500/20">
-                    <Label className="text-amber-500 font-bold text-xs">سعر 1</Label>
-                    <Input 
-                      type="number" 
-                      min={0}
-                      value={npPrice1 || ''} 
-                      onChange={e => setNpPrice1(Number(e.target.value))} 
-                      className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
-                    <Label className="text-foreground font-bold text-xs">سعر 2</Label>
-                    <Input 
-                      type="number" 
-                      min={0}
-                      value={npPrice2 || ''} 
-                      onChange={e => setNpPrice2(Number(e.target.value))} 
-                      className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
-                    <Label className="text-foreground font-bold text-xs">سعر 3</Label>
-                    <Input 
-                      type="number" 
-                      min={0}
-                      value={npPrice3 || ''} 
-                      onChange={e => setNpPrice3(Number(e.target.value))} 
-                      className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
-                    <Label className="text-foreground font-bold text-xs">سعر 4</Label>
-                    <Input 
-                      type="number" 
-                      min={0}
-                      value={npPrice4 || ''} 
-                      onChange={e => setNpPrice4(Number(e.target.value))} 
-                      className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Initial Quantity & Low Stock Threshold Input */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-amber-500">كمية القطع للمخزون بـ ({currentBranchName})</Label>
+                <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
+                  <Label className="text-foreground font-bold text-xs">سعر 2</Label>
                   <Input 
                     type="number" 
-                    min={1} 
-                    value={npQuantity} 
-                    onChange={e => setNpQuantity(Math.max(1, Number(e.target.value)))} 
-                    className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                    min={0}
+                    value={npPrice2 || ''} 
+                    onChange={e => setNpPrice2(Number(e.target.value))} 
+                    className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-amber-600">الحد الأدنى للمخزون (تنبيه بالنقصان)</Label>
+                <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
+                  <Label className="text-foreground font-bold text-xs">سعر 3</Label>
                   <Input 
                     type="number" 
-                    min={1} 
-                    value={npMinStock} 
-                    onChange={e => setNpMinStock(Math.max(1, Number(e.target.value)))} 
-                    className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                    min={0}
+                    value={npPrice3 || ''} 
+                    onChange={e => setNpPrice3(Number(e.target.value))} 
+                    className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
+                  />
+                </div>
+
+                <div className="space-y-1.5 bg-muted/40 p-2.5 rounded-xl border border-border/60">
+                  <Label className="text-foreground font-bold text-xs">سعر 4</Label>
+                  <Input 
+                    type="number" 
+                    min={0}
+                    value={npPrice4 || ''} 
+                    onChange={e => setNpPrice4(Number(e.target.value))} 
+                    className="rounded-xl h-10 font-mono font-bold text-xs bg-background" 
                   />
                 </div>
               </div>
-
             </div>
-          </ScrollArea>
 
-          <div className="p-4 border-t border-border flex justify-end gap-3 bg-muted/20 shrink-0">
+            {/* Initial Quantity & Low Stock Threshold Input */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-amber-500">كمية القطع للمخزون بـ ({currentBranchName})</Label>
+                <Input 
+                  type="number" 
+                  min={1} 
+                  value={npQuantity} 
+                  onChange={e => setNpQuantity(Math.max(1, Number(e.target.value)))} 
+                  className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-amber-600">الحد الأدنى للمخزون (تنبيه بالنقصان)</Label>
+                <Input 
+                  type="number" 
+                  min={1} 
+                  value={npMinStock} 
+                  onChange={e => setNpMinStock(Math.max(1, Number(e.target.value)))} 
+                  className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                />
+              </div>
+            </div>
+
+          </div>
+
+          <div className="p-4 border-t border-border flex justify-end gap-3 bg-card shrink-0 z-10">
             <Button 
               variant="outline" 
               onClick={() => setIsAddModalOpen(false)} 
@@ -932,151 +930,147 @@ export const Products = () => {
 
       {/* EDIT PRODUCT MODAL DIALOG */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full max-w-2xl bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
-          <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-2xl bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl flex flex-col max-h-[85vh]" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/30 shrink-0">
             <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
               <Pencil className="text-amber-500" size={20} />
               <span>تعديل بيانات المنتج والمخزون</span>
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[60vh] sm:max-h-[68vh] p-4 sm:p-6 flex-1">
-            <div className="space-y-5">
-              
-              {editFormError && (
-                <div className="bg-destructive/15 border border-destructive/30 text-destructive text-xs font-bold p-3.5 rounded-2xl flex items-center gap-2">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{editFormError}</span>
-                </div>
-              )}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 scrollbar-none">
+            
+            {editFormError && (
+              <div className="bg-destructive/15 border border-destructive/30 text-destructive text-xs font-bold p-3.5 rounded-2xl flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{editFormError}</span>
+              </div>
+            )}
 
-              {/* Product Name (Arabic) & Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">اسم المنتج بالعربية <span className="text-rose-500">*</span></Label>
-                  <Input 
-                    value={epNameAr} 
-                    onChange={e => setEpNameAr(e.target.value)} 
-                    placeholder="مثال: خاتم أسد فاخر" 
-                    className="rounded-xl h-11 text-xs font-bold" 
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">الفئة / التصنيف</Label>
-                  <CustomSelect
-                    value={epCategory}
-                    onChange={(val) => setEpCategory(val)}
-                    options={categories.map(c => ({
-                      value: c.id,
-                      label: c.nameAr
-                    }))}
-                  />
-                </div>
+            {/* Product Name (Arabic) & Category */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">اسم المنتج بالعربية <span className="text-rose-500">*</span></Label>
+                <Input 
+                  value={epNameAr} 
+                  onChange={e => setEpNameAr(e.target.value)} 
+                  placeholder="مثال: خاتم أسد فاخر" 
+                  className="rounded-xl h-11 text-xs font-bold" 
+                />
               </div>
 
-
-
-              {/* Pricing Breakdown (Cost & 3 Selling Prices) */}
-              <div className="bg-muted/30 p-4 rounded-2xl border border-border/60 space-y-3">
-                <Label className="text-xs font-bold text-foreground block">تعديل أسعار المنتج (ج.م)</Label>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
-                    <Label className="text-xs font-bold text-rose-500">سعر التكلفة</Label>
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      min={0} 
-                      value={epCost || ''} 
-                      onChange={e => setEpCost(Number(e.target.value))} 
-                      className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background border-rose-500/30" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
-                    <Label className="text-xs font-bold text-amber-500">سعر 1</Label>
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      min={0} 
-                      value={epPrice1 || ''} 
-                      onChange={e => setEpPrice1(Number(e.target.value))} 
-                      className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
-                    <Label className="text-xs font-bold text-foreground">سعر 2</Label>
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      min={0} 
-                      value={epPrice2 || ''} 
-                      onChange={e => setEpPrice2(Number(e.target.value))} 
-                      className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
-                    <Label className="text-xs font-bold text-foreground">سعر 3</Label>
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      min={0} 
-                      value={epPrice3 || ''} 
-                      onChange={e => setEpPrice3(Number(e.target.value))} 
-                      className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
-                    />
-                  </div>
-
-                  <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
-                    <Label className="text-xs font-bold text-foreground">سعر 4</Label>
-                    <Input 
-                      type="number" 
-                      step="0.5" 
-                      min={0} 
-                      value={epPrice4 || ''} 
-                      onChange={e => setEpPrice4(Number(e.target.value))} 
-                      className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
-                    />
-                  </div>
-                </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">الفئة / التصنيف</Label>
+                <CustomSelect
+                  value={epCategory}
+                  onChange={(val) => setEpCategory(val)}
+                  options={categories.map(c => ({
+                    value: c.id,
+                    label: c.nameAr
+                  }))}
+                />
               </div>
-
-              {/* Quantity in Active Branch & Minimum Stock Alert Threshold */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-amber-600">القطع المتاحة بالفرع ({currentBranchName})</Label>
-                  <Input 
-                    type="number" 
-                    min={0} 
-                    value={epQuantity} 
-                    onChange={e => setEpQuantity(Math.max(0, Number(e.target.value)))} 
-                    className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
-                  />
-                  <p className="text-[10px] text-muted-foreground">تعديل وتصحيح عدد القطع المتاحة بالمعرض حالياً.</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-cyan-600">الحد الأدنى لتنبيه نقصان المخزون</Label>
-                  <Input 
-                    type="number" 
-                    min={1} 
-                    value={epMinStock} 
-                    onChange={e => setEpMinStock(Math.max(1, Number(e.target.value)))} 
-                    className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-cyan-500/40" 
-                  />
-                  <p className="text-[10px] text-muted-foreground">تنبيه عند انخفاض المتاح بالفرع عن هذا الحد.</p>
-                </div>
-              </div>
-
             </div>
-          </ScrollArea>
 
-          <div className="p-4 border-t border-border flex items-center justify-end gap-2.5 bg-muted/20 shrink-0">
+            {/* Pricing Breakdown (Cost & 3 Selling Prices) */}
+            <div className="bg-muted/30 p-4 rounded-2xl border border-border/60 space-y-3">
+              <Label className="text-xs font-bold text-foreground block">تعديل أسعار المنتج (ج.م)</Label>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+                  <Label className="text-xs font-bold text-rose-500">سعر التكلفة</Label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min={0} 
+                    value={epCost || ''} 
+                    onChange={e => setEpCost(Number(e.target.value))} 
+                    className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background border-rose-500/30" 
+                  />
+                </div>
+
+                <div className="space-y-1.5 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
+                  <Label className="text-xs font-bold text-amber-500">سعر 1</Label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min={0} 
+                    value={epPrice1 || ''} 
+                    onChange={e => setEpPrice1(Number(e.target.value))} 
+                    className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
+                  <Label className="text-xs font-bold text-foreground">سعر 2</Label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min={0} 
+                    value={epPrice2 || ''} 
+                    onChange={e => setEpPrice2(Number(e.target.value))} 
+                    className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
+                  />
+                </div>
+
+                <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
+                  <Label className="text-xs font-bold text-foreground">سعر 3</Label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min={0} 
+                    value={epPrice3 || ''} 
+                    onChange={e => setEpPrice3(Number(e.target.value))} 
+                    className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
+                  />
+                </div>
+
+                <div className="space-y-1.5 bg-muted/40 p-3 rounded-xl border border-border/60">
+                  <Label className="text-xs font-bold text-foreground">سعر 4</Label>
+                  <Input 
+                    type="number" 
+                    step="0.5" 
+                    min={0} 
+                    value={epPrice4 || ''} 
+                    onChange={e => setEpPrice4(Number(e.target.value))} 
+                    className="rounded-xl h-10 text-xs font-mono font-bold text-center bg-background" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Quantity in Active Branch & Minimum Stock Alert Threshold */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-amber-500/5 p-4 rounded-2xl border border-amber-500/20">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-amber-600">القطع المتاحة بالفرع ({currentBranchName})</Label>
+                <Input 
+                  type="number" 
+                  min={0} 
+                  value={epQuantity} 
+                  onChange={e => setEpQuantity(Math.max(0, Number(e.target.value)))} 
+                  className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-amber-500/40" 
+                />
+                <p className="text-[10px] text-muted-foreground">تعديل وتصحيح عدد القطع المتاحة بالمعرض حالياً.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-cyan-600">الحد الأدنى لتنبيه نقصان المخزون</Label>
+                <Input 
+                  type="number" 
+                  min={1} 
+                  value={epMinStock} 
+                  onChange={e => setEpMinStock(Math.max(1, Number(e.target.value)))} 
+                  className="rounded-xl h-11 text-xs font-mono font-bold text-center bg-background border-cyan-500/40" 
+                />
+                <p className="text-[10px] text-muted-foreground">تنبيه عند انخفاض المتاح بالفرع عن هذا الحد.</p>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="p-4 border-t border-border flex items-center justify-end gap-2.5 bg-card shrink-0 z-10">
             <Button 
               variant="outline" 
               onClick={() => setIsEditModalOpen(false)} 
