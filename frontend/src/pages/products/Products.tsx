@@ -764,7 +764,7 @@ export const Products = () => {
             </DialogTitle>
           </DialogHeader>
           
-          <ScrollArea className="p-6 max-h-[75vh]">
+          <ScrollArea className="p-4 sm:p-6 max-h-[60vh] sm:max-h-[68vh] flex-1">
             <div className="space-y-5 text-xs">
               
               {/* Form Error Banner */}
@@ -909,7 +909,7 @@ export const Products = () => {
             </div>
           </ScrollArea>
 
-          <div className="p-4 border-t border-border flex justify-end gap-3 bg-muted/20">
+          <div className="p-4 border-t border-border flex justify-end gap-3 bg-muted/20 shrink-0">
             <Button 
               variant="outline" 
               onClick={() => setIsAddModalOpen(false)} 
@@ -940,7 +940,7 @@ export const Products = () => {
             </DialogTitle>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[75vh] p-6">
+          <ScrollArea className="max-h-[60vh] sm:max-h-[68vh] p-4 sm:p-6 flex-1">
             <div className="space-y-5">
               
               {editFormError && (
@@ -1076,7 +1076,7 @@ export const Products = () => {
             </div>
           </ScrollArea>
 
-          <div className="p-4 border-t border-border flex items-center justify-end gap-2.5 bg-muted/20">
+          <div className="p-4 border-t border-border flex items-center justify-end gap-2.5 bg-muted/20 shrink-0">
             <Button 
               variant="outline" 
               onClick={() => setIsEditModalOpen(false)} 
