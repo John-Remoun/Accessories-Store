@@ -819,7 +819,7 @@ export const POS = () => {
         {/* RIGHT COLUMN: New Sale Form & Active Cart Items (Col Span 7) */}
         {/* ======================================================================= */}
         <div className="lg:col-span-7 space-y-6">
-          <Card className="bg-card border-border shadow-md rounded-3xl p-6 relative overflow-hidden">
+          <Card className="bg-card border-border shadow-md rounded-3xl p-4 sm:p-6 relative overflow-hidden">
             
             {/* Header Badge */}
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-border/60">
@@ -1197,7 +1197,7 @@ export const POS = () => {
         {/* LEFT COLUMN: Invoice Summary & Payment Completion (Col Span 5) */}
         {/* ======================================================================= */}
         <div className="lg:col-span-5 space-y-6">
-          <Card className="bg-card border-border shadow-md rounded-3xl p-6 space-y-6 relative overflow-hidden">
+          <Card className="bg-card border-border shadow-md rounded-3xl p-4 sm:p-6 space-y-5 sm:space-y-6 relative overflow-hidden">
             
             {/* Header Title */}
             <div className="flex items-center gap-2 pb-3 border-b border-border/60">

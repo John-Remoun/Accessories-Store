@@ -284,13 +284,13 @@ export const DashboardLayout = () => {
           </div>
 
           {/* Centered Store Brand Logo (Absolute Center) */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center py-1 pointer-events-auto">
-            <img src={darkLogo} alt="Salla Bola & Mina" className="hidden dark:block h-10 sm:h-16 w-auto object-contain transition-all duration-300 drop-shadow-sm max-w-[150px] sm:max-w-none" />
-            <img src={lightLogo} alt="Salla Bola & Mina" className="block dark:hidden h-10 sm:h-16 w-auto object-contain transition-all duration-300 drop-shadow-sm max-w-[150px] sm:max-w-none" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center py-1 pointer-events-auto max-w-[120px] xs:max-w-[150px] sm:max-w-none">
+            <img src={darkLogo} alt="Salla Bola & Mina" className="hidden dark:block h-8 sm:h-16 w-auto object-contain transition-all duration-300 drop-shadow-sm" />
+            <img src={lightLogo} alt="Salla Bola & Mina" className="block dark:hidden h-8 sm:h-16 w-auto object-contain transition-all duration-300 drop-shadow-sm" />
           </div>
 
           {/* Left Action: Settings, Theme Toggle & Logout */}
-          <div className="flex items-center justify-end gap-1.5 sm:gap-2 z-10">
+          <div className="flex items-center justify-end gap-1 sm:gap-2 z-10">
             {isAdmin && (
               <Button 
                 variant="ghost" 
@@ -328,7 +328,7 @@ export const DashboardLayout = () => {
         </header>
 
         {/* Page Content View */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-20 md:pb-8">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8">
           <div className="mx-auto max-w-7xl h-full">
             <Outlet />
           </div>
@@ -337,7 +337,7 @@ export const DashboardLayout = () => {
 
       {/* Mobile Bottom Nav Bar (Icon-Only with Liquid Glass Circle for POS) */}
       {!isLandingPage && !isSettingsPage && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-xl border-t border-border/80 flex justify-around items-center h-16 z-40 px-3 shadow-2xl">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-xl border-t border-border/80 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)] z-40 px-2 shadow-2xl">
           {navItems.slice(0, 4).map(item => {
             const currentFullUrl = location.pathname + location.search;
             const isActive = item.path.includes('?') 

@@ -456,7 +456,7 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
     <div className="space-y-10 animate-in fade-in duration-500 pb-16" dir="rtl">
       
       {/* Super Admin Top Bar with Back Button */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border/80 p-6 rounded-3xl shadow-sm relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border/80 p-4 sm:p-6 rounded-3xl shadow-sm relative overflow-hidden">
         <div className="flex items-center gap-4 z-10">
           {/* Back Button */}
           <Button 
