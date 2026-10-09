@@ -98,6 +98,7 @@ export interface Invoice {
   paidAmount?: number;
   remainingAmount?: number;
   isFavorite?: boolean;
+  createdAt?: string;
 }
 
 export interface Customer {
