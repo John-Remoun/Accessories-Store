@@ -764,9 +764,13 @@ export const POS = () => {
     // 1. Save invoice to system
     store.addInvoice(newInvoice);
 
-    // 2. Mark items sold
+    // 2. Deduct sold quantities from branch stock
     cart.forEach(item => {
-      store.markPhysicalItemSold(item.physicalItemId);
+      const bd = store.getProductBranchData(item.product.id, currentBranchId);
+      const currentQty = Number(bd?.quantity || 0);
+      const newQty = Math.max(0, currentQty - item.quantity);
+      const cleanPrefix = item.product.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
+      store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
     });
 
     // Save customer to store if starred

@@ -376,8 +376,8 @@ export const Products = () => {
       const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === activeBranchId);
       if (!bd && phys.length === 0) return false;
 
-      const availableCount = phys.filter(i => i.status === 'available').length;
-      const minStock = bd?.minStock ?? 10;
+      const availableCount = Number(bd?.quantity || 0);
+      const minStock = Number(bd?.minStock ?? 10);
 
       // Low Stock Interactive Click Filter
       if (lowStockOnlyFilter && availableCount > minStock) {
@@ -594,9 +594,8 @@ export const Products = () => {
         ) : (
           filteredProducts.map((product) => {
             const branchData = store.getProductBranchData(product.id, activeBranchId);
-            const minStock = branchData?.minStock ?? 10;
-            const physicalItems = store.getPhysicalItemsByProduct(product.id).filter(i => i.branchId === activeBranchId);
-            const availableCount = physicalItems.filter(i => i.status === 'available').length;
+            const minStock = Number(branchData?.minStock ?? 10);
+            const availableCount = Number(branchData?.quantity || 0);
             const categoryObj = store.getCategories().find(c => c.id === product.categoryId);
 
             const isOutOfStock = availableCount === 0;
