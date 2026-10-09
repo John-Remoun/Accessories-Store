@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { PhysicalItem, Product, ProductBranchData, Customer, Invoice, InternalComponent, ExternalComponent, ProductComposition } from '../../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -124,6 +125,7 @@ const ProductSearchCombobox = ({
 };
 
 export const POS = () => {
+  useStoreSync();
   const { user } = useAuth();
   const location = useLocation();
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { store } from '../../services/store';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -80,13 +81,18 @@ export const MasterDashboard = () => {
     };
   } | null>(null);
 
+  useStoreSync();
+
   const getDayMetrics = (dayNum: number) => {
     const dayInvoices = allInvoices.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === dayNum;
     });
 
-    const totalRevenue = dayInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = dayInvoices.reduce((acc, inv) => {
+      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+      return acc + paid;
+    }, 0);
     const totalCost = dayInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     let dayCash = 0;
@@ -95,7 +101,8 @@ export const MasterDashboard = () => {
 
     dayInvoices.forEach(inv => {
       const method = inv.paymentSubMethod || inv.paymentMethod;
-      const amt = inv.paidAmount || inv.total || 0;
+      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+      if (amt <= 0) return;
       if (method === 'instapay') {
         dayInstapay += amt;
       } else if (method === 'vodafone_cash') {
@@ -134,7 +141,10 @@ export const MasterDashboard = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-    const totalRevenue = monthInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = monthInvoices.reduce((acc, inv) => {
+      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+      return acc + paid;
+    }, 0);
     const totalCost = monthInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     let monthCash = 0;
@@ -143,7 +153,8 @@ export const MasterDashboard = () => {
 
     monthInvoices.forEach(inv => {
       const method = inv.paymentSubMethod || inv.paymentMethod;
-      const amt = inv.paidAmount || inv.total || 0;
+      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+      if (amt <= 0) return;
       if (method === 'instapay') {
         monthInstapay += amt;
       } else if (method === 'vodafone_cash') {
@@ -182,7 +193,10 @@ export const MasterDashboard = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear;
     });
-    const totalRevenue = yearInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = yearInvoices.reduce((acc, inv) => {
+      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+      return acc + paid;
+    }, 0);
     const totalCost = yearInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     const yearExpenses = allFixedExpenses.filter(exp => {
@@ -196,7 +210,10 @@ export const MasterDashboard = () => {
 
     const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
       const mInvs = yearInvoices.filter(inv => new Date(inv.date).getMonth() === mIdx);
-      const rev = mInvs.reduce((acc, inv) => acc + (inv.total || 0), 0);
+      const rev = mInvs.reduce((acc, inv) => {
+        const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+        return acc + paid;
+      }, 0);
       const cst = mInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
       const mExps = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx);
       const fExp = mExps.reduce((acc, exp) => acc + (exp.amount || 0), 0);

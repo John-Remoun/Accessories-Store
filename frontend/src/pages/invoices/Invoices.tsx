@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { Invoice } from '../../types';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -35,6 +36,7 @@ const getIsoDate = (dateStr: string) => {
 };
 
 export const Invoices = () => {
+  useStoreSync();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const location = useLocation();

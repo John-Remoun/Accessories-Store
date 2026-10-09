@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const invoiceItemSchema = z.object({
   physicalItemId: z.string(),
   productId: z.string(),
+  productName: z.string().optional(),
   unitPrice: z.number(),
   unitCost: z.number().optional(),
   quantity: z.number().optional().default(1),

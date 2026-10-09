@@ -72,6 +72,8 @@ export const api = {
   getInvoices: () => request<any[]>('/invoices'),
   createInvoice: (invoice: any) => request<any>('/invoices', { method: 'POST', body: JSON.stringify(invoice) }),
   deleteInvoicesByIds: (ids: string[]) => request<any>('/invoices/delete-many', { method: 'POST', body: JSON.stringify({ ids }) }),
+  payInvoice: (id: string, amount: number) => request<any>(`/invoices/${id}/pay`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
+  payCustomerDebt: (customerPhone: string, amount: number) => request<any>('/invoices/pay-debt', { method: 'POST', body: JSON.stringify({ customerPhone, amount }) }),
 
   // Customers
   getCustomers: () => request<any[]>('/customers'),

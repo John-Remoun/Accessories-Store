@@ -19,6 +19,7 @@ export interface AppState {
 
 class StoreService {
   private state: AppState;
+  private listeners: Set<() => void> = new Set();
 
   constructor() {
     this.state = this.loadState();
@@ -26,8 +27,21 @@ class StoreService {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', () => this.syncWithBackend());
-      setInterval(() => this.syncWithBackend(), 8000);
+      setInterval(() => this.syncWithBackend(), 2500);
     }
+  }
+
+  public subscribe(listener: () => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach(fn => {
+      try { fn(); } catch (e) { console.error('Listener error:', e); }
+    });
   }
 
   public async syncWithBackend() {
@@ -109,6 +123,7 @@ class StoreService {
       }
 
       this.saveState();
+      this.notifyListeners();
     } catch (e) {
       console.warn('Backend sync warning:', e);
     }
@@ -173,6 +188,7 @@ class StoreService {
 
   private saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify(this.state));
+    this.notifyListeners();
   }
 
   public resetState() {
@@ -422,6 +438,7 @@ class StoreService {
       inv.remainingAmount = Math.max(0, currentRemaining - payAmt);
       inv.paymentStatus = inv.remainingAmount <= 0 ? 'paid' : 'partial';
       this.saveState();
+      api.payInvoice(id, amount).catch(err => console.warn('DB sync warning (payInvoice):', err));
     }
   }
 
@@ -444,6 +461,7 @@ class StoreService {
       }
     }
     this.saveState();
+    api.payCustomerDebt(term, amount).catch(err => console.warn('DB sync warning (payCustomerDebt):', err));
   }
 
   public deleteInvoicesByIds(ids: string[]) {

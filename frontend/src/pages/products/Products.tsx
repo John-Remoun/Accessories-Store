@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { Product, ProductBranchData, Category } from '../../types';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -22,6 +23,7 @@ import {
 } from '../../services/printerService';
 
 export const Products = () => {
+  useStoreSync();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
