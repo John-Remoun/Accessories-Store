@@ -17,6 +17,17 @@ export async function resetDatabaseToCleanState() {
     // Truncate tables with CASCADE
     await queryRunner.query(`TRUNCATE TABLE "physical_items", "invoice_items", "invoices", "product_compositions", "product_branch_data", "products", "categories", "customers", "fixed_expenses" CASCADE;`);
     
+    // Ensure invoice_items schema is relaxed to allow transient items and compositions without foreign key errors
+    try {
+      await queryRunner.query(`ALTER TABLE "invoice_items" DROP CONSTRAINT IF EXISTS "FK_invoice_items_product";`);
+      await queryRunner.query(`ALTER TABLE "invoice_items" DROP CONSTRAINT IF EXISTS "FK_invoice_items_physical_item";`);
+      await queryRunner.query(`ALTER TABLE "invoice_items" ADD COLUMN IF NOT EXISTS "productName" character varying(255);`);
+      await queryRunner.query(`ALTER TABLE "invoice_items" ALTER COLUMN "productId" DROP NOT NULL;`);
+      await queryRunner.query(`ALTER TABLE "invoice_items" ALTER COLUMN "physicalItemId" DROP NOT NULL;`);
+    } catch (e) {
+      console.warn('Schema relaxation notice:', e);
+    }
+
     await queryRunner.commitTransaction();
     console.log('✅ All categories, products, physical items, invoices, customers, and expenses cleared successfully!');
   } catch (error) {

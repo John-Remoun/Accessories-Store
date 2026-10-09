@@ -4,6 +4,7 @@ import { InvoiceItemEntity } from './invoice-item.entity';
 export interface InvoiceItemPayload {
   physicalItemId: string;
   productId: string;
+  productName?: string;
   unitPrice: number;
   unitCost?: number;
   quantity?: number;

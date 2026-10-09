@@ -336,7 +336,7 @@ export const DashboardLayout = () => {
         </header>
 
         {/* Page Content View */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8 touch-pan-y overscroll-y-contain overscroll-x-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-8 touch-pan-y overscroll-y-contain overscroll-x-none">
           <div className="mx-auto max-w-7xl h-full">
             <Outlet />
           </div>

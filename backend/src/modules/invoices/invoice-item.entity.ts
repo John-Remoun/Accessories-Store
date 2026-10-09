@@ -15,19 +15,22 @@ export class InvoiceItemEntity {
   @JoinColumn({ name: 'invoiceId' })
   invoice!: InvoiceEntity;
 
-  @Column({ type: 'varchar', length: 100 })
-  productId!: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  productId?: string;
 
-  @ManyToOne(() => ProductEntity, { onDelete: 'RESTRICT' })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  productName?: string;
+
+  @ManyToOne(() => ProductEntity, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'productId' })
-  product!: ProductEntity;
+  product?: ProductEntity;
 
-  @Column({ type: 'varchar', length: 100 })
-  physicalItemId!: string;
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  physicalItemId?: string;
 
-  @ManyToOne(() => PhysicalItemEntity, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => PhysicalItemEntity, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'physicalItemId' })
-  physicalItem!: PhysicalItemEntity;
+  physicalItem?: PhysicalItemEntity;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   unitPrice!: number;

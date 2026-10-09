@@ -24,7 +24,7 @@ export const Dashboard = () => {
   const branchList = branches.map((b, idx) => ({ number: idx + 1, ...b }));
 
   return (
-    <div className="min-h-full flex flex-col justify-center items-center space-y-4 sm:space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-28 sm:pb-16 pt-1 sm:pt-4" dir="rtl">
+    <div className="min-h-full flex flex-col justify-center items-center space-y-4 sm:space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-36 sm:pb-20 pt-1 sm:pt-4" dir="rtl">
       
       {/* 1. Header Banner */}
       <div className="text-center space-y-1 sm:space-y-2 max-w-2xl px-2">

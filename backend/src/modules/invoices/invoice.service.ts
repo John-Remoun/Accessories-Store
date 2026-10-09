@@ -100,6 +100,7 @@ export class InvoiceService {
         const invoiceItem = transactionalEntityManager.create(InvoiceItemEntity, {
           invoiceId: id,
           productId: itemPayload.productId,
+          productName: itemPayload.productName,
           physicalItemId: physicalItemId,
           unitPrice,
           unitCost,
@@ -137,9 +138,13 @@ export class InvoiceService {
 
       await transactionalEntityManager.save(invoice);
 
-      // Increment Employee Sales Count atomically inside the transaction
+      // Increment Employee Sales Count atomically inside the transaction if user exists
       if (data.employeeId) {
-        await transactionalEntityManager.increment(UserEntity, { id: data.employeeId }, 'salesCount', 1);
+        try {
+          await transactionalEntityManager.increment(UserEntity, { id: data.employeeId }, 'salesCount', 1);
+        } catch (e) {
+          console.warn('Could not increment user salesCount:', e);
+        }
       }
 
       return this.formatInvoiceResponse(invoice);
@@ -252,6 +257,7 @@ export class InvoiceService {
     const items = (invoice.invoiceItems || []).map((item) => ({
       physicalItemId: item.physicalItemId,
       productId: item.productId,
+      productName: item.productName,
       unitPrice: Number(item.unitPrice),
       unitCost: Number(item.unitCost),
       quantity: Number(item.quantity),
