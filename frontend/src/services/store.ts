@@ -427,10 +427,13 @@ class StoreService {
 
   // --- Customers ---
   public getCustomers() { return this.state?.customers || []; }
+  public getCustomersByBranch(branchId: string) {
+    return (this.state?.customers || []).filter(c => !c.branchId || c.branchId === branchId);
+  }
   public addCustomer(customer: Customer) {
     if (!this.state.customers) this.state.customers = [];
     const existingIndex = this.state.customers.findIndex(
-      c => c?.id === customer.id || (c?.phone && customer.phone && c.phone.trim() === customer.phone.trim())
+      c => c?.id === customer.id || (c?.phone && customer.phone && c.phone.trim() === customer.phone.trim() && (!c.branchId || !customer.branchId || c.branchId === customer.branchId))
     );
     if (existingIndex !== -1) {
       this.state.customers[existingIndex] = { ...this.state.customers[existingIndex], ...customer };

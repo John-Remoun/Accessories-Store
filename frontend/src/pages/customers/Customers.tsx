@@ -58,7 +58,8 @@ export const Customers = () => {
       store.addCustomer({
         id: customer.id,
         name: customer.name,
-        phone: customer.phone
+        phone: customer.phone,
+        branchId: activeBranchId
       });
     }
     setStoreVersion(prev => prev + 1);
@@ -79,7 +80,7 @@ export const Customers = () => {
   // Aggregate Customer Records for Active Branch
   const customerRecords = useMemo(() => {
     const branchInvoices = store.getInvoicesByBranch(activeBranchId);
-    const favoriteCustomers = store.getCustomers();
+    const favoriteCustomers = store.getCustomers().filter(fc => !fc.branchId || fc.branchId === activeBranchId);
     const customerMap = new Map<string, CustomerRecord>();
 
     // 1. Process Branch Invoices
@@ -117,7 +118,7 @@ export const Customers = () => {
       }
     });
 
-    // 2. Add Favorite Customers who might not have invoices in this branch yet
+    // 2. Add Favorite Customers who belong to this branch and might not have invoices in this branch yet
     favoriteCustomers.forEach(fc => {
       const key = fc.phone.trim() || fc.name.trim();
       if (key && !customerMap.has(key) && !deletedKeys[key]) {

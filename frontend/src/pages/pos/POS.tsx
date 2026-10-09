@@ -196,7 +196,8 @@ export const POS = () => {
       const newCust: Customer = {
         id: targetId,
         name: cName || 'عميل مفضل',
-        phone: cPhone || ''
+        phone: cPhone || '',
+        branchId: currentBranchId
       };
       store.addCustomer(newCust);
       setSelectedCustomerId(targetId);
@@ -778,7 +779,8 @@ export const POS = () => {
       store.addCustomer({
         id: targetId,
         name: cName,
-        phone: cPhone
+        phone: cPhone,
+        branchId: currentBranchId
       });
       setCustomersList([...store.getCustomers()]);
     }
