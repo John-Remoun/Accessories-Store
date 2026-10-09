@@ -92,7 +92,8 @@ const ProductSearchCombobox = ({
               <p className="text-[11px] text-muted-foreground text-center py-3">لا توجد منتجات مطابقة للبحث.</p>
             ) : (
               filteredProducts.map(p => {
-                const stockCount = store.getPhysicalItemsByBranch(activeBranchId).filter(i => i.productId === p.id && i.status === 'available').length;
+                const bd = store.getProductBranchData(p.id, activeBranchId);
+                const stockCount = Number(bd?.quantity || 0);
                 const isSel = p.id === selectedProductId;
                 return (
                   <button
@@ -430,8 +431,8 @@ export const POS = () => {
 
   const availableStockForSelected = useMemo(() => {
     if (!selectedProductId) return 0;
-    return availablePhysicalItems.filter(i => i.productId === selectedProductId).length;
-  }, [selectedProductId, availablePhysicalItems]);
+    return Number(currentProductBranchData?.quantity || 0);
+  }, [selectedProductId, currentProductBranchData]);
 
   const currentInCartForSelected = useMemo(() => {
     if (!selectedProductId) return 0;
@@ -504,9 +505,8 @@ export const POS = () => {
   const handleAddProductToCart = () => {
     if (!selectedProductId || !currentSelectedProduct || !currentProductBranchData) return;
     
-    // Check available physical items count for this product in current branch
-    const availableItems = availablePhysicalItems.filter(i => i.productId === selectedProductId);
-    const availableStockCount = availableItems.length;
+    // Check available quantity for this product in current branch
+    const availableStockCount = Number(currentProductBranchData.quantity || 0);
 
     // Calculate total quantity of this product already in cart
     const currentInCartQty = cart
@@ -531,7 +531,7 @@ export const POS = () => {
         };
         return updated;
       } else {
-        const availItem = availableItems.find(i => !prev.some(c => c.physicalItemId === i.id));
+        const availItem = availablePhysicalItems.find(i => i.productId === selectedProductId && !prev.some(c => c.physicalItemId === i.id));
         return [...prev, {
           physicalItemId: availItem?.id || `ITEM-${Date.now()}`,
           product: currentSelectedProduct,
@@ -610,11 +610,9 @@ export const POS = () => {
       }
 
       if (delta > 0) {
-        // Check stock limit for physical items in branch
-        const availableItems = store.getPhysicalItemsByBranch(currentBranchId).filter(
-          i => i.productId === item.product.id && i.status === 'available'
-        );
-        const availCount = availableItems.length;
+        // Check stock limit for branch quantity
+        const bd = store.getProductBranchData(item.product.id, currentBranchId);
+        const availCount = Number(bd?.quantity || 0);
 
         // Total quantity of this product across ALL cart lines
         const totalProductQtyInCart = prev
@@ -1022,7 +1020,8 @@ export const POS = () => {
                         <div className="p-3 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
                       ) : (
                         filteredProducts.map(p => {
-                          const stockCount = availablePhysicalItems.filter(i => i.productId === p.id).length;
+                          const bd = store.getProductBranchData(p.id, currentBranchId);
+                          const stockCount = Number(bd?.quantity || 0);
                           return (
                             <div
                               key={p.id}
@@ -1065,10 +1064,10 @@ export const POS = () => {
                   options={
                     currentProductBranchData
                       ? [
-                          { value: 'price1', label: `${currentProductBranchData.price1Label || 'سعر 1'}: ${currentProductBranchData.price1.toFixed(2)} ج.م` },
-                          { value: 'price2', label: `${currentProductBranchData.price2Label || 'سعر 2'}: ${currentProductBranchData.price2.toFixed(2)} ج.م` },
-                          { value: 'price3', label: `${currentProductBranchData.price3Label || 'سعر 3'}: ${currentProductBranchData.price3.toFixed(2)} ج.م` },
-                          { value: 'price4', label: `${currentProductBranchData.price4Label || 'سعر 4'}: ${(currentProductBranchData.price4 || currentProductBranchData.price1).toFixed(2)} ج.م` },
+                          { value: 'price1', label: `سعر 1: ${currentProductBranchData.price1.toFixed(2)} ج.م` },
+                          { value: 'price2', label: `سعر 2: ${currentProductBranchData.price2.toFixed(2)} ج.م` },
+                          { value: 'price3', label: `سعر 3: ${currentProductBranchData.price3.toFixed(2)} ج.م` },
+                          { value: 'price4', label: `سعر 4: ${(currentProductBranchData.price4 || currentProductBranchData.price1).toFixed(2)} ج.م` },
                         ]
                       : []
                   }

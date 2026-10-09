@@ -18,19 +18,19 @@ export class ProductBranchDataEntity {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   price1!: number;
 
-  @Column({ type: 'varchar', length: 100, default: 'قطاعي' })
+  @Column({ type: 'varchar', length: 100, default: 'سعر 1' })
   price1Label!: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   price2!: number;
 
-  @Column({ type: 'varchar', length: 100, default: 'جملة' })
+  @Column({ type: 'varchar', length: 100, default: 'سعر 2' })
   price2Label!: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   price3!: number;
 
-  @Column({ type: 'varchar', length: 100, default: 'سعر خاص VIP' })
+  @Column({ type: 'varchar', length: 100, default: 'سعر 3' })
   price3Label!: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
