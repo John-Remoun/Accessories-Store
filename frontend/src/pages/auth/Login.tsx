@@ -19,9 +19,11 @@ export const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login(username, password);
+    setError('');
+    const cleanUsername = username.trim();
+    const success = await login(cleanUsername, password);
     if (success) {
-      const loggedUser = store.getUserByUsername(username);
+      const loggedUser = store.getUserByUsername(cleanUsername);
       if (loggedUser && loggedUser.role !== 'admin') {
         navigate('/pos');
       } else {

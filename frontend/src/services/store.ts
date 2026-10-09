@@ -67,7 +67,17 @@ class StoreService {
         this.state.customers = customerList.value;
       }
       if (userList.status === 'fulfilled' && Array.isArray(userList.value) && userList.value.length > 0) {
-        this.state.users = userList.value;
+        const backendUsers = userList.value;
+        const currentUsers = this.state.users || mockUsers;
+        this.state.users = backendUsers.map(bUser => {
+          const existing = currentUsers.find(
+            u => u && (u.id === bUser.id || (u.username || '').trim().toLowerCase() === (bUser.username || '').trim().toLowerCase())
+          );
+          return {
+            ...bUser,
+            password: bUser.password || existing?.password || '00000000',
+          };
+        });
       }
 
       // Sync Categories
@@ -124,9 +134,17 @@ class StoreService {
 
         // Auto-reconcile default super admin users (Bola, Mina, Test)
         for (const defaultUser of mockUsers) {
-          const exists = state.users.some((u: User) => u?.username === defaultUser.username);
-          if (!exists) {
+          const idx = state.users.findIndex(
+            (u: User) => u && u.username && u.username.trim().toLowerCase() === defaultUser.username.trim().toLowerCase()
+          );
+          if (idx === -1) {
             state.users.push(defaultUser);
+          } else {
+            state.users[idx] = {
+              ...defaultUser,
+              ...state.users[idx],
+              password: state.users[idx].password || defaultUser.password,
+            };
           }
         }
 
@@ -164,7 +182,11 @@ class StoreService {
 
   // --- Users ---
   public getUsers() { return this.state?.users || mockUsers; }
-  public getUserByUsername(username: string) { return this.getUsers().find(u => u?.username === username); }
+  public getUserByUsername(username: string) {
+    if (!username) return undefined;
+    const clean = username.trim().toLowerCase();
+    return (this.getUsers() || []).find(u => u && u.username && u.username.trim().toLowerCase() === clean);
+  }
   public addUser(user: User) {
     if (!this.state.users) this.state.users = [];
     this.state.users.push(user);
