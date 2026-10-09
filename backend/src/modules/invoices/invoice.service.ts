@@ -2,7 +2,9 @@ import { AppDataSource } from '../../config/data-source';
 import { InvoiceEntity, InvoiceItemPayload } from './invoice.entity';
 import { InvoiceItemEntity } from './invoice-item.entity';
 import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
+import { ProductEntity } from '../products/product.entity';
 import { ProductBranchDataEntity } from '../products/product-branch-data.entity';
+import { CustomerEntity } from '../customers/customer.entity';
 import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
 
@@ -68,12 +70,12 @@ export class InvoiceService {
 
       // Process each invoice line item
       for (const itemPayload of data.items) {
-        let physicalItemId = itemPayload.physicalItemId && itemPayload.physicalItemId.trim() ? itemPayload.physicalItemId.trim() : '';
+        let physicalItemId: string | undefined = undefined;
         let physicalItem = null;
 
-        if (physicalItemId) {
+        if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
           physicalItem = await transactionalEntityManager.findOne(PhysicalItemEntity, {
-            where: { id: physicalItemId }
+            where: { id: itemPayload.physicalItemId.trim() }
           });
         }
         if (!physicalItem && itemPayload.productId) {
@@ -84,13 +86,25 @@ export class InvoiceService {
 
         if (physicalItem) {
           physicalItemId = physicalItem.id;
-        } else if (!physicalItemId) {
-          physicalItemId = `PHYS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+          physicalItem.status = 'sold';
+          await transactionalEntityManager.save(physicalItem);
+        }
+
+        // Safely check if productId exists in database to prevent FK constraint failure
+        let validProductId: string | undefined = undefined;
+        if (itemPayload.productId && itemPayload.productId.trim()) {
+          const targetProdId = itemPayload.productId.trim();
+          const prodExists = await transactionalEntityManager.findOne(ProductEntity, {
+            where: { id: targetProdId }
+          });
+          if (prodExists) {
+            validProductId = targetProdId;
+          }
         }
 
         // Fetch product cost for accurate historical profit tracking
-        const branchData = itemPayload.productId ? await transactionalEntityManager.findOne(ProductBranchDataEntity, {
-          where: { productId: itemPayload.productId, branchId: data.branchId || 'b1' },
+        const branchData = validProductId ? await transactionalEntityManager.findOne(ProductBranchDataEntity, {
+          where: { productId: validProductId, branchId: data.branchId || 'b1' },
         }) : null;
 
         const unitCost = itemPayload.unitCost !== undefined && itemPayload.unitCost !== null ? Number(itemPayload.unitCost) : Number(branchData?.cost || 0);
@@ -104,10 +118,18 @@ export class InvoiceService {
         computedTotalCost += lineCost;
         computedNetProfit += lineProfit;
 
+        // Auto-deduct stock quantity from branch data if product exists
+        if (validProductId) {
+          if (branchData) {
+            branchData.quantity = Math.max(0, Number(branchData.quantity || 0) - quantity);
+            await transactionalEntityManager.save(branchData);
+          }
+        }
+
         // Create relational InvoiceItem Entity
         const invoiceItem = transactionalEntityManager.create(InvoiceItemEntity, {
           invoiceId: id,
-          productId: itemPayload.productId || 'p1',
+          productId: validProductId,
           productName: itemPayload.productName || 'منتج',
           physicalItemId: physicalItemId,
           unitPrice,
@@ -145,6 +167,31 @@ export class InvoiceService {
       });
 
       await transactionalEntityManager.save(invoice);
+
+      // Automatically save/update customer in CustomerEntity database
+      if (data.customerPhone && data.customerPhone.trim()) {
+        try {
+          const custPhone = data.customerPhone.trim();
+          const custName = data.customerName?.trim() || 'عميل';
+          let cust = await transactionalEntityManager.findOne(CustomerEntity, {
+            where: [{ phone: custPhone }]
+          });
+          if (cust) {
+            if (custName && custName !== 'عميل') cust.name = custName;
+            await transactionalEntityManager.save(cust);
+          } else {
+            cust = transactionalEntityManager.create(CustomerEntity, {
+              id: data.customerId || `cust_${Date.now()}`,
+              name: custName,
+              phone: custPhone,
+              branchId: data.branchId || 'b1'
+            });
+            await transactionalEntityManager.save(cust);
+          }
+        } catch (e) {
+          console.warn('Could not auto-save customer during invoice creation:', e);
+        }
+      }
 
       // Safely update Employee Sales Count if employee exists
       if (data.employeeId) {
