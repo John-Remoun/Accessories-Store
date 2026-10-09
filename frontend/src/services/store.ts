@@ -72,38 +72,21 @@ class StoreService {
 
       // Sync Categories
       if (catList.status === 'fulfilled' && Array.isArray(catList.value)) {
-        if (catList.value.length > 0) {
-          this.state.categories = catList.value;
-        } else if (this.state.categories.length > 0) {
-          for (const cat of this.state.categories) {
-            api.createCategory(cat).catch(() => {});
-          }
-        }
+        this.state.categories = catList.value;
       }
 
       // Sync Products & Branch Data
       if (prodList.status === 'fulfilled' && Array.isArray(prodList.value)) {
-        if (prodList.value.length > 0) {
-          this.state.products = prodList.value;
-        } else if (this.state.products.length > 0) {
-          for (const prod of this.state.products) {
-            const bData = this.state.productBranchData.filter(bd => bd.productId === prod.id);
-            api.createProduct(prod, bData).catch(() => {});
-          }
-        }
+        this.state.products = prodList.value;
       }
 
       if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
-        if (branchDataList.value.length > 0) {
-          this.state.productBranchData = branchDataList.value;
-        }
+        this.state.productBranchData = branchDataList.value;
       }
 
       // Sync Physical Items
       if (physItems.status === 'fulfilled' && Array.isArray(physItems.value)) {
-        if (physItems.value.length > 0) {
-          this.state.physicalItems = physItems.value;
-        }
+        this.state.physicalItems = physItems.value;
       }
 
       this.saveState();
@@ -120,12 +103,12 @@ class StoreService {
         const state: AppState = {
           users: Array.isArray(parsed.users) && parsed.users.length > 0 ? parsed.users : mockUsers,
           branches: Array.isArray(parsed.branches) && parsed.branches.length > 0 ? parsed.branches : mockBranches,
-          categories: Array.isArray(parsed.categories) && parsed.categories.length > 0 ? parsed.categories : mockCategories,
-          products: Array.isArray(parsed.products) && parsed.products.length > 0 ? parsed.products : mockProducts,
-          productBranchData: Array.isArray(parsed.productBranchData) && parsed.productBranchData.length > 0 ? parsed.productBranchData : mockProductBranchData,
-          physicalItems: Array.isArray(parsed.physicalItems) && parsed.physicalItems.length > 0 ? parsed.physicalItems : mockPhysicalItems,
-          customers: Array.isArray(parsed.customers) ? parsed.customers : mockCustomers,
-          invoices: Array.isArray(parsed.invoices) ? parsed.invoices : mockInvoices,
+          categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+          products: Array.isArray(parsed.products) ? parsed.products : [],
+          productBranchData: Array.isArray(parsed.productBranchData) ? parsed.productBranchData : [],
+          physicalItems: Array.isArray(parsed.physicalItems) ? parsed.physicalItems : [],
+          customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+          invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
           fixedExpenses: Array.isArray(parsed.fixedExpenses) ? parsed.fixedExpenses : [],
           compositions: Array.isArray(parsed.compositions) ? parsed.compositions : [],
         };
@@ -140,7 +123,7 @@ class StoreService {
 
         return state;
       } catch (e) {
-        console.error('Failed to parse stored state, reverting to default mock data.', e);
+        console.error('Failed to parse stored state, reverting to clean state.', e);
       }
     }
     return this.getDefaultState();
@@ -150,12 +133,12 @@ class StoreService {
     return {
       users: mockUsers,
       branches: mockBranches,
-      categories: mockCategories,
-      products: mockProducts,
-      productBranchData: mockProductBranchData,
-      physicalItems: mockPhysicalItems,
-      customers: mockCustomers,
-      invoices: mockInvoices,
+      categories: [],
+      products: [],
+      productBranchData: [],
+      physicalItems: [],
+      customers: [],
+      invoices: [],
       fixedExpenses: [],
       compositions: [],
     };

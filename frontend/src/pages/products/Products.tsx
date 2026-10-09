@@ -1312,7 +1312,12 @@ export const Products = () => {
 
             <div className="max-h-60 overflow-y-auto space-y-2 pr-1 scrollbar-none">
               {categories.map((cat) => {
-                const productCount = products.filter(p => p.categoryId === cat.id).length;
+                const productCount = products.filter(p => {
+                  if (p.categoryId !== cat.id) return false;
+                  const bd = store.getProductBranchData(p.id, activeBranchId);
+                  const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === activeBranchId);
+                  return Boolean(bd || phys.length > 0);
+                }).length;
                 return (
                   <div 
                     key={cat.id} 

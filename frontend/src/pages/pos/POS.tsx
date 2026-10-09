@@ -391,7 +391,14 @@ export const POS = () => {
   };
 
   // Store data getters
-  const allProducts = store.getProducts();
+  const rawProducts = store.getProducts();
+  const allProducts = useMemo(() => {
+    return rawProducts.filter(p => {
+      const bd = store.getProductBranchData(p.id, currentBranchId);
+      const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === currentBranchId);
+      return Boolean(bd || phys.length > 0);
+    });
+  }, [rawProducts, currentBranchId]);
   const categoriesList = useMemo(() => store.getCategories(), []);
   const customers = store.getCustomers();
   const availablePhysicalItems = store.getPhysicalItemsByBranch(currentBranchId).filter(i => i.status === 'available');

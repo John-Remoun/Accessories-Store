@@ -2,13 +2,9 @@ import bcrypt from 'bcryptjs';
 import { AppDataSource } from '../config/data-source';
 import { UserEntity } from '../modules/users/user.entity';
 import { BranchEntity } from '../modules/branches/branch.entity';
-import { CategoryEntity } from '../modules/categories/category.entity';
-import { ProductEntity } from '../modules/products/product.entity';
-import { ProductBranchDataEntity } from '../modules/products/product-branch-data.entity';
-import { PhysicalItemEntity } from '../modules/physical-items/physical-item.entity';
 
 export async function seedDatabase() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding essential branches & super admin users...');
 
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
@@ -16,10 +12,6 @@ export async function seedDatabase() {
 
   const branchRepo = AppDataSource.getRepository(BranchEntity);
   const userRepo = AppDataSource.getRepository(UserEntity);
-  const categoryRepo = AppDataSource.getRepository(CategoryEntity);
-  const productRepo = AppDataSource.getRepository(ProductEntity);
-  const branchDataRepo = AppDataSource.getRepository(ProductBranchDataEntity);
-  const physicalItemRepo = AppDataSource.getRepository(PhysicalItemEntity);
 
   // 1. Seed Branches
   const initialBranches = [
@@ -59,136 +51,7 @@ export async function seedDatabase() {
     }
   }
 
-  // 3. Seed Categories
-  const initialCategories = [
-    { id: 'c1', nameAr: 'خاتم', nameEn: 'Rings' },
-    { id: 'c2', nameAr: 'سلسله', nameEn: 'Necklaces' },
-    { id: 'c3', nameAr: 'أساور', nameEn: 'Bracelets' },
-    { id: 'c4', nameAr: 'حلقان', nameEn: 'Earrings' },
-  ];
-
-  for (const cData of initialCategories) {
-    const existing = await categoryRepo.findOne({ where: { id: cData.id } });
-    if (!existing) {
-      const cat = categoryRepo.create(cData);
-      await categoryRepo.save(cat);
-    }
-  }
-
-  // 4. Seed Products
-  const initialProducts = [
-    {
-      id: 'p1',
-      nameAr: 'خاتم فضة عيار 925',
-      nameEn: 'Sterling Silver Ring 925',
-      sku: 'RNG-1001',
-      productCode: 'RNG-1001',
-      categoryId: 'c1',
-      material: 'فضة 925',
-      color: 'فضي',
-      size: 'أنواع',
-      isActive: true,
-    },
-    {
-      id: 'p2',
-      nameAr: 'سلسلة فضة أنيقة',
-      nameEn: 'Elegant Silver Necklace',
-      sku: 'NCK-2001',
-      productCode: 'NCK-2001',
-      categoryId: 'c2',
-      material: 'فضة 925',
-      color: 'فضي',
-      size: '45 سم',
-      isActive: true,
-    },
-    {
-      id: 'p3',
-      nameAr: 'إسورة فضة فاخرة',
-      nameEn: 'Luxury Silver Bracelet',
-      sku: 'BRC-3001',
-      productCode: 'BRC-3001',
-      categoryId: 'c3',
-      material: 'فضة 925',
-      color: 'فضي',
-      size: 'أنواع',
-      isActive: true,
-    },
-  ];
-
-  for (const pData of initialProducts) {
-    const existing = await productRepo.findOne({ where: { id: pData.id } });
-    if (!existing) {
-      const prod = productRepo.create(pData);
-      await productRepo.save(prod);
-    }
-  }
-
-  // 5. Seed Product Branch Data ONLY for El Maktab Branch (b4) for strict per-branch isolation
-  const initialBranchId = 'b4';
-  for (const pData of initialProducts) {
-    const existingBD = await branchDataRepo.findOne({ where: { productId: pData.id, branchId: initialBranchId } });
-    if (!existingBD) {
-      const bd = branchDataRepo.create({
-        productId: pData.id,
-        branchId: initialBranchId,
-        cost: 10,
-        price1: 25,
-        price1Label: 'قطاعي',
-        price2: 20,
-        price2Label: 'جملة',
-        price3: 18,
-        price3Label: 'سعر خاص VIP',
-        price4: 25,
-        price4Label: 'سعر 4',
-        minStock: 10,
-      });
-      await branchDataRepo.save(bd);
-    }
-  }
-
-  // 6. Seed Physical Items for El Maktab Branch (b4) if table is empty
-  const itemCount = await physicalItemRepo.count({ where: { branchId: 'b4' } });
-  if (itemCount === 0) {
-    const itemsToCreate: Partial<PhysicalItemEntity>[] = [];
-
-    // p1: 50 items
-    for (let i = 1; i <= 50; i++) {
-      itemsToCreate.push({
-        id: `QR-RNG-${i.toString().padStart(4, '0')}`,
-        productId: 'p1',
-        branchId: 'b4',
-        status: 'available',
-        serialNumber: i.toString(),
-      });
-    }
-
-    // p2: 50 items
-    for (let i = 1; i <= 50; i++) {
-      itemsToCreate.push({
-        id: `QR-NCK-${i.toString().padStart(4, '0')}`,
-        productId: 'p2',
-        branchId: 'b4',
-        status: 'available',
-        serialNumber: i.toString(),
-      });
-    }
-
-    // p3: 96 items
-    for (let i = 1; i <= 96; i++) {
-      itemsToCreate.push({
-        id: `QR-BRC-${i.toString().padStart(4, '0')}`,
-        productId: 'p3',
-        branchId: 'b4',
-        status: 'available',
-        serialNumber: i.toString(),
-      });
-    }
-
-    const itemEntities = itemsToCreate.map((item) => physicalItemRepo.create(item));
-    await physicalItemRepo.save(itemEntities);
-  }
-
-  console.log('✅ Seeding completed successfully!');
+  console.log('✅ Essential Seeding completed successfully (Branches & Super Admins ready)!');
 }
 
 if (require.main === module) {
@@ -199,4 +62,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
