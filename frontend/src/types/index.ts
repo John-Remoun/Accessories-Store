@@ -59,6 +59,7 @@ export interface ProductBranchData {
   price4: number;
   price4Label: string;
   minStock: number;
+  quantity?: number;
 }
 
 export interface PhysicalItem {

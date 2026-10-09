@@ -92,36 +92,29 @@ export class ProductService {
   }
 
   public async adjustStockQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
-    const availableItems = await this.physicalItemRepo.find({
-      where: { productId, branchId, status: 'available' },
-    });
-    const currentCount = availableItems.length;
-
-    if (targetQuantity > currentCount) {
-      const toAdd = targetQuantity - currentCount;
-      const allProductItems = await this.physicalItemRepo.find({ where: { productId } });
-      const existingCount = allProductItems.length;
-
-      const newItems: PhysicalItemEntity[] = [];
-      for (let i = 1; i <= toAdd; i++) {
-        const itemNumber = existingCount + i;
-        newItems.push(
-          this.physicalItemRepo.create({
-            id: `QR-${prefix}-${itemNumber.toString().padStart(4, '0')}`,
-            productId,
-            branchId,
-            status: 'available',
-            serialNumber: itemNumber.toString(),
-          })
-        );
-      }
-      await this.physicalItemRepo.save(newItems);
-    } else if (targetQuantity < currentCount) {
-      const toRemoveCount = currentCount - targetQuantity;
-      const itemsToRemove = availableItems.slice(0, toRemoveCount);
-      await this.physicalItemRepo.remove(itemsToRemove);
+    let bd = await this.branchDataRepo.findOne({ where: { productId, branchId } });
+    if (bd) {
+      bd.quantity = Number(targetQuantity);
+      await this.branchDataRepo.save(bd);
+    } else {
+      bd = this.branchDataRepo.create({ productId, branchId, quantity: Number(targetQuantity) });
+      await this.branchDataRepo.save(bd);
     }
 
-    return { success: true };
+    // Ensure 1 QR code barcode item exists in physical_items for scanning
+    const itemId = `QR-${prefix}`;
+    let item = await this.physicalItemRepo.findOne({ where: { productId, branchId } });
+    if (!item) {
+      item = this.physicalItemRepo.create({
+        id: itemId,
+        productId,
+        branchId,
+        status: 'available',
+        serialNumber: prefix,
+      });
+      await this.physicalItemRepo.save(item);
+    }
+
+    return { success: true, quantity: Number(targetQuantity) };
   }
 }

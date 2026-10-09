@@ -77,8 +77,8 @@ export const Products = () => {
       return;
     }
 
-    const availableItems = store.getPhysicalItemsByProduct(restockProduct.id).filter(i => i.branchId === activeBranchId && i.status === 'available');
-    const currentQty = availableItems.length;
+    const bd = store.getProductBranchData(restockProduct.id, activeBranchId);
+    const currentQty = Number(bd?.quantity || 0);
     const newTotalQty = currentQty + addedCount;
 
     const cleanPrefix = restockProduct.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
@@ -108,20 +108,19 @@ export const Products = () => {
 
   const openEditModal = (product: Product) => {
     const bd = store.getProductBranchData(product.id, activeBranchId);
-    const availableItems = store.getPhysicalItemsByProduct(product.id).filter(i => i.branchId === activeBranchId && i.status === 'available');
 
     setEditingProduct(product);
     setEpNameAr(product.nameAr);
     setEpNameEn(product.nameEn || '');
     setEpSku(product.sku);
     setEpCategory(product.categoryId);
-    setEpCost(bd?.cost || 0);
-    setEpPrice1(bd?.price1 || 0);
-    setEpPrice2(bd?.price2 || 0);
-    setEpPrice3(bd?.price3 || 0);
-    setEpPrice4(bd?.price4 || bd?.price1 || 0);
-    setEpQuantity(availableItems.length);
-    setEpMinStock(bd?.minStock ?? 10);
+    setEpCost(Number(bd?.cost) || 0);
+    setEpPrice1(Number(bd?.price1) || 0);
+    setEpPrice2(Number(bd?.price2) || 0);
+    setEpPrice3(Number(bd?.price3) || 0);
+    setEpPrice4(Number(bd?.price4) || Number(bd?.price1) || 0);
+    setEpQuantity(Number(bd?.quantity) || 0);
+    setEpMinStock(Number(bd?.minStock) ?? 10);
     setEditFormError('');
     setIsEditModalOpen(true);
   };
@@ -145,26 +144,28 @@ export const Products = () => {
       productCode: cleanSku,
     });
 
-    // 2. Update branch pricing & min stock
+    // 2. Update branch pricing & min stock & quantity
     const existingBranchData = store.getProductBranchData(editingProduct.id, activeBranchId);
+    const targetQty = Math.max(0, Number(epQuantity) || 0);
     store.updateProductBranchData({
       productId: editingProduct.id,
       branchId: activeBranchId,
-      cost: epCost,
-      price1: epPrice1,
+      cost: Number(epCost) || 0,
+      price1: Number(epPrice1) || 0,
       price1Label: existingBranchData?.price1Label || 'سعر 1',
-      price2: epPrice2 || epPrice1,
+      price2: Number(epPrice2) || Number(epPrice1) || 0,
       price2Label: existingBranchData?.price2Label || 'سعر 2',
-      price3: epPrice3 || epPrice1,
+      price3: Number(epPrice3) || Number(epPrice1) || 0,
       price3Label: existingBranchData?.price3Label || 'سعر 3',
-      price4: epPrice4 || epPrice1,
+      price4: Number(epPrice4) || Number(epPrice1) || 0,
       price4Label: existingBranchData?.price4Label || 'سعر 4',
-      minStock: epMinStock || 10,
+      minStock: Number(epMinStock) || 10,
+      quantity: targetQty,
     });
 
     // 3. Adjust quantity of physical items in this branch
     const cleanPrefix = cleanSku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
-    store.adjustProductBranchQuantity(editingProduct.id, activeBranchId, Math.max(0, epQuantity), cleanPrefix);
+    store.adjustProductBranchQuantity(editingProduct.id, activeBranchId, targetQty, cleanPrefix);
 
     // 4. Refresh state & close modal
     setProducts([...store.getProducts()]);
@@ -219,39 +220,33 @@ export const Products = () => {
 
   // Dynamic Per-Branch Inventory Stats
   const branchStats = useMemo(() => {
-    const allBranchItems = store.getPhysicalItemsByBranch(activeBranchId);
-    const totalPieces = allBranchItems.length;
-    const availablePieces = allBranchItems.filter(i => i.status === 'available').length;
-
-    // Calculate total financial inventory value (sum of cost price * available pieces in active branch)
-    let totalInventoryValue = 0;
-    allBranchItems.forEach(item => {
-      if (item.status === 'available') {
-        const bd = store.getProductBranchData(item.productId, activeBranchId);
-        totalInventoryValue += (Number(bd?.cost) || 0);
-      }
-    });
-
-    // Calculate count of products with low stock (available <= minStock)
     const branchProductsList = products.filter(p => {
       const bd = store.getProductBranchData(p.id, activeBranchId);
       const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === activeBranchId);
-      return bd || phys.length > 0;
+      return Boolean(bd || phys.length > 0);
     });
 
+    let totalPieces = 0;
+    let totalInventoryValue = 0;
     let lowStockCount = 0;
+
     branchProductsList.forEach(p => {
       const bd = store.getProductBranchData(p.id, activeBranchId);
-      const minStock = bd?.minStock ?? 10;
-      const availableCount = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === activeBranchId && i.status === 'available').length;
-      if (availableCount <= minStock) {
+      const qty = Number(bd?.quantity || 0);
+      const cost = Number(bd?.cost || 0);
+      const minStock = Number(bd?.minStock ?? 10);
+
+      totalPieces += qty;
+      totalInventoryValue += (cost * qty);
+
+      if (qty <= minStock) {
         lowStockCount++;
       }
     });
 
     return {
       totalPieces,
-      availablePieces,
+      availablePieces: totalPieces,
       lowStockCount,
       totalInventoryValue
     };

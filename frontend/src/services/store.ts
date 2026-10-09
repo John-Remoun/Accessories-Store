@@ -255,12 +255,20 @@ class StoreService {
     if (!this.state.productBranchData) this.state.productBranchData = [];
     const idx = this.state.productBranchData.findIndex(d => d?.productId === data.productId && d?.branchId === data.branchId);
     if (idx !== -1) {
-      this.state.productBranchData[idx] = data;
+      const existing = this.state.productBranchData[idx];
+      this.state.productBranchData[idx] = {
+        ...existing,
+        ...data,
+        quantity: data.quantity !== undefined ? Number(data.quantity) : Number(existing.quantity || 0)
+      };
     } else {
-      this.state.productBranchData.push(data);
+      this.state.productBranchData.push({
+        ...data,
+        quantity: Number(data.quantity || 0)
+      });
     }
     this.saveState();
-    api.updateBranchData(data).catch(err => console.warn('DB sync warning (updateBranchData):', err));
+    api.updateBranchData(data).catch(err => console.warn('DB sync warning (updateProductBranchData):', err));
   }
 
   public deleteProduct(id: string) {
@@ -272,27 +280,30 @@ class StoreService {
   }
 
   public adjustProductBranchQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
-    const availableItems = (this.state.physicalItems || []).filter(
-      i => i?.productId === productId && i?.branchId === branchId && i?.status === 'available'
-    );
-    const currentCount = availableItems.length;
-
-    if (targetQuantity > currentCount) {
-      const toAdd = targetQuantity - currentCount;
-      this.generatePhysicalItems(productId, branchId, toAdd, prefix);
-    } else if (targetQuantity < currentCount) {
-      const toRemoveCount = currentCount - targetQuantity;
-      let removed = 0;
-      this.state.physicalItems = (this.state.physicalItems || []).filter(item => {
-        if (item?.productId === productId && item?.branchId === branchId && item?.status === 'available' && removed < toRemoveCount) {
-          removed++;
-          return false;
-        }
-        return true;
+    const bd = this.getProductBranchData(productId, branchId);
+    const qty = Number(targetQuantity);
+    if (bd) {
+      bd.quantity = qty;
+    } else {
+      this.updateProductBranchData({
+        productId,
+        branchId,
+        cost: 0,
+        price1: 0,
+        price1Label: 'سعر 1',
+        price2: 0,
+        price2Label: 'سعر 2',
+        price3: 0,
+        price3Label: 'سعر 3',
+        price4: 0,
+        price4Label: 'سعر 4',
+        minStock: 10,
+        quantity: qty
       });
-      this.saveState();
-      api.adjustStock(productId, branchId, targetQuantity, prefix).catch(err => console.warn('DB sync warning (adjustStock):', err));
     }
+    this.generatePhysicalItems(productId, branchId, qty, prefix);
+    this.saveState();
+    api.adjustStock(productId, branchId, qty, prefix).catch(err => console.warn('DB sync warning (adjustStock):', err));
   }
 
   // --- Physical Items ---

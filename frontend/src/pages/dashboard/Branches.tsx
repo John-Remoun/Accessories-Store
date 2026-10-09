@@ -131,35 +131,37 @@ export const Branches = () => {
     return { cashTotal: netCashTotal, instapayTotal, vodafoneTotal };
   }, [bInvs, totalFixedExpenses]);
 
-  const physicalItems = store.getPhysicalItemsByBranch(branch.id);
-  const availableItems = physicalItems.filter(i => i.status === 'available');
   const allProducts = store.getProducts();
 
-  // Total Financial Cost Value of Inventory in Active Branch
-  const totalInventoryValue = useMemo(() => {
-    let sum = 0;
-    availableItems.forEach(item => {
-      const bd = store.getProductBranchData(item.productId, branch.id);
-      sum += (Number(bd?.cost) || 0);
-    });
-    return sum;
-  }, [availableItems, branch.id]);
-
-  const lowStockList = useMemo(() => {
-    const branchProducts = allProducts.filter(p => {
+  const branchProductsList = useMemo(() => {
+    return allProducts.filter(p => {
       const bd = store.getProductBranchData(p.id, branch.id);
       const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === branch.id);
       return Boolean(bd || phys.length > 0);
     });
-
-    return branchProducts.filter(p => {
-      const bd = store.getProductBranchData(p.id, branch.id);
-      const minStock = Number(bd?.minStock ?? 10);
-      const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === branch.id);
-      const availableCount = phys.filter(i => i.status === 'available').length;
-      return availableCount <= minStock;
-    });
   }, [allProducts, branch.id]);
+
+  const { totalInventoryValue, availablePiecesCount, lowStockList } = useMemo(() => {
+    let sumValue = 0;
+    let sumPieces = 0;
+    const lowStock: any[] = [];
+
+    branchProductsList.forEach(p => {
+      const bd = store.getProductBranchData(p.id, branch.id);
+      const qty = Number(bd?.quantity || 0);
+      const cost = Number(bd?.cost || 0);
+      const minStock = Number(bd?.minStock ?? 10);
+
+      sumPieces += qty;
+      sumValue += (cost * qty);
+
+      if (qty <= minStock) {
+        lowStock.push(p);
+      }
+    });
+
+    return { totalInventoryValue: sumValue, availablePiecesCount: sumPieces, lowStockList: lowStock };
+  }, [branchProductsList, branch.id]);
 
   // Calendar State for Branch Dashboard
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
@@ -415,7 +417,7 @@ export const Branches = () => {
                 </div>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className="text-2xl sm:text-3xl font-extrabold text-cyan-400 font-mono">
-                    {availableItems.length}
+                    {availablePiecesCount}
                   </span>
                   <span className="text-xs font-bold text-muted-foreground">قطعة</span>
                 </div>
