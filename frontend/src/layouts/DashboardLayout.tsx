@@ -10,10 +10,12 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/ui/button';
 import { store } from '../services/store';
+import { useStoreSync } from '../hooks/useStoreSync';
 import darkLogo from '../assets/dark-logo.png';
 import lightLogo from '../assets/light-logo.png';
 
 export const DashboardLayout = () => {
+  useStoreSync();
   const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
