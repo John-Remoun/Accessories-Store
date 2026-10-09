@@ -1,10 +1,12 @@
 import { store } from '../../services/store';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { Card } from '../../components/ui/card';
 import { Sparkles, Package, AlertTriangle } from 'lucide-react';
 
 export const Inventory = () => {
+  useStoreSync();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const products = store.getProducts();

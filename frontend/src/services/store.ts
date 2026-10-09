@@ -236,25 +236,40 @@ class StoreService {
     const clean = username.trim().toLowerCase();
     return (this.getUsers() || []).find(u => u && u.username && u.username.trim().toLowerCase() === clean);
   }
-  public addUser(user: User) {
+  public async addUser(user: User) {
     if (!this.state.users) this.state.users = [];
     this.state.users.push(user);
     this.saveState();
-    api.createUser(user).catch(err => console.warn('DB sync warning (createUser):', err));
+    try {
+      await api.createUser(user);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (createUser):', err);
+    }
   }
-  public updateUser(id: string, updates: Partial<User>) {
+  public async updateUser(id: string, updates: Partial<User>) {
     const users = this.getUsers();
     const idx = users.findIndex(u => u?.id === id);
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates };
       this.saveState();
-      api.updateUser(id, updates).catch(err => console.warn('DB sync warning (updateUser):', err));
+      try {
+        await api.updateUser(id, updates);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (updateUser):', err);
+      }
     }
   }
-  public deleteUser(id: string) {
+  public async deleteUser(id: string) {
     this.state.users = (this.state.users || []).filter(u => u?.id !== id);
     this.saveState();
-    api.deleteUser(id).catch(err => console.warn('DB sync warning (deleteUser):', err));
+    try {
+      await api.deleteUser(id);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (deleteUser):', err);
+    }
   }
 
   // --- Branches ---
@@ -268,78 +283,118 @@ class StoreService {
     return list;
   }
   public getBranch(id: string) { return this.getBranches().find(b => b?.id === id); }
-  public addBranch(branch: Branch) {
+  public async addBranch(branch: Branch) {
     if (!this.state.branches) this.state.branches = [];
     this.state.branches.push(branch);
     this.saveState();
-    api.createBranch(branch).catch(err => console.warn('DB sync warning (createBranch):', err));
+    try {
+      await api.createBranch(branch);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (createBranch):', err);
+    }
   }
-  public updateBranch(id: string, updates: Partial<Branch>) {
+  public async updateBranch(id: string, updates: Partial<Branch>) {
     const branches = this.getBranches();
     const idx = branches.findIndex(b => b?.id === id);
     if (idx !== -1) {
       branches[idx] = { ...branches[idx], ...updates };
       this.saveState();
-      api.updateBranch(id, updates).catch(err => console.warn('DB sync warning (updateBranch):', err));
+      try {
+        await api.updateBranch(id, updates);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (updateBranch):', err);
+      }
     }
   }
-  public deleteBranch(id: string) {
+  public async deleteBranch(id: string) {
     this.state.branches = (this.state.branches || []).filter(b => b?.id !== id);
     this.saveState();
-    api.deleteBranch(id).catch(err => console.warn('DB sync warning (deleteBranch):', err));
+    try {
+      await api.deleteBranch(id);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (deleteBranch):', err);
+    }
   }
 
   // --- Categories ---
   public getCategories() { return this.state?.categories || []; }
-  public addCategory(cat: Category) {
+  public async addCategory(cat: Category) {
     if (!this.state.categories) this.state.categories = [];
     this.state.categories.push(cat);
     this.saveState();
-    api.createCategory(cat).catch(err => console.warn('DB sync warning (createCategory):', err));
+    try {
+      await api.createCategory(cat);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (createCategory):', err);
+    }
   }
-  public updateCategory(id: string, nameAr: string) {
+  public async updateCategory(id: string, nameAr: string) {
     const cat = (this.state.categories || []).find(c => c?.id === id);
     if (cat) {
       cat.nameAr = nameAr;
       cat.nameEn = nameAr;
       this.saveState();
-      api.updateCategory(id, nameAr).catch(err => console.warn('DB sync warning (updateCategory):', err));
+      try {
+        await api.updateCategory(id, nameAr);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (updateCategory):', err);
+      }
     }
   }
-  public deleteCategory(id: string) {
+  public async deleteCategory(id: string) {
     const linkedProductsCount = (this.state.products || []).filter(p => p?.categoryId === id).length;
     if (linkedProductsCount > 0) {
       throw new Error(`لا يمكن حذف هذه الفئة لأنها تحتوي على ${linkedProductsCount} منتج مرتبط بها! يرجى نقل أو حذف المنتجات أولاً.`);
     }
     this.state.categories = (this.state.categories || []).filter(c => c?.id !== id);
     this.saveState();
-    api.deleteCategory(id).catch(err => console.warn('DB sync warning (deleteCategory):', err));
+    try {
+      await api.deleteCategory(id);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (deleteCategory):', err);
+    }
   }
 
   // --- Products & Branch Data ---
   public getProducts() { return this.state?.products || []; }
   public getProduct(id: string) { return this.getProducts().find(p => p?.id === id); }
-  public addProduct(product: Product, branchDataList: ProductBranchData[]) {
+  public async addProduct(product: Product, branchDataList: ProductBranchData[]) {
     if (!this.state.products) this.state.products = [];
     if (!this.state.productBranchData) this.state.productBranchData = [];
     this.state.products.push(product);
     this.state.productBranchData.push(...branchDataList);
     this.saveState();
-    api.createProduct(product, branchDataList).catch(err => console.warn('DB sync warning (createProduct):', err));
+    try {
+      await api.createProduct(product, branchDataList);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (createProduct):', err);
+    }
   }
-  public updateProduct(id: string, updates: Partial<Product>) {
+  public async updateProduct(id: string, updates: Partial<Product>) {
     const prods = this.getProducts();
     const idx = prods.findIndex(p => p?.id === id);
     if (idx !== -1) {
       prods[idx] = { ...prods[idx], ...updates };
       this.saveState();
-      api.updateProduct(id, updates).catch(err => console.warn('DB sync warning (updateProduct):', err));
+      try {
+        await api.updateProduct(id, updates);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (updateProduct):', err);
+      }
     }
   }
   public getProductBranchData(productId: string, branchId: string) {
     return (this.state?.productBranchData || []).find(d => d?.productId === productId && d?.branchId === branchId);
   }
-  public updateProductBranchData(data: ProductBranchData) {
+  public async updateProductBranchData(data: ProductBranchData) {
     if (!this.state.productBranchData) this.state.productBranchData = [];
     const idx = this.state.productBranchData.findIndex(d => d?.productId === data.productId && d?.branchId === data.branchId);
     let updatedData: ProductBranchData;
@@ -369,15 +424,25 @@ class StoreService {
       this.state.productBranchData.push(updatedData);
     }
     this.saveState();
-    api.updateBranchData(updatedData).catch(err => console.warn('DB sync warning (updateProductBranchData):', err));
+    try {
+      await api.updateBranchData(updatedData);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (updateProductBranchData):', err);
+    }
   }
 
-  public deleteProduct(id: string) {
+  public async deleteProduct(id: string) {
     this.state.products = (this.state.products || []).filter(p => p?.id !== id);
     this.state.productBranchData = (this.state.productBranchData || []).filter(d => d?.productId !== id);
     this.state.physicalItems = (this.state.physicalItems || []).filter(i => i?.productId !== id);
     this.saveState();
-    api.deleteProduct(id).catch(err => console.warn('DB sync warning (deleteProduct):', err));
+    try {
+      await api.deleteProduct(id);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (deleteProduct):', err);
+    }
   }
 
   public async adjustProductBranchQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {

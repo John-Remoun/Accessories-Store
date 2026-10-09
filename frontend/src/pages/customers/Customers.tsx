@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -20,6 +21,7 @@ export interface CustomerRecord {
 }
 
 export const Customers = () => {
+  useStoreSync();
   const { user } = useAuth();
   const location = useLocation();
 

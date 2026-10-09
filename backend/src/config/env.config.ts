@@ -17,8 +17,8 @@ export const env = {
   jwt: {
     accessSecret: process.env.JWT_ACCESS_SECRET || 'access_token_secret_key_accessories_store_2026',
     refreshSecret: process.env.JWT_REFRESH_SECRET || 'refresh_token_secret_key_accessories_store_2026',
-    accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '1d',
-    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '365d',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '365d',
   },
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  corsOrigin: process.env.CORS_ORIGIN || '*',
 };

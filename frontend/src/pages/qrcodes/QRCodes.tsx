@@ -6,9 +6,11 @@ import { Card, CardContent } from '../../components/ui/card';
 import { Printer, Filter } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useStoreSync } from '../../hooks/useStoreSync';
 import { CustomSelect } from '../../components/ui/CustomSelect';
 
 export const QRCodes = () => {
+  useStoreSync();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
