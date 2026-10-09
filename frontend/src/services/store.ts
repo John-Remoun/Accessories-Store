@@ -263,21 +263,34 @@ class StoreService {
   public updateProductBranchData(data: ProductBranchData) {
     if (!this.state.productBranchData) this.state.productBranchData = [];
     const idx = this.state.productBranchData.findIndex(d => d?.productId === data.productId && d?.branchId === data.branchId);
+    let updatedData: ProductBranchData;
     if (idx !== -1) {
       const existing = this.state.productBranchData[idx];
-      this.state.productBranchData[idx] = {
+      updatedData = {
         ...existing,
         ...data,
+        cost: data.cost !== undefined ? Number(data.cost) : Number(existing.cost || 0),
+        price1: data.price1 !== undefined ? Number(data.price1) : Number(existing.price1 || 0),
+        price2: data.price2 !== undefined ? Number(data.price2) : Number(existing.price2 || 0),
+        price3: data.price3 !== undefined ? Number(data.price3) : Number(existing.price3 || 0),
+        price4: data.price4 !== undefined ? Number(data.price4) : Number(existing.price4 || 0),
         quantity: data.quantity !== undefined ? Number(data.quantity) : Number(existing.quantity || 0)
       };
+      this.state.productBranchData[idx] = updatedData;
     } else {
-      this.state.productBranchData.push({
+      updatedData = {
         ...data,
+        cost: Number(data.cost || 0),
+        price1: Number(data.price1 || 0),
+        price2: Number(data.price2 || 0),
+        price3: Number(data.price3 || 0),
+        price4: Number(data.price4 || 0),
         quantity: Number(data.quantity || 0)
-      });
+      };
+      this.state.productBranchData.push(updatedData);
     }
     this.saveState();
-    api.updateBranchData(data).catch(err => console.warn('DB sync warning (updateProductBranchData):', err));
+    api.updateBranchData(updatedData).catch(err => console.warn('DB sync warning (updateProductBranchData):', err));
   }
 
   public deleteProduct(id: string) {
@@ -293,6 +306,7 @@ class StoreService {
     const qty = Number(targetQuantity);
     if (bd) {
       bd.quantity = qty;
+      this.saveState();
     } else {
       this.updateProductBranchData({
         productId,
@@ -311,7 +325,6 @@ class StoreService {
       });
     }
     this.generatePhysicalItems(productId, branchId, qty, prefix);
-    this.saveState();
     api.adjustStock(productId, branchId, qty, prefix).catch(err => console.warn('DB sync warning (adjustStock):', err));
   }
 
