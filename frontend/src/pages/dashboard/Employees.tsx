@@ -233,14 +233,15 @@ export const Employees = () => {
 
       {/* ADD EMPLOYEE MODAL */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="bg-card border-border sm:max-w-md rounded-3xl" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="font-bold text-lg text-foreground">
-              إضافة موظف جديد
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-md bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl flex flex-col" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
+            <DialogTitle className="font-bold text-lg text-foreground flex items-center gap-2">
+              <UserPlus size={20} className="text-amber-500" />
+              <span>إضافة موظف جديد لـ {activeBranchName}</span>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
+          <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto">
             {addError && (
               <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl">
                 {addError}
@@ -248,42 +249,48 @@ export const Employees = () => {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">الاسم الكامل للموظف</Label>
+              <Label className="text-xs font-bold text-foreground">
+                الاسم الكامل للموظف <span className="text-rose-500">*</span>
+              </Label>
               <Input 
                 value={name} 
                 onChange={e => { setName(e.target.value); setAddError(''); }} 
                 placeholder="مثال: كريم محمود" 
-                className="h-11 rounded-xl text-xs"
+                className="h-11 rounded-xl text-xs bg-background"
               />
             </div>
             
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">اسم المستخدم (لالتسجيل والدخول)</Label>
+              <Label className="text-xs font-bold text-foreground">
+                اسم المستخدم (للتسجيل والدخول) <span className="text-rose-500">*</span>
+              </Label>
               <Input 
                 value={username} 
                 onChange={e => { setUsername(e.target.value); setAddError(''); }} 
                 placeholder="مثال: kareem_cairo" 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">كلمة المرور / الباسورد للموظف</Label>
+              <Label className="text-xs font-bold text-foreground">
+                كلمة المرور / الباسورد للموظف <span className="text-rose-500">*</span>
+              </Label>
               <Input 
                 type="password"
                 value={password} 
                 onChange={e => { setPassword(e.target.value); setAddError(''); }} 
                 placeholder="••••••••" 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 border-t border-border/80 pt-4">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl text-xs font-bold">
+          <DialogFooter className="p-4 border-t border-border flex justify-end gap-2 bg-card shrink-0">
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl text-xs font-bold border-border">
               إلغاء
             </Button>
-            <Button onClick={handleSaveEmployee} className="bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold">
+            <Button onClick={handleSaveEmployee} className="bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold px-5">
               إضافة الموظف الآن
             </Button>
           </DialogFooter>
@@ -292,15 +299,15 @@ export const Employees = () => {
 
       {/* EDIT EMPLOYEE MODAL */}
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
-        <DialogContent className="bg-card border-border sm:max-w-md rounded-3xl" dir="rtl">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-md bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl flex flex-col" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
             <DialogTitle className="font-bold text-lg text-foreground flex items-center gap-2">
               <Pencil size={18} className="text-amber-500" />
               <span>تعديل بيانات الموظف</span>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
+          <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto">
             {editError && (
               <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl">
                 {editError}
@@ -308,39 +315,39 @@ export const Employees = () => {
             )}
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">الاسم الكامل للموظف</Label>
+              <Label className="text-xs font-bold text-foreground">الاسم الكامل للموظف <span className="text-rose-500">*</span></Label>
               <Input 
                 value={editName} 
                 onChange={e => { setEditName(e.target.value); setEditError(''); }} 
-                className="h-11 rounded-xl text-xs font-bold"
+                className="h-11 rounded-xl text-xs font-bold bg-background"
               />
             </div>
             
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">اسم المستخدم</Label>
+              <Label className="text-xs font-bold text-foreground">اسم المستخدم <span className="text-rose-500">*</span></Label>
               <Input 
                 value={editUsername} 
                 onChange={e => { setEditUsername(e.target.value); setEditError(''); }} 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">تغيير كلمة المرور / الباسورد</Label>
+              <Label className="text-xs font-bold text-foreground">تغيير كلمة المرور / الباسورد <span className="text-rose-500">*</span></Label>
               <Input 
                 type="text"
                 value={editPassword} 
                 onChange={e => { setEditPassword(e.target.value); setEditError(''); }} 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 border-t border-border/80 pt-4">
-            <Button variant="outline" onClick={() => setEditingUser(null)} className="rounded-xl text-xs font-bold">
+          <DialogFooter className="p-4 border-t border-border flex justify-end gap-2 bg-card shrink-0">
+            <Button variant="outline" onClick={() => setEditingUser(null)} className="rounded-xl text-xs font-bold border-border">
               إلغاء
             </Button>
-            <Button onClick={handleSaveEditEmployee} className="bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold">
+            <Button onClick={handleSaveEditEmployee} className="bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold px-5">
               حفظ التعديلات
             </Button>
           </DialogFooter>
@@ -349,37 +356,35 @@ export const Employees = () => {
 
       {/* POPUP DELETE CONFIRMATION MODAL */}
       <Dialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
-        <DialogContent className="max-w-md border-border/80 bg-card p-6 shadow-2xl rounded-3xl" dir="rtl">
-          <DialogHeader className="space-y-3">
-            <div className="flex items-center gap-3 text-rose-500">
-              <div className="p-3 bg-rose-500/10 rounded-2xl">
-                <AlertTriangle size={24} />
-              </div>
-              <DialogTitle className="text-xl font-bold text-foreground">تأكيد حذف الموظف</DialogTitle>
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-md bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl flex flex-col" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-rose-500/10 shrink-0">
+            <div className="flex items-center gap-2.5 text-rose-500">
+              <AlertTriangle size={22} className="shrink-0" />
+              <DialogTitle className="text-lg font-bold text-foreground">تأكيد حذف الموظف</DialogTitle>
             </div>
           </DialogHeader>
 
-          <div className="py-3 space-y-2">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              هل أنت متأكد من حذف الموظف <strong className="text-foreground">{deletingUser?.name}</strong>؟
+          <div className="p-4 sm:p-6 space-y-3 flex-1 overflow-y-auto">
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              هل أنت متأكد من حذف الموظف <strong className="text-foreground font-bold">{deletingUser?.name}</strong>؟
             </p>
-            <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+            <p className="text-xs text-rose-400 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 font-bold">
               ⚠️ لن يتمكن هذا الموظف من تسجيل الدخول إلى النظام مرة أخرى بعد الحذف.
             </p>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="p-4 border-t border-border flex justify-end gap-2 bg-card shrink-0">
             <Button
               variant="outline"
               onClick={() => setDeletingUser(null)}
-              className="rounded-xl border-border"
+              className="rounded-xl border-border text-xs font-bold"
             >
               إلغاء
             </Button>
             <Button
               variant="destructive"
               onClick={handleConfirmDelete}
-              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl gap-2 font-bold"
+              className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl gap-2 text-xs font-bold px-5"
             >
               <Trash2 size={16} />
               <span>نعم، إمسح الموظف</span>
