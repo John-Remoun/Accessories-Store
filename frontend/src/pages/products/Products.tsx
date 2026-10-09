@@ -1461,7 +1461,7 @@ export const Products = () => {
                 <div className="text-left">
                   <span className="text-[10px] text-muted-foreground block font-bold">المخزون الحالي بالفرع:</span>
                   <span className="font-mono font-bold text-emerald-500 text-sm">
-                    {store.getPhysicalItemsByProduct(restockProduct.id).filter(i => i.branchId === activeBranchId && i.status === 'available').length} قطعة
+                    {Number(store.getProductBranchData(restockProduct.id, activeBranchId)?.quantity || 0)} قطعة
                   </span>
                 </div>
               </div>
@@ -1500,7 +1500,7 @@ export const Products = () => {
                 <div className="bg-card p-3 rounded-xl border border-emerald-500/30 text-center font-bold text-xs text-foreground flex items-center justify-center gap-2">
                   <span>الإجمالي الجديد بعد الإضافة:</span>
                   <span className="font-mono text-emerald-500 font-extrabold text-sm">
-                    {store.getPhysicalItemsByProduct(restockProduct.id).filter(i => i.branchId === activeBranchId && i.status === 'available').length + restockAmount} قطعة
+                    {Number(store.getProductBranchData(restockProduct.id, activeBranchId)?.quantity || 0) + restockAmount} قطعة
                   </span>
                 </div>
               )}
