@@ -74,6 +74,7 @@ export interface InvoiceItem {
   physicalItemId: string;
   productId: string;
   unitPrice: number;
+  quantity?: number;
 }
 
 export interface Invoice {

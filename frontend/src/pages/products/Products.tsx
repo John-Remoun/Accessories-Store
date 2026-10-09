@@ -28,10 +28,17 @@ export const Products = () => {
 
   // Dynamic active branch state with URL parameter & localStorage sync
   const [activeBranchId, setActiveBranchId] = useState<string>(() => {
+    if (user && user.role !== 'admin' && user.branchId) {
+      return user.branchId;
+    }
     return localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
   });
 
   useEffect(() => {
+    if (user && user.role !== 'admin' && user.branchId) {
+      setActiveBranchId(user.branchId);
+      return;
+    }
     const params = new URLSearchParams(location.search);
     const bId = params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
     setActiveBranchId(bId);
@@ -39,7 +46,7 @@ export const Products = () => {
     if (params.get('lowStock') === 'true') {
       setLowStockOnlyFilter(true);
     }
-  }, [location.search, user?.branchId]);
+  }, [location.search, user]);
 
   const [products, setProducts] = useState<Product[]>(() => store.getProducts());
   const [categories, setCategories] = useState<Category[]>(() => store.getCategories());

@@ -264,7 +264,10 @@ export const MasterDashboard = () => {
       });
     });
 
-    const soldItemsCount = allPhysicalItems.filter(i => i.status === 'sold').length;
+    const soldItemsCount = allInvoices.reduce((acc, inv) => {
+      const invQty = (inv.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+      return acc + invQty;
+    }, 0);
     const totalItemsCount = availableItemsCount + soldItemsCount;
 
     return {
@@ -277,7 +280,7 @@ export const MasterDashboard = () => {
       totalItemsCount,
       totalInvoicesCount: allInvoices.length,
     };
-  }, [allInvoices, allProducts, branches, allPhysicalItems]);
+  }, [allInvoices, allProducts, branches]);
 
   // Low Stock Items Summary per branch
   const lowStockSummary = useMemo(() => {
@@ -333,7 +336,10 @@ export const MasterDashboard = () => {
         }
       });
 
-      const bSoldItems = store.getPhysicalItemsByBranch(b.id).filter(i => i.status === 'sold');
+      const bSoldItemsCount = bInvs.reduce((acc, inv) => {
+        const invQty = (inv.items || []).reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+        return acc + invQty;
+      }, 0);
       const bStaff = allUsers.filter(u => u.branchId === b.id);
 
       return {
@@ -347,7 +353,7 @@ export const MasterDashboard = () => {
         netProfit: bNetProfit,
         profitMargin: bProfitMargin,
         availableStock: bAvailablePieces,
-        soldCount: bSoldItems.length,
+        soldCount: bSoldItemsCount,
         invoicesCount: bInvs.length,
         staffCount: bStaff.length,
       };
@@ -1457,14 +1463,15 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
 
       {/* MODAL: ADD NEW EMPLOYEE */}
       <Dialog open={isAddEmployeeOpen} onOpenChange={setIsAddEmployeeOpen}>
-        <DialogContent className="bg-card border-border sm:max-w-md rounded-3xl" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="font-bold text-lg text-foreground">
-              إضافة موظف جديد بالنظام
+        <DialogContent className="bg-card border-border sm:max-w-md rounded-3xl p-6 max-h-[92vh] overflow-y-auto scrollbar-none" dir="rtl">
+          <DialogHeader className="pb-2 border-b border-border/60">
+            <DialogTitle className="font-bold text-lg text-foreground flex items-center gap-2">
+              <UserPlus className="text-amber-500 w-5 h-5" />
+              <span>إضافة موظف جديد بالنظام</span>
             </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleAddEmployeeSubmit} className="space-y-4 py-3">
+          <form onSubmit={handleAddEmployeeSubmit} className="space-y-4 pt-3">
             {formError && (
               <div className="bg-destructive/15 border border-destructive/30 text-destructive text-xs font-bold p-3 rounded-xl flex items-center gap-2">
                 <AlertCircle size={16} className="shrink-0" />
@@ -1485,7 +1492,7 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                 value={empName} 
                 onChange={e => setEmpName(e.target.value)} 
                 placeholder="مثال: كريم محمود" 
-                className="h-11 rounded-xl text-xs"
+                className="h-11 rounded-xl text-xs bg-background"
               />
             </div>
             
@@ -1495,7 +1502,7 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                 value={empUsername} 
                 onChange={e => setEmpUsername(e.target.value)} 
                 placeholder="مثال: kareem_cairo" 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
 
@@ -1506,11 +1513,9 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                 value={empPassword} 
                 onChange={e => setEmpPassword(e.target.value)} 
                 placeholder="••••••••" 
-                className="h-11 rounded-xl text-xs font-mono"
+                className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
-
-
 
             {/* SELECTABLE BRANCH DROPDOWN (ADMIN CHOOSES THE BRANCH) */}
             <div className="space-y-2">
@@ -1518,9 +1523,10 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
               <CustomSelect
                 value={empBranchId}
                 onChange={(val) => setEmpBranchId(val)}
-                options={branches.map(b => ({
+                options={store.getBranches().map(b => ({
                   value: b.id,
-                  label: b.nameAr
+                  label: b.nameAr,
+                  sublabel: b.location
                 }))}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
@@ -1528,11 +1534,11 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
               </p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4 border-t border-border/80">
-              <Button type="button" variant="outline" onClick={() => setIsAddEmployeeOpen(false)} className="rounded-xl text-xs font-bold">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-border/80">
+              <Button type="button" variant="outline" onClick={() => setIsAddEmployeeOpen(false)} className="rounded-xl text-xs font-bold h-11 px-5">
                 إلغاء
               </Button>
-              <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-black rounded-xl text-xs font-bold">
+              <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs h-11 px-5 shadow-sm">
                 إضافة الموظف الآن
               </Button>
             </div>

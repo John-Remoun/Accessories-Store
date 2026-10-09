@@ -83,6 +83,20 @@ export const Customers = () => {
     const favoriteCustomers = store.getCustomers().filter(fc => !fc.branchId || fc.branchId === activeBranchId);
     const customerMap = new Map<string, CustomerRecord>();
 
+    const isFavCustomer = (rawPhone: string, rawName: string, customerId?: string) => {
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      const cleanName = rawName.trim().toLowerCase();
+      return favoriteCustomers.some(fc => {
+        const fcPhone = (fc.phone || '').replace(/\D/g, '');
+        const fcName = (fc.name || '').trim().toLowerCase();
+        return (
+          (customerId && fc.id === customerId) ||
+          (cleanPhone && fcPhone && (cleanPhone === fcPhone || cleanPhone.endsWith(fcPhone) || fcPhone.endsWith(cleanPhone))) ||
+          (cleanName && fcName && cleanName === fcName)
+        );
+      });
+    };
+
     // 1. Process Branch Invoices
     branchInvoices.forEach(inv => {
       const rawPhone = (inv.customerPhone || '').trim();
@@ -92,10 +106,7 @@ export const Customers = () => {
       const key = rawPhone || rawName;
       if (deletedKeys[key]) return; // Skip deleted customers
 
-      const isFav = favoriteCustomers.some(fc => 
-        (rawPhone && fc.phone.trim() === rawPhone) || 
-        fc.name.trim().toLowerCase() === rawName.toLowerCase()
-      );
+      const isFav = isFavCustomer(rawPhone, rawName, inv.customerId);
 
       const existing = customerMap.get(key);
       if (existing) {
@@ -120,17 +131,25 @@ export const Customers = () => {
 
     // 2. Add Favorite Customers who belong to this branch and might not have invoices in this branch yet
     favoriteCustomers.forEach(fc => {
-      const key = fc.phone.trim() || fc.name.trim();
-      if (key && !customerMap.has(key) && !deletedKeys[key]) {
-        customerMap.set(key, {
-          id: fc.id,
-          name: fc.name,
-          phone: fc.phone,
-          invoiceCount: 0,
-          totalSpent: 0,
-          lastVisit: new Date().toISOString(),
-          isFavorite: true
-        });
+      const key = (fc.phone || '').trim() || (fc.name || '').trim();
+      if (key && !deletedKeys[key]) {
+        const existing = Array.from(customerMap.values()).find(
+          c => (fc.phone && c.phone.replace(/\D/g, '') === fc.phone.replace(/\D/g, '')) ||
+               (fc.name && c.name.trim().toLowerCase() === fc.name.trim().toLowerCase())
+        );
+        if (existing) {
+          existing.isFavorite = true;
+        } else {
+          customerMap.set(key, {
+            id: fc.id,
+            name: fc.name,
+            phone: fc.phone,
+            invoiceCount: 0,
+            totalSpent: 0,
+            lastVisit: new Date().toISOString(),
+            isFavorite: true
+          });
+        }
       }
     });
 

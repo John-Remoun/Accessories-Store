@@ -209,7 +209,15 @@ class StoreService {
   }
 
   // --- Branches ---
-  public getBranches() { return this.state?.branches || mockBranches; }
+  public getBranches() {
+    const list = [...(this.state?.branches || mockBranches)];
+    for (const mb of mockBranches) {
+      if (!list.some(b => b?.id === mb.id)) {
+        list.push(mb);
+      }
+    }
+    return list;
+  }
   public getBranch(id: string) { return this.getBranches().find(b => b?.id === id); }
   public addBranch(branch: Branch) {
     if (!this.state.branches) this.state.branches = [];

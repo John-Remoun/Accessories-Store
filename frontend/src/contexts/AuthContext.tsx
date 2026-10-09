@@ -35,6 +35,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const foundUser = store.getUsers().find(u => u.id === storedUserId);
       if (foundUser) {
         setUser(foundUser);
+        if (foundUser.branchId) {
+          localStorage.setItem('last_active_branch', foundUser.branchId);
+        }
         obtainBackendToken(foundUser.username, foundUser.password || '00000000').then(() => {
           store.syncWithBackend();
         });
@@ -80,6 +83,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(loggedUser);
         localStorage.setItem('mock_auth_id', loggedUser.id);
+        if (loggedUser.branchId) {
+          localStorage.setItem('last_active_branch', loggedUser.branchId);
+        }
         await store.syncWithBackend();
         return true;
       }
@@ -91,13 +97,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const foundUser = store.getUserByUsername(cleanUsername);
     if (foundUser) {
       const expectedPassword = foundUser.password || '00000000';
-      if (password && password !== expectedPassword && expectedPassword !== 'password') {
-        if (password !== '00000000' && password !== '12344321') {
-          return false;
-        }
+      if (password && password !== expectedPassword) {
+        return false;
       }
       setUser(foundUser);
       localStorage.setItem('mock_auth_id', foundUser.id);
+      if (foundUser.branchId) {
+        localStorage.setItem('last_active_branch', foundUser.branchId);
+      }
       await obtainBackendToken(cleanUsername, password || '00000000');
       await store.syncWithBackend();
       return true;

@@ -270,6 +270,20 @@ export const ProductCompositions = () => {
       store.generatePhysicalItems(newAssembledProduct.id, activeBranchId, compQuantity, cleanPrefix);
     }
 
+    // Deduct internal raw material components from active branch stock
+    const assembledMultiplier = compQuantity > 0 ? compQuantity : 1;
+    internalItems.forEach(item => {
+      if (item.productId) {
+        const bd = store.getProductBranchData(item.productId, activeBranchId);
+        const currentQty = Number(bd?.quantity || 0);
+        const consumedQty = (item.quantity || 1) * assembledMultiplier;
+        const newQty = Math.max(0, currentQty - consumedQty);
+        const prod = store.getProduct(item.productId);
+        const prefix = prod?.sku || 'RAW';
+        store.adjustProductBranchQuantity(item.productId, activeBranchId, newQty, prefix);
+      }
+    });
+
     // 2. Create composition record
     const newComp: ProductComposition = {
       id: `comp_${Date.now()}`,

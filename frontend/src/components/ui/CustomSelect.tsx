@@ -88,7 +88,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       {/* Popover Dropdown */}
       {isOpen && (
         <div
-          className={`absolute z-50 top-full mt-1.5 right-0 left-0 bg-card border border-border/90 rounded-2xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto ${dropdownClassName}`}
+          className={`absolute z-[110] top-full mt-1.5 right-0 left-0 bg-card border border-border/90 rounded-2xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto ${dropdownClassName}`}
         >
           {options.length === 0 ? (
             <div className="p-3 text-xs text-muted-foreground text-center">لا توجد خيارات</div>

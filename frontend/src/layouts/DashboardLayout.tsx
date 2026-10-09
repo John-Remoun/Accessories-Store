@@ -23,6 +23,9 @@ export const DashboardLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeBranchId, setActiveBranchId] = useState<string>(() => {
+    if (user && user.role !== 'admin' && user.branchId) {
+      return user.branchId;
+    }
     return localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
   });
 
@@ -31,15 +34,20 @@ export const DashboardLayout = () => {
     setIsMobileMenuOpen(false);
   }, [location.pathname, location.search]);
 
-  // Track branch changes from URL query parameter
+  // Track branch changes from URL query parameter or employee assignment
   useEffect(() => {
+    if (user && user.role !== 'admin' && user.branchId) {
+      setActiveBranchId(user.branchId);
+      localStorage.setItem('last_active_branch', user.branchId);
+      return;
+    }
     const params = new URLSearchParams(location.search);
     const bId = params.get('id');
     if (bId) {
       setActiveBranchId(bId);
       localStorage.setItem('last_active_branch', bId);
     }
-  }, [location.search]);
+  }, [location.search, user]);
 
   const [previousPath, setPreviousPath] = useState<string>('/dashboard');
 

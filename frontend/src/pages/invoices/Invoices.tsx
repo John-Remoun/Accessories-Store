@@ -195,13 +195,29 @@ export const Invoices = () => {
       });
     }
 
+    const favCusts = store.getCustomers();
+    const isFavCustomerInvoice = (inv: Invoice) => {
+      if (inv.isFavorite) return true;
+      const cPhone = (inv.customerPhone || '').replace(/\D/g, '');
+      const cName = (inv.customerName || '').trim().toLowerCase();
+      return favCusts.some(fc => {
+        const fcPhone = (fc.phone || '').replace(/\D/g, '');
+        const fcName = (fc.name || '').trim().toLowerCase();
+        return (
+          (fc.id && inv.customerId && fc.id === inv.customerId) ||
+          (cPhone && fcPhone && (cPhone === fcPhone || cPhone.endsWith(fcPhone) || fcPhone.endsWith(cPhone))) ||
+          (cName && fcName && cName === fcName)
+        );
+      });
+    };
+
     // Filter by tab
     if (activeTab === 'unpaid') {
       list = list.filter(inv => isInvoiceUnpaid(inv));
     } else if (activeTab === 'paid') {
       list = list.filter(inv => !isInvoiceUnpaid(inv));
     } else if (activeTab === 'favorites') {
-      list = list.filter(inv => inv.isFavorite);
+      list = list.filter(inv => isFavCustomerInvoice(inv));
     }
 
     // Filter by search term
@@ -235,7 +251,21 @@ export const Invoices = () => {
   }, [paidInvoicesList]);
 
   const favoritesCount = useMemo(() => {
-    return branchInvoices.filter(inv => inv.isFavorite).length;
+    const favCusts = store.getCustomers();
+    return branchInvoices.filter(inv => {
+      if (inv.isFavorite) return true;
+      const cPhone = (inv.customerPhone || '').replace(/\D/g, '');
+      const cName = (inv.customerName || '').trim().toLowerCase();
+      return favCusts.some(fc => {
+        const fcPhone = (fc.phone || '').replace(/\D/g, '');
+        const fcName = (fc.name || '').trim().toLowerCase();
+        return (
+          (fc.id && inv.customerId && fc.id === inv.customerId) ||
+          (cPhone && fcPhone && (cPhone === fcPhone || cPhone.endsWith(fcPhone) || fcPhone.endsWith(cPhone))) ||
+          (cName && fcName && cName === fcName)
+        );
+      });
+    }).length;
   }, [branchInvoices, refreshKey]);
 
   // Handlers

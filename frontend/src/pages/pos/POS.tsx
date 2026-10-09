@@ -128,9 +128,12 @@ export const POS = () => {
   const location = useLocation();
 
   const currentBranchId = useMemo(() => {
+    if (user && user.role !== 'admin' && user.branchId) {
+      return user.branchId;
+    }
     const params = new URLSearchParams(location.search);
-    return params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b1';
-  }, [location.search, user?.branchId]);
+    return params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
+  }, [location.search, user]);
 
   // Master State
   const [cart, setCart] = useState<CartLineItem[]>([]);
@@ -1719,9 +1722,9 @@ export const POS = () => {
                             value={currentTier}
                             onChange={(val) => handleUpdateInternalRow(idx, 'selectedPriceTier', val as any)}
                             options={[
-                              { value: 'price1', label: `${selectedProductBranch.price1Label || 'قطاعي'}: ${selectedProductBranch.price1.toFixed(2)} ج.م` },
-                              { value: 'price2', label: `${selectedProductBranch.price2Label || 'جملة'}: ${selectedProductBranch.price2.toFixed(2)} ج.م` },
-                              { value: 'price3', label: `${selectedProductBranch.price3Label || 'سعر خاص VIP'}: ${selectedProductBranch.price3.toFixed(2)} ج.م` },
+                              { value: 'price1', label: `${selectedProductBranch.price1Label || 'سعر 1'}: ${selectedProductBranch.price1.toFixed(2)} ج.م` },
+                              { value: 'price2', label: `${selectedProductBranch.price2Label || 'سعر 2'}: ${selectedProductBranch.price2.toFixed(2)} ج.م` },
+                              { value: 'price3', label: `${selectedProductBranch.price3Label || 'سعر 3'}: ${selectedProductBranch.price3.toFixed(2)} ج.م` },
                               { value: 'price4', label: `${selectedProductBranch.price4Label || 'سعر 4'}: ${(selectedProductBranch.price4 || selectedProductBranch.price1).toFixed(2)} ج.م` },
                             ]}
                           />
