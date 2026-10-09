@@ -69,17 +69,50 @@ class StoreService {
       ]);
 
       if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
-        this.state.fixedExpenses = fixedExp.value;
+        const backendExp = fixedExp.value;
+        const localExp = this.state.fixedExpenses || [];
+        const expMap = new Map<string, FixedExpense>();
+        backendExp.forEach(e => expMap.set(e.id, e));
+        localExp.forEach(e => {
+          if (!expMap.has(e.id)) {
+            expMap.set(e.id, e);
+          }
+        });
+        this.state.fixedExpenses = Array.from(expMap.values());
       }
+
       if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
-        this.state.invoices = invs.value;
+        const backendInvs = invs.value;
+        const localInvs = this.state.invoices || [];
+        const invMap = new Map<string, Invoice>();
+        backendInvs.forEach(inv => invMap.set(inv.id, inv));
+        localInvs.forEach(inv => {
+          if (!invMap.has(inv.id)) {
+            invMap.set(inv.id, inv);
+          }
+        });
+        this.state.invoices = Array.from(invMap.values()).sort(
+          (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+        );
       }
+
       if (branchList.status === 'fulfilled' && Array.isArray(branchList.value) && branchList.value.length > 0) {
         this.state.branches = branchList.value;
       }
+
       if (customerList.status === 'fulfilled' && Array.isArray(customerList.value)) {
-        this.state.customers = customerList.value;
+        const backendCusts = customerList.value;
+        const localCusts = this.state.customers || [];
+        const custMap = new Map<string, Customer>();
+        backendCusts.forEach(c => custMap.set(c.id, c));
+        localCusts.forEach(c => {
+          if (!custMap.has(c.id)) {
+            custMap.set(c.id, c);
+          }
+        });
+        this.state.customers = Array.from(custMap.values());
       }
+
       if (userList.status === 'fulfilled' && Array.isArray(userList.value) && userList.value.length > 0) {
         const backendUsers = userList.value;
         const currentUsers = this.state.users || mockUsers;
@@ -347,7 +380,7 @@ class StoreService {
     api.deleteProduct(id).catch(err => console.warn('DB sync warning (deleteProduct):', err));
   }
 
-  public adjustProductBranchQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
+  public async adjustProductBranchQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
     const bd = this.getProductBranchData(productId, branchId);
     const qty = Number(targetQuantity);
     if (bd) {
@@ -371,7 +404,12 @@ class StoreService {
       });
     }
     this.generatePhysicalItems(productId, branchId, qty, prefix);
-    api.adjustStock(productId, branchId, qty, prefix).catch(err => console.warn('DB sync warning (adjustStock):', err));
+    try {
+      await api.adjustStock(productId, branchId, qty, prefix);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (adjustStock):', err);
+    }
   }
 
   // --- Physical Items ---
@@ -413,13 +451,16 @@ class StoreService {
   public getInvoicesByBranch(branchId: string) {
     return this.getInvoices().filter(i => i?.branchId === branchId);
   }
-  public addInvoice(invoice: Invoice) {
+  public async addInvoice(invoice: Invoice) {
     if (!this.state.invoices) this.state.invoices = [];
-    this.state.invoices.push(invoice);
+    this.state.invoices.unshift(invoice);
     this.saveState();
-    api.createInvoice(invoice).catch(err => {
+    try {
+      await api.createInvoice(invoice);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (createInvoice):', err);
-    });
+    }
   }
   public toggleFavoriteInvoice(id: string) {
     const inv = (this.state.invoices || []).find(i => i?.id === id);
@@ -429,7 +470,7 @@ class StoreService {
     }
   }
 
-  public payInvoice(id: string, amount: number) {
+  public async payInvoice(id: string, amount: number) {
     const inv = (this.state.invoices || []).find(i => i?.id === id);
     if (inv && amount > 0) {
       const currentRemaining = inv.remainingAmount !== undefined ? inv.remainingAmount : (inv.total - (inv.paidAmount || 0));
@@ -438,11 +479,16 @@ class StoreService {
       inv.remainingAmount = Math.max(0, currentRemaining - payAmt);
       inv.paymentStatus = inv.remainingAmount <= 0 ? 'paid' : 'partial';
       this.saveState();
-      api.payInvoice(id, amount).catch(err => console.warn('DB sync warning (payInvoice):', err));
+      try {
+        await api.payInvoice(id, amount);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (payInvoice):', err);
+      }
     }
   }
 
-  public payCustomerDebt(customerPhoneOrId: string, amount: number) {
+  public async payCustomerDebt(customerPhoneOrId: string, amount: number) {
     if (amount <= 0) return;
     const term = customerPhoneOrId.trim();
     const customerInvoices = (this.state.invoices || [])
@@ -461,16 +507,24 @@ class StoreService {
       }
     }
     this.saveState();
-    api.payCustomerDebt(term, amount).catch(err => console.warn('DB sync warning (payCustomerDebt):', err));
+    try {
+      await api.payCustomerDebt(term, amount);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (payCustomerDebt):', err);
+    }
   }
 
-  public deleteInvoicesByIds(ids: string[]) {
+  public async deleteInvoicesByIds(ids: string[]) {
     const set = new Set(ids);
     this.state.invoices = (this.state.invoices || []).filter(i => !set.has(i?.id));
     this.saveState();
-    api.deleteInvoicesByIds(ids).catch(err => {
+    try {
+      await api.deleteInvoicesByIds(ids);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (deleteInvoicesByIds):', err);
-    });
+    }
   }
 
   // --- Customers ---
@@ -478,7 +532,7 @@ class StoreService {
   public getCustomersByBranch(branchId: string) {
     return (this.state?.customers || []).filter(c => !c.branchId || c.branchId === branchId);
   }
-  public addCustomer(customer: Customer) {
+  public async addCustomer(customer: Customer) {
     if (!this.state.customers) this.state.customers = [];
     const existingIndex = this.state.customers.findIndex(
       c => c?.id === customer.id || (c?.phone && customer.phone && c.phone.trim() === customer.phone.trim() && (!c.branchId || !customer.branchId || c.branchId === customer.branchId))
@@ -489,19 +543,25 @@ class StoreService {
       this.state.customers.push(customer);
     }
     this.saveState();
-    api.saveCustomer(customer).catch(err => {
+    try {
+      await api.saveCustomer(customer);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (saveCustomer):', err);
-    });
+    }
   }
-  public removeCustomer(idOrPhone: string) {
+  public async removeCustomer(idOrPhone: string) {
     const term = idOrPhone.trim();
     this.state.customers = (this.state.customers || []).filter(
       c => c?.id !== term && c?.phone?.trim() !== term
     );
     this.saveState();
-    api.deleteCustomer(term).catch(err => {
+    try {
+      await api.deleteCustomer(term);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (deleteCustomer):', err);
-    });
+    }
   }
 
   // --- Fixed Expenses ---
@@ -512,21 +572,27 @@ class StoreService {
   public getFixedExpensesByBranch(branchId: string): FixedExpense[] {
     return this.getAllFixedExpenses().filter(e => e?.branchId === branchId);
   }
-  public addFixedExpense(expense: FixedExpense) {
+  public async addFixedExpense(expense: FixedExpense) {
     if (!this.state.fixedExpenses) this.state.fixedExpenses = [];
     this.state.fixedExpenses.push(expense);
     this.saveState();
-    api.createFixedExpense(expense).catch(err => {
+    try {
+      await api.createFixedExpense(expense);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (createFixedExpense):', err);
-    });
+    }
   }
-  public removeFixedExpense(id: string) {
+  public async removeFixedExpense(id: string) {
     if (!this.state.fixedExpenses) return;
     this.state.fixedExpenses = this.state.fixedExpenses.filter(e => e?.id !== id);
     this.saveState();
-    api.deleteFixedExpense(id).catch(err => {
+    try {
+      await api.deleteFixedExpense(id);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (deleteFixedExpense):', err);
-    });
+    }
   }
 
   // --- Product Compositions ---
@@ -535,22 +601,28 @@ class StoreService {
     return this.state.compositions.filter(c => c?.branchId === branchId);
   }
 
-  public addComposition(comp: ProductComposition) {
+  public async addComposition(comp: ProductComposition) {
     if (!this.state.compositions) this.state.compositions = [];
     this.state.compositions.push(comp);
     this.saveState();
-    api.createComposition(comp).catch(err => {
+    try {
+      await api.createComposition(comp);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (createComposition):', err);
-    });
+    }
   }
 
-  public deleteComposition(id: string) {
+  public async deleteComposition(id: string) {
     if (!this.state.compositions) return;
     this.state.compositions = this.state.compositions.filter(c => c?.id !== id);
     this.saveState();
-    api.deleteComposition(id).catch(err => {
+    try {
+      await api.deleteComposition(id);
+      await this.syncWithBackend();
+    } catch (err) {
       console.warn('DB sync warning (deleteComposition):', err);
-    });
+    }
   }
 }
 
