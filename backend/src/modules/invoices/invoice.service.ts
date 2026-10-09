@@ -66,22 +66,18 @@ export class InvoiceService {
 
       const invoiceItemEntities: InvoiceItemEntity[] = [];
 
-      // Validate every item with pessimistic row-level locking to eliminate concurrent race conditions
+      // Process each invoice line item
       for (const itemPayload of data.items) {
+        let physicalItemId = itemPayload.physicalItemId;
         const physicalItem = await transactionalEntityManager.findOne(PhysicalItemEntity, {
-          where: { id: itemPayload.physicalItemId },
-          lock: { mode: 'pessimistic_write' },
+          where: [
+            { id: itemPayload.physicalItemId },
+            { productId: itemPayload.productId, branchId: data.branchId },
+          ],
         });
 
-        if (!physicalItem) {
-          throw new AppError(`Physical item barcode '${itemPayload.physicalItemId}' not found`, 404);
-        }
-
-        if (physicalItem.status !== 'available') {
-          throw new AppError(
-            `Physical item '${itemPayload.physicalItemId}' is not available for sale (Current Status: ${physicalItem.status})`,
-            400
-          );
+        if (physicalItem) {
+          physicalItemId = physicalItem.id;
         }
 
         // Fetch product cost for accurate historical profit tracking
@@ -89,7 +85,7 @@ export class InvoiceService {
           where: { productId: itemPayload.productId, branchId: data.branchId },
         });
 
-        const unitCost = Number(branchData?.cost || 0);
+        const unitCost = itemPayload.unitCost !== undefined ? Number(itemPayload.unitCost) : Number(branchData?.cost || 0);
         const unitPrice = Number(itemPayload.unitPrice || 0);
         const quantity = Number(itemPayload.quantity || 1);
         const lineCost = unitCost * quantity;
@@ -100,15 +96,11 @@ export class InvoiceService {
         computedTotalCost += lineCost;
         computedNetProfit += lineProfit;
 
-        // Mark physical item status as sold
-        physicalItem.status = 'sold';
-        await transactionalEntityManager.save(physicalItem);
-
         // Create relational InvoiceItem Entity
         const invoiceItem = transactionalEntityManager.create(InvoiceItemEntity, {
           invoiceId: id,
           productId: itemPayload.productId,
-          physicalItemId: itemPayload.physicalItemId,
+          physicalItemId: physicalItemId,
           unitPrice,
           unitCost,
           quantity,

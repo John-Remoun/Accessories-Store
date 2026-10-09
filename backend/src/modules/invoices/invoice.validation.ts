@@ -4,6 +4,9 @@ export const invoiceItemSchema = z.object({
   physicalItemId: z.string(),
   productId: z.string(),
   unitPrice: z.number(),
+  unitCost: z.number().optional(),
+  quantity: z.number().optional().default(1),
+  profit: z.number().optional(),
 });
 
 export const createInvoiceSchema = z.object({

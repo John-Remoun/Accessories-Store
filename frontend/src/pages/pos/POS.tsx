@@ -726,13 +726,13 @@ export const POS = () => {
     const invoiceNum = generateUniqueInvoiceNumber();
 
     // Build invoice items
-    const invoiceItems = cart.flatMap(item => 
-      Array.from({ length: item.quantity }).map((_, qIdx) => ({
-        physicalItemId: `${item.physicalItemId}${qIdx > 0 ? `-${qIdx}` : ''}`,
-        productId: item.product.id,
-        unitPrice: item.selectedPrice
-      }))
-    );
+    const invoiceItems = cart.map(item => ({
+      physicalItemId: item.physicalItemId || `QR-${item.product.sku}`,
+      productId: item.product.id,
+      unitPrice: item.selectedPrice,
+      unitCost: item.branchData.cost || 0,
+      quantity: item.quantity
+    }));
 
     const cName = customerName.trim();
     const cPhone = customerPhone.trim();
