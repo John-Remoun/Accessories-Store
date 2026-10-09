@@ -320,11 +320,13 @@ export const POS = () => {
     const categories = store.getCategories();
     const defaultCatId = categories.length > 0 ? categories[0].id : 'c1';
 
+    const formattedCompName = `${compName.trim()} (تركيبة خاصة)`;
+
     const newAssembledProduct: Product = {
       id: `comp_p_${Date.now()}`,
-      nameAr: compName.trim(),
+      nameAr: formattedCompName,
       nameEn: compName.trim(),
-      descriptionAr: 'منتج مُجمع / تركيبة خاصة',
+      descriptionAr: 'منتج مُجمع / تركيبة خاصة للعميل',
       descriptionEn: 'Assembled Product / Custom Composition',
       categoryId: defaultCatId,
       sku: skuCode,
@@ -352,10 +354,23 @@ export const POS = () => {
     store.addProduct(newAssembledProduct, branchDataList);
     store.generatePhysicalItems(newAssembledProduct.id, currentBranchId, qtyToCreate, cleanPrefix);
 
+    // Deduct raw material internal components from current branch inventory
+    internalItems.forEach(item => {
+      if (item.productId) {
+        const bd = store.getProductBranchData(item.productId, currentBranchId);
+        const currentQty = Number(bd?.quantity || 0);
+        const consumedQty = Number(item.quantity || 1);
+        const newQty = Math.max(0, currentQty - consumedQty);
+        const prod = store.getProduct(item.productId);
+        const prefix = prod?.sku || 'RAW';
+        store.adjustProductBranchQuantity(item.productId, currentBranchId, newQty, prefix);
+      }
+    });
+
     const newComp: ProductComposition = {
       id: `comp_${Date.now()}`,
       branchId: currentBranchId,
-      name: compName.trim(),
+      name: formattedCompName,
       quantity: qtyToCreate,
       price1: finalPrice,
       price2: finalPrice,
@@ -391,7 +406,7 @@ export const POS = () => {
     setIsCompositionModalOpen(false);
     setCompName('');
     setCustomSellingPrice(0);
-    setInternalItems([{ productId: '', quantity: 1 }]);
+    setInternalItems([{ productId: '', quantity: 1, selectedPriceTier: 'price1' }]);
     setExternalItems([]);
   };
 
