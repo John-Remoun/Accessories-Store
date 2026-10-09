@@ -242,12 +242,25 @@ export const api = {
     try {
       return await request<any>('/products/branch-data', { method: 'POST', body: JSON.stringify(data) });
     } catch {
-      const res = await supabaseFetch<any[]>('/product_branch_data', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
-        body: JSON.stringify(data),
-      });
-      return Array.isArray(res) ? res[0] : res;
+      try {
+        const existingList = await supabaseFetch<any[]>(`/product_branch_data?productId=eq.${data.productId}&branchId=eq.${data.branchId}`);
+        if (Array.isArray(existingList) && existingList.length > 0) {
+          const res = await supabaseFetch<any[]>(`/product_branch_data?productId=eq.${data.productId}&branchId=eq.${data.branchId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+          });
+          return Array.isArray(res) ? res[0] : res;
+        } else {
+          const res = await supabaseFetch<any[]>('/product_branch_data', {
+            method: 'POST',
+            body: JSON.stringify(data),
+          });
+          return Array.isArray(res) ? res[0] : res;
+        }
+      } catch (e) {
+        console.warn('updateBranchData Supabase error:', e);
+        return data;
+      }
     }
   },
   deleteProduct: async (id: string) => {
@@ -266,27 +279,38 @@ export const api = {
         body: JSON.stringify({ productId, branchId, targetQuantity: Number(targetQuantity), prefix }),
       });
     } catch {
-      const bd = {
-        productId,
-        branchId,
-        cost: 0,
-        price1: 0,
-        price1Label: 'سعر 1',
-        price2: 0,
-        price2Label: 'سعر 2',
-        price3: 0,
-        price3Label: 'سعر 3',
-        price4: 0,
-        price4Label: 'سعر 4',
-        minStock: 10,
-        quantity: Number(targetQuantity),
-      };
-      await supabaseFetch('/product_branch_data', {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify(bd),
-      });
-      return { success: true, quantity: Number(targetQuantity) };
+      const qty = Number(targetQuantity);
+      try {
+        const existingList = await supabaseFetch<any[]>(`/product_branch_data?productId=eq.${productId}&branchId=eq.${branchId}`);
+        if (Array.isArray(existingList) && existingList.length > 0) {
+          await supabaseFetch(`/product_branch_data?productId=eq.${productId}&branchId=eq.${branchId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ quantity: qty }),
+          });
+        } else {
+          await supabaseFetch('/product_branch_data', {
+            method: 'POST',
+            body: JSON.stringify({
+              productId,
+              branchId,
+              cost: 0,
+              price1: 0,
+              price1Label: 'سعر 1',
+              price2: 0,
+              price2Label: 'سعر 2',
+              price3: 0,
+              price3Label: 'سعر 3',
+              price4: 0,
+              price4Label: 'سعر 4',
+              minStock: 10,
+              quantity: qty,
+            }),
+          });
+        }
+      } catch (e) {
+        console.warn('adjustStock Supabase error:', e);
+      }
+      return { success: true, quantity: qty };
     }
   },
 
@@ -440,6 +464,31 @@ export const api = {
           });
         } catch (e) {
           console.warn('Supabase customer auto-save notice:', e);
+        }
+      }
+
+      // 4. Auto-deduct stock quantity from product_branch_data in Supabase
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.productId) {
+            try {
+              const bId = cleanHeader.branchId || 'b1';
+              const pId = item.productId;
+              const soldQty = Number(item.quantity || 1);
+
+              const bdList = await supabaseFetch<any[]>(`/product_branch_data?productId=eq.${pId}&branchId=eq.${bId}`);
+              if (Array.isArray(bdList) && bdList.length > 0) {
+                const currentQty = Number(bdList[0].quantity || 0);
+                const newQty = Math.max(0, currentQty - soldQty);
+                await supabaseFetch(`/product_branch_data?productId=eq.${pId}&branchId=eq.${bId}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({ quantity: newQty }),
+                });
+              }
+            } catch (e) {
+              console.warn('Stock auto-deduct notice:', e);
+            }
+          }
         }
       }
 
