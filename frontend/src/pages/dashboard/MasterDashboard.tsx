@@ -256,9 +256,16 @@ export const MasterDashboard = () => {
     const totalNetProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? ((totalNetProfit / totalRevenue) * 100).toFixed(1) : '0';
 
-    const availableItemsCount = allPhysicalItems.filter(i => i.status === 'available').length;
+    let availableItemsCount = 0;
+    allProducts.forEach(p => {
+      branches.forEach(b => {
+        const bd = store.getProductBranchData(p.id, b.id);
+        availableItemsCount += Number(bd?.quantity || 0);
+      });
+    });
+
     const soldItemsCount = allPhysicalItems.filter(i => i.status === 'sold').length;
-    const totalItemsCount = allPhysicalItems.length;
+    const totalItemsCount = availableItemsCount + soldItemsCount;
 
     return {
       totalRevenue,
@@ -270,24 +277,25 @@ export const MasterDashboard = () => {
       totalItemsCount,
       totalInvoicesCount: allInvoices.length,
     };
-  }, [allInvoices, allPhysicalItems]);
+  }, [allInvoices, allProducts, branches, allPhysicalItems]);
 
   // Low Stock Items Summary per branch
   const lowStockSummary = useMemo(() => {
     const summary = branches.map((b) => {
       const branchProducts = allProducts.filter(p => {
         const bd = store.getProductBranchData(p.id, b.id);
-        const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === b.id);
-        return Boolean(bd || phys.length > 0);
+        return Boolean(bd);
       });
 
       let count = 0;
       branchProducts.forEach(p => {
         const bd = store.getProductBranchData(p.id, b.id);
-        const minStock = Number(bd?.minStock ?? 10);
-        const availableCount = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === b.id && i.status === 'available').length;
-        if (availableCount <= minStock) {
-          count++;
+        if (bd) {
+          const qty = Number(bd.quantity || 0);
+          const minStock = Number(bd.minStock ?? 10);
+          if (qty <= minStock) {
+            count++;
+          }
         }
       });
 
@@ -306,7 +314,7 @@ export const MasterDashboard = () => {
       totalLowStock,
       branches: summary,
     };
-  }, [branches, allProducts, allPhysicalItems]);
+  }, [branches, allProducts]);
 
   // Per-Branch Financial & Inventory Breakdown
   const branchPerformanceData = useMemo(() => {
@@ -317,7 +325,14 @@ export const MasterDashboard = () => {
       const bNetProfit = bRevenue - bCost;
       const bProfitMargin = bRevenue > 0 ? ((bNetProfit / bRevenue) * 100).toFixed(1) : '0';
       
-      const bAvailableItems = store.getPhysicalItemsByBranch(b.id).filter(i => i.status === 'available');
+      let bAvailablePieces = 0;
+      allProducts.forEach(p => {
+        const bd = store.getProductBranchData(p.id, b.id);
+        if (bd) {
+          bAvailablePieces += Number(bd.quantity || 0);
+        }
+      });
+
       const bSoldItems = store.getPhysicalItemsByBranch(b.id).filter(i => i.status === 'sold');
       const bStaff = allUsers.filter(u => u.branchId === b.id);
 
@@ -331,13 +346,13 @@ export const MasterDashboard = () => {
         cost: bCost,
         netProfit: bNetProfit,
         profitMargin: bProfitMargin,
-        availableStock: bAvailableItems.length,
+        availableStock: bAvailablePieces,
         soldCount: bSoldItems.length,
         invoicesCount: bInvs.length,
         staffCount: bStaff.length,
       };
     });
-  }, [branches, allInvoices, allPhysicalItems, allUsers]);
+  }, [branches, allInvoices, allProducts, allUsers]);
 
   // Employee Performance & Ranking (Sorted descending by total sales amount)
   const employeeRankings = useMemo(() => {

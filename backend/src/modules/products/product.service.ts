@@ -48,9 +48,28 @@ export class ProductService {
         this.branchDataRepo.create({
           ...bd,
           productId: id,
+          quantity: Number(bd.quantity || 0)
         })
       );
       await this.branchDataRepo.save(entities);
+
+      const prefix = (productData.sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
+      for (const bd of branchDataList) {
+        if (bd.branchId) {
+          const itemId = `QR-${prefix}`;
+          let item = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: bd.branchId } });
+          if (!item) {
+            item = this.physicalItemRepo.create({
+              id: itemId,
+              productId: id,
+              branchId: bd.branchId,
+              status: 'available',
+              serialNumber: prefix,
+            });
+            await this.physicalItemRepo.save(item);
+          }
+        }
+      }
     }
 
     return product;

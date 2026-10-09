@@ -81,7 +81,16 @@ class StoreService {
       }
 
       if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
-        this.state.productBranchData = branchDataList.value;
+        this.state.productBranchData = branchDataList.value.map(bd => ({
+          ...bd,
+          cost: Number(bd.cost || 0),
+          price1: Number(bd.price1 || 0),
+          price2: Number(bd.price2 || 0),
+          price3: Number(bd.price3 || 0),
+          price4: Number(bd.price4 || 0),
+          minStock: Number(bd.minStock ?? 10),
+          quantity: Number(bd.quantity || 0)
+        }));
       }
 
       // Sync Physical Items

@@ -136,8 +136,7 @@ export const Branches = () => {
   const branchProductsList = useMemo(() => {
     return allProducts.filter(p => {
       const bd = store.getProductBranchData(p.id, branch.id);
-      const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === branch.id);
-      return Boolean(bd || phys.length > 0);
+      return Boolean(bd);
     });
   }, [allProducts, branch.id]);
 

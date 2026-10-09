@@ -13,6 +13,7 @@ export const productBranchDataSchema = z.object({
   price4: z.number().default(0),
   price4Label: z.string().default('سعر 4'),
   minStock: z.number().default(0),
+  quantity: z.number().default(0),
 });
 
 export const createProductSchema = z.object({
