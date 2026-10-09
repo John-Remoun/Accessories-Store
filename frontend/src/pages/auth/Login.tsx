@@ -17,9 +17,10 @@ export const Login = () => {
   const navigate = useNavigate();
   const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(username, password)) {
+    const success = await login(username, password);
+    if (success) {
       const loggedUser = store.getUserByUsername(username);
       if (loggedUser && loggedUser.role !== 'admin') {
         navigate('/pos');

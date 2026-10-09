@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { store } from '../services/store';
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password?: string) => boolean;
+  login: (username: string, password?: string) => Promise<boolean>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -15,12 +16,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const obtainBackendToken = async (username: string, password?: string) => {
+    try {
+      const res = await api.login(username, password || '00000000');
+      if (res && res.accessToken) {
+        localStorage.setItem('access_token', res.accessToken);
+        localStorage.setItem('refresh_token', res.refreshToken);
+      }
+    } catch (e) {
+      console.warn('Backend login token error:', e);
+    }
+  };
+
   useEffect(() => {
     // Check local storage for session
     const storedUserId = localStorage.getItem('mock_auth_id');
     if (storedUserId) {
       const foundUser = store.getUsers().find(u => u.id === storedUserId);
-      if (foundUser) setUser(foundUser);
+      if (foundUser) {
+        setUser(foundUser);
+        obtainBackendToken(foundUser.username, foundUser.password || '00000000').then(() => {
+          store.syncWithBackend();
+        });
+      }
     }
     
     // Hold splash screen for 2.2s so database & backend state finish loading in background
@@ -31,8 +49,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => clearTimeout(timer);
   }, []);
 
-  const login = (username: string, password?: string) => {
-    const foundUser = store.getUserByUsername(username.trim());
+  const login = async (username: string, password?: string) => {
+    const cleanUsername = username.trim();
+    const foundUser = store.getUserByUsername(cleanUsername);
     if (foundUser) {
       const expectedPassword = foundUser.password || 'password';
       if (password && password !== expectedPassword) {
@@ -40,6 +59,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setUser(foundUser);
       localStorage.setItem('mock_auth_id', foundUser.id);
+      await obtainBackendToken(cleanUsername, password || '00000000');
+      await store.syncWithBackend();
       return true;
     }
     return false;
@@ -48,6 +69,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('mock_auth_id');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   };
 
   return (

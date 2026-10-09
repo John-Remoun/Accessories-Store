@@ -202,7 +202,7 @@ class StoreService {
   }
 
   // --- Categories ---
-  public getCategories() { return this.state?.categories || mockCategories; }
+  public getCategories() { return this.state?.categories || []; }
   public addCategory(cat: Category) {
     if (!this.state.categories) this.state.categories = [];
     this.state.categories.push(cat);
@@ -229,7 +229,7 @@ class StoreService {
   }
 
   // --- Products & Branch Data ---
-  public getProducts() { return this.state?.products || mockProducts; }
+  public getProducts() { return this.state?.products || []; }
   public getProduct(id: string) { return this.getProducts().find(p => p?.id === id); }
   public addProduct(product: Product, branchDataList: ProductBranchData[]) {
     if (!this.state.products) this.state.products = [];
@@ -249,7 +249,7 @@ class StoreService {
     }
   }
   public getProductBranchData(productId: string, branchId: string) {
-    return (this.state?.productBranchData || mockProductBranchData).find(d => d?.productId === productId && d?.branchId === branchId);
+    return (this.state?.productBranchData || []).find(d => d?.productId === productId && d?.branchId === branchId);
   }
   public updateProductBranchData(data: ProductBranchData) {
     if (!this.state.productBranchData) this.state.productBranchData = [];
@@ -296,7 +296,7 @@ class StoreService {
   }
 
   // --- Physical Items ---
-  public getPhysicalItems() { return this.state?.physicalItems || mockPhysicalItems; }
+  public getPhysicalItems() { return this.state?.physicalItems || []; }
   public getPhysicalItemsByProduct(productId: string) {
     return this.getPhysicalItems().filter(i => i?.productId === productId);
   }
@@ -331,7 +331,7 @@ class StoreService {
   }
 
   // --- Invoices ---
-  public getInvoices() { return this.state?.invoices || mockInvoices; }
+  public getInvoices() { return this.state?.invoices || []; }
   public getInvoicesByBranch(branchId: string) {
     return this.getInvoices().filter(i => i?.branchId === branchId);
   }
@@ -394,7 +394,7 @@ class StoreService {
   }
 
   // --- Customers ---
-  public getCustomers() { return this.state?.customers || mockCustomers; }
+  public getCustomers() { return this.state?.customers || []; }
   public addCustomer(customer: Customer) {
     if (!this.state.customers) this.state.customers = [];
     const existingIndex = this.state.customers.findIndex(
