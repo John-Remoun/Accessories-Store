@@ -336,9 +336,9 @@ export const POS = () => {
 
     const finalPrice = customSellingPrice || minSellingPrice;
 
-    const branchDataList = store.getBranches().map(b => ({
+    const transientBranchData = {
       productId: newAssembledProduct.id,
-      branchId: b.id,
+      branchId: currentBranchId,
       cost: calculatedTotalComponentCost,
       price1: finalPrice,
       price1Label: 'سعر 1',
@@ -348,11 +348,12 @@ export const POS = () => {
       price3Label: 'سعر 3',
       price4: finalPrice,
       price4Label: 'سعر 4',
-      minStock: 5
-    }));
+      minStock: 0,
+      quantity: 1
+    };
 
-    store.addProduct(newAssembledProduct, branchDataList);
-    store.generatePhysicalItems(newAssembledProduct.id, currentBranchId, qtyToCreate, cleanPrefix);
+    // NOTE: We do NOT call store.addProduct or store.generatePhysicalItems
+    // so custom compositions NEVER get added to the main Products catalog or products list of any branch.
 
     // Deduct raw material internal components from current branch inventory
     internalItems.forEach(item => {
@@ -384,24 +385,18 @@ export const POS = () => {
 
     store.addComposition(newComp);
 
-    // Auto-add to POS cart immediately as a single product line item
-    const targetBranchData = store.getProductBranchData(newAssembledProduct.id, currentBranchId);
-    if (targetBranchData) {
-      const availItems = store.getPhysicalItemsByBranch(currentBranchId).filter(i => i.productId === newAssembledProduct.id && i.status === 'available');
-      const physId = availItems[0]?.id || `ITEM-${Date.now()}`;
-
-      setCart(prev => [
-        ...prev,
-        {
-          physicalItemId: physId,
-          product: newAssembledProduct,
-          branchData: targetBranchData,
-          priceTier: 'price1',
-          selectedPrice: finalPrice,
-          quantity: 1
-        }
-      ]);
-    }
+    // Auto-add to POS cart immediately as a transient custom line item
+    setCart(prev => [
+      ...prev,
+      {
+        physicalItemId: `COMP-ITEM-${Date.now()}`,
+        product: newAssembledProduct,
+        branchData: transientBranchData,
+        priceTier: 'price1',
+        selectedPrice: finalPrice,
+        quantity: 1
+      }
+    ]);
 
     setIsCompositionModalOpen(false);
     setCompName('');
@@ -683,13 +678,13 @@ export const POS = () => {
     const itemMap = new Map<string, { name: string; count: number; unitPrice: number; totalPrice: number }>();
     inv.items.forEach(item => {
       const prod = store.getProduct(item.productId);
-      const name = prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
+      const name = item.productName || prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
       const existing = itemMap.get(item.productId);
       if (existing) {
-        existing.count += 1;
-        existing.totalPrice += item.unitPrice;
+        existing.count += item.quantity || 1;
+        existing.totalPrice += item.unitPrice * (item.quantity || 1);
       } else {
-        itemMap.set(item.productId, { name, count: 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice });
+        itemMap.set(item.productId, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
       }
     });
 
@@ -748,8 +743,9 @@ export const POS = () => {
     const invoiceItems = cart.map(item => ({
       physicalItemId: item.physicalItemId || `QR-${item.product.sku}`,
       productId: item.product.id,
+      productName: item.product.nameAr || item.product.nameEn,
       unitPrice: item.selectedPrice,
-      unitCost: item.branchData.cost || 0,
+      unitCost: item.branchData?.cost || 0,
       quantity: item.quantity
     }));
 
@@ -781,13 +777,15 @@ export const POS = () => {
     // 1. Save invoice to system
     store.addInvoice(newInvoice);
 
-    // 2. Deduct sold quantities from branch stock
+    // 2. Deduct sold quantities from branch stock for catalog items
     cart.forEach(item => {
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
-      const currentQty = Number(bd?.quantity || 0);
-      const newQty = Math.max(0, currentQty - item.quantity);
-      const cleanPrefix = item.product.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
-      store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
+      if (bd) {
+        const currentQty = Number(bd?.quantity || 0);
+        const newQty = Math.max(0, currentQty - item.quantity);
+        const cleanPrefix = item.product.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
+        store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
+      }
     });
 
     // Save customer to store if starred

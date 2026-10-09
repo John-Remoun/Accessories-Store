@@ -339,7 +339,7 @@ export const Invoices = () => {
 
     const itemNames = inv.items.map(i => {
       const p = store.getProduct(i.productId);
-      return p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
+      return i.productName || p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
     }).join(', ');
 
     const rem = getInvoiceRemaining(inv);
@@ -1348,13 +1348,13 @@ Salla Bola & Mina`;
                       const itemMap = new Map<string, { name: string; count: number; unitPrice: number; totalPrice: number }>();
                       selectedInvoice.items.forEach(item => {
                         const prod = store.getProduct(item.productId);
-                        const name = prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
+                        const name = item.productName || prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
                         const existing = itemMap.get(item.productId);
                         if (existing) {
-                          existing.count += 1;
-                          existing.totalPrice += item.unitPrice;
+                          existing.count += item.quantity || 1;
+                          existing.totalPrice += item.unitPrice * (item.quantity || 1);
                         } else {
-                          itemMap.set(item.productId, { name, count: 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice });
+                          itemMap.set(item.productId, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
                         }
                       });
                       const rows = Array.from(itemMap.values());
