@@ -59,12 +59,12 @@ export const api = {
   updateBranchData: (data: any) => request<any>('/products/branch-data', { method: 'POST', body: JSON.stringify(data) }),
   deleteProduct: (id: string) => request<any>(`/products/${id}`, { method: 'DELETE' }),
   adjustStock: (productId: string, branchId: string, targetQuantity: number, prefix: string) =>
-    request<any>('/products/adjust-stock', { method: 'POST', body: JSON.stringify({ productId, branchId, targetQuantity, prefix }) }),
+    request<any>('/products/adjust-stock', { method: 'POST', body: JSON.stringify({ productId, branchId, targetQuantity: Number(targetQuantity), prefix }) }),
 
   // Physical Items
   getPhysicalItems: () => request<any[]>('/physical-items'),
   generatePhysicalItems: (productId: string, branchId: string, quantity: number, prefix: string) =>
-    request<any[]>('/physical-items/generate', { method: 'POST', body: JSON.stringify({ productId, branchId, quantity, prefix }) }),
+    request<any[]>('/physical-items/generate', { method: 'POST', body: JSON.stringify({ productId, branchId, quantity: Number(quantity), prefix }) }),
   updatePhysicalItemStatus: (id: string, status: string) =>
     request<any>(`/physical-items/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 

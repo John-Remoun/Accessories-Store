@@ -42,6 +42,9 @@ export class ProductBranchDataEntity {
   @Column({ type: 'int', default: 0 })
   minStock!: number;
 
+  @Column({ type: 'int', default: 0 })
+  quantity!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

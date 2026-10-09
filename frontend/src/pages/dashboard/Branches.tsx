@@ -140,15 +140,21 @@ export const Branches = () => {
     let sum = 0;
     availableItems.forEach(item => {
       const bd = store.getProductBranchData(item.productId, branch.id);
-      sum += (bd?.cost || 0);
+      sum += (Number(bd?.cost) || 0);
     });
     return sum;
   }, [availableItems, branch.id]);
 
   const lowStockList = useMemo(() => {
-    return allProducts.filter(p => {
+    const branchProducts = allProducts.filter(p => {
       const bd = store.getProductBranchData(p.id, branch.id);
-      const minStock = bd?.minStock ?? 10;
+      const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === branch.id);
+      return Boolean(bd || phys.length > 0);
+    });
+
+    return branchProducts.filter(p => {
+      const bd = store.getProductBranchData(p.id, branch.id);
+      const minStock = Number(bd?.minStock ?? 10);
       const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === branch.id);
       const availableCount = phys.filter(i => i.status === 'available').length;
       return availableCount <= minStock;

@@ -24,25 +24,19 @@ export class PhysicalItemService {
   }
 
   public async generateItems(productId: string, branchId: string, quantity: number, prefix: string) {
-    const existing = await this.itemRepo.find({ where: { productId } });
-    const existingCount = existing.length;
-
-    const newItems: PhysicalItemEntity[] = [];
-    for (let i = 1; i <= quantity; i++) {
-      const serial = (existingCount + i).toString();
-      const id = `QR-${prefix}-${serial.padStart(4, '0')}`;
-      newItems.push(
-        this.itemRepo.create({
-          id,
-          productId,
-          branchId,
-          status: 'available',
-          serialNumber: serial,
-        })
-      );
+    const itemId = `QR-${prefix}`;
+    let item = await this.itemRepo.findOne({ where: { productId, branchId } });
+    if (!item) {
+      item = this.itemRepo.create({
+        id: itemId,
+        productId,
+        branchId,
+        status: 'available',
+        serialNumber: prefix,
+      });
+      await this.itemRepo.save(item);
     }
-
-    return this.itemRepo.save(newItems);
+    return [item];
   }
 
   public async markItemStatus(id: string, status: PhysicalItemStatus) {

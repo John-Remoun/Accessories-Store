@@ -251,8 +251,8 @@ export const MasterDashboard = () => {
 
   // Global Financial Calculations for Super Admin
   const globalMetrics = useMemo(() => {
-    const totalRevenue = allInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
-    const totalCost = allInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalRevenue = allInvoices.reduce((acc, inv) => acc + (Number(inv.total) || 0), 0);
+    const totalCost = allInvoices.reduce((acc, inv) => acc + (Number(inv.totalCost) || 0), 0);
     const totalNetProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? ((totalNetProfit / totalRevenue) * 100).toFixed(1) : '0';
 
@@ -278,13 +278,13 @@ export const MasterDashboard = () => {
       const branchProducts = allProducts.filter(p => {
         const bd = store.getProductBranchData(p.id, b.id);
         const phys = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === b.id);
-        return bd || phys.length > 0;
+        return Boolean(bd || phys.length > 0);
       });
 
       let count = 0;
       branchProducts.forEach(p => {
         const bd = store.getProductBranchData(p.id, b.id);
-        const minStock = bd?.minStock ?? 10;
+        const minStock = Number(bd?.minStock ?? 10);
         const availableCount = store.getPhysicalItemsByProduct(p.id).filter(i => i.branchId === b.id && i.status === 'available').length;
         if (availableCount <= minStock) {
           count++;

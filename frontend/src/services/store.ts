@@ -305,16 +305,15 @@ class StoreService {
   }
   public generatePhysicalItems(productId: string, branchId: string, quantity: number, prefix: string) {
     if (!this.state.physicalItems) this.state.physicalItems = [];
-    const items = this.state.physicalItems;
-    const existingCount = items.filter(i => i?.productId === productId).length;
-
-    for (let i = 1; i <= quantity; i++) {
-      items.push({
-        id: `QR-${prefix}-${(existingCount + i).toString().padStart(4, '0')}`,
+    const itemId = `QR-${prefix}`;
+    const exists = this.state.physicalItems.some(i => i.id === itemId || (i.productId === productId && i.branchId === branchId));
+    if (!exists) {
+      this.state.physicalItems.push({
+        id: itemId,
         productId,
         branchId,
         status: 'available',
-        serialNumber: (existingCount + i).toString()
+        serialNumber: prefix
       });
     }
     this.saveState();
