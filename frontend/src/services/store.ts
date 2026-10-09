@@ -69,29 +69,11 @@ class StoreService {
       ]);
 
       if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
-        const backendExp = fixedExp.value;
-        const localExp = this.state.fixedExpenses || [];
-        const expMap = new Map<string, FixedExpense>();
-        backendExp.forEach(e => expMap.set(e.id, e));
-        localExp.forEach(e => {
-          if (!expMap.has(e.id)) {
-            expMap.set(e.id, e);
-          }
-        });
-        this.state.fixedExpenses = Array.from(expMap.values());
+        this.state.fixedExpenses = fixedExp.value;
       }
 
       if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
-        const backendInvs = invs.value;
-        const localInvs = this.state.invoices || [];
-        const invMap = new Map<string, Invoice>();
-        backendInvs.forEach(inv => invMap.set(inv.id, inv));
-        localInvs.forEach(inv => {
-          if (!invMap.has(inv.id)) {
-            invMap.set(inv.id, inv);
-          }
-        });
-        this.state.invoices = Array.from(invMap.values()).sort(
+        this.state.invoices = invs.value.sort(
           (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
         );
       }
@@ -101,16 +83,7 @@ class StoreService {
       }
 
       if (customerList.status === 'fulfilled' && Array.isArray(customerList.value)) {
-        const backendCusts = customerList.value;
-        const localCusts = this.state.customers || [];
-        const custMap = new Map<string, Customer>();
-        backendCusts.forEach(c => custMap.set(c.id, c));
-        localCusts.forEach(c => {
-          if (!custMap.has(c.id)) {
-            custMap.set(c.id, c);
-          }
-        });
-        this.state.customers = Array.from(custMap.values());
+        this.state.customers = customerList.value;
       }
 
       if (userList.status === 'fulfilled' && Array.isArray(userList.value) && userList.value.length > 0) {

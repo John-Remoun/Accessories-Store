@@ -146,12 +146,16 @@ export class InvoiceService {
 
       await transactionalEntityManager.save(invoice);
 
-      // Increment Employee Sales Count atomically inside the transaction if user exists
+      // Safely update Employee Sales Count if employee exists
       if (data.employeeId) {
         try {
-          await transactionalEntityManager.increment(UserEntity, { id: data.employeeId }, 'salesCount', 1);
+          const empUser = await transactionalEntityManager.findOne(UserEntity, { where: { id: data.employeeId } });
+          if (empUser) {
+            empUser.salesCount = Number(empUser.salesCount || 0) + 1;
+            await transactionalEntityManager.save(empUser);
+          }
         } catch (e) {
-          console.warn('Could not increment user salesCount:', e);
+          console.warn('Could not update user salesCount:', e);
         }
       }
 

@@ -26,7 +26,7 @@ export class CustomerService {
       existing = await this.customerRepo.findOne({ where: { id: data.id } });
     }
 
-    if (!existing && data.phone) {
+    if (!existing && data.phone && data.phone.trim().length > 0) {
       existing = await this.customerRepo.findOne({ where: { phone: data.phone.trim() } });
     }
 

@@ -2,10 +2,10 @@ import { z } from 'zod';
 
 export const createCustomerSchema = z.object({
   id: z.string().optional(),
-  name: z.string().min(1, 'Customer name is required'),
-  phone: z.string().min(1, 'Customer phone is required'),
-  email: z.string().optional(),
-  branchId: z.string().optional(),
+  name: z.string().optional().default('عميل'),
+  phone: z.string().optional().default(''),
+  email: z.string().optional().nullable(),
+  branchId: z.string().optional().nullable(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial();

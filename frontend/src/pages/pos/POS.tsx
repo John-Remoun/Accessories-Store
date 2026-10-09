@@ -717,7 +717,7 @@ export const POS = () => {
   };
 
   // Complete Invoice Sale
-  const handleCompleteSale = () => {
+  const handleCompleteSale = async () => {
     if (cart.length === 0) return;
 
     // MANDATORY CUSTOMER CHECK
@@ -759,7 +759,7 @@ export const POS = () => {
       id: `inv_${Date.now()}`,
       invoiceNumber: invoiceNum,
       branchId: currentBranchId,
-      employeeId: user?.id || 'u3',
+      employeeId: user?.id || 'admin-bola',
       customerId: selectedCustomerId || undefined,
       customerName: cName,
       customerPhone: cPhone,
@@ -776,25 +776,25 @@ export const POS = () => {
       remainingAmount: remainingDeferredAmount
     };
 
-    // 1. Save invoice to system
-    store.addInvoice(newInvoice);
+    // 1. Save invoice to system & backend
+    await store.addInvoice(newInvoice);
 
     // 2. Deduct sold quantities from branch stock for catalog items
-    cart.forEach(item => {
+    for (const item of cart) {
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
       if (bd) {
         const currentQty = Number(bd?.quantity || 0);
         const newQty = Math.max(0, currentQty - item.quantity);
         const cleanPrefix = item.product.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
-        store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
+        await store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
       }
-    });
+    }
 
     // Save customer to store if starred
     if (isCustomerFavorite) {
       const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
       const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
-      store.addCustomer({
+      await store.addCustomer({
         id: targetId,
         name: cName,
         phone: cPhone,

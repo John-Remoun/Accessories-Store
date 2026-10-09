@@ -116,13 +116,27 @@ export class ProductService {
       bd.quantity = Number(targetQuantity);
       await this.branchDataRepo.save(bd);
     } else {
-      bd = this.branchDataRepo.create({ productId, branchId, quantity: Number(targetQuantity) });
+      bd = this.branchDataRepo.create({
+        productId,
+        branchId,
+        cost: 0,
+        price1: 0,
+        price1Label: 'سعر 1',
+        price2: 0,
+        price2Label: 'سعر 2',
+        price3: 0,
+        price3Label: 'سعر 3',
+        price4: 0,
+        price4Label: 'سعر 4',
+        minStock: 10,
+        quantity: Number(targetQuantity)
+      });
       await this.branchDataRepo.save(bd);
     }
 
     // Ensure 1 QR code barcode item exists in physical_items for scanning
     const itemId = `QR-${prefix}`;
-    let item = await this.physicalItemRepo.findOne({ where: { productId, branchId } });
+    let item = await this.physicalItemRepo.findOne({ where: { id: itemId } });
     if (!item) {
       item = this.physicalItemRepo.create({
         id: itemId,
@@ -131,7 +145,11 @@ export class ProductService {
         status: 'available',
         serialNumber: prefix,
       });
-      await this.physicalItemRepo.save(item);
+      try {
+        await this.physicalItemRepo.save(item);
+      } catch (e) {
+        console.warn('Physical item save notice:', e);
+      }
     }
 
     return { success: true, quantity: Number(targetQuantity) };
