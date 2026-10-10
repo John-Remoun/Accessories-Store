@@ -1508,51 +1508,51 @@ export const POS = () => {
       </div>
 
       {/* ------------------------------------------------------------------------- */}
-      {/* REAL CAMERA QR SCANNER DIALOG (Square Mobile Frame) */}
-      {/* ------------------------------------------------------------------------- */}
-      {/* ------------------------------------------------------------------------- */}
-      {/* REAL CAMERA QR SCANNER DIALOG (Square Mobile Frame) */}
+      {/* REAL CAMERA QR SCANNER DIALOG */}
       {/* ------------------------------------------------------------------------- */}
       <Dialog open={isScanning} onOpenChange={setIsScanning}>
-        <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-card border border-amber-500/30 rounded-3xl p-4 sm:p-6 shadow-2xl" dir="rtl">
-          <DialogHeader className="pb-2 border-b border-border/50">
-            <DialogTitle className="text-base sm:text-lg font-extrabold text-center text-foreground flex items-center justify-center gap-2">
+        <DialogContent className="w-[90vw] sm:max-w-sm max-h-[85vh] bg-card border border-amber-500/40 rounded-3xl p-5 shadow-2xl overflow-y-auto" dir="rtl">
+          <DialogHeader className="pb-3 border-b border-border/50 text-center">
+            <DialogTitle className="text-base font-extrabold text-foreground flex items-center justify-center gap-2">
               <ScanLine className="text-amber-500" size={20} />
               <span>مسح كود QR والباركود</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center py-3 space-y-3">
-            {/* Square camera container */}
-            <div className="w-56 h-56 sm:w-64 sm:h-64 max-w-full aspect-square border-2 border-amber-500/80 rounded-3xl relative overflow-hidden bg-black flex items-center justify-center shadow-lg my-1">
+
+          <div className="flex flex-col items-center pt-2 space-y-4">
+            {/* Camera Viewport Frame */}
+            <div className="w-48 h-48 sm:w-56 sm:h-56 max-w-full aspect-square border-2 border-amber-500 rounded-2xl relative overflow-hidden bg-black flex items-center justify-center shadow-md">
               <video 
                 ref={videoRef} 
                 playsInline 
                 muted 
                 className="w-full h-full object-cover"
               />
-              {/* Square scanner viewfinder reticle */}
-              <div className="absolute w-36 h-36 sm:w-44 sm:h-44 border-2 border-amber-400 border-dashed rounded-2xl pointer-events-none animate-pulse flex items-center justify-center">
-                <div className="w-full h-0.5 bg-amber-400/80 shadow-[0_0_8px_#f59e0b]" />
+              {/* Target reticle line */}
+              <div className="absolute w-32 h-32 sm:w-40 sm:h-40 border-2 border-amber-400 border-dashed rounded-xl pointer-events-none animate-pulse flex items-center justify-center">
+                <div className="w-full h-0.5 bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
               </div>
-              <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm backdrop-blur-xs">
-                <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping" /> الكاميرا نشطة 📷
+              <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 backdrop-blur-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-ping" /> الكاميرا نشطة
               </div>
             </div>
 
             {cameraError && (
-              <p className="text-xs text-rose-500 font-bold text-center bg-rose-500/10 p-2 rounded-xl border border-rose-500/30 w-full">{cameraError}</p>
+              <p className="text-xs text-rose-500 font-bold text-center bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/30 w-full">
+                {cameraError}
+              </p>
             )}
 
-            <p className="text-center text-muted-foreground text-xs leading-relaxed">
-              وجه كاميرا الموبايل أو الجهاز نحو كود QR/الباركود لمسحه وإضافته مباشرة للفاتورة.
+            <p className="text-center text-muted-foreground text-[11px] leading-relaxed">
+              وجه كاميرا الموبايل نحو كود الـ QR الخاص بالمنتج لمسحه تلقائياً
             </p>
 
-            {/* Manual Code Input fallback inside camera popup */}
-            <div className="w-full pt-2">
-              <label className="text-[11px] font-bold text-muted-foreground block mb-1 text-right">أو ادخل الكود/الرقم المسلسل يدوياً:</label>
+            {/* Manual Barcode Input Row */}
+            <div className="w-full space-y-1.5">
+              <label className="text-[11px] font-bold text-muted-foreground block text-right">أو أدخل الكود يدوياً:</label>
               <div className="flex items-center gap-2">
                 <Input 
-                  placeholder="أدخل الباركود يدوياً هنا..."
+                  placeholder="أدخل الباركود..."
                   value={qrScanInput}
                   onChange={(e) => setQrScanInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -1562,7 +1562,7 @@ export const POS = () => {
                       setIsScanning(false);
                     }
                   }}
-                  className="flex-1 h-11 text-xs sm:text-sm rounded-xl border border-input bg-background/60 focus:border-amber-500 px-3"
+                  className="flex-1 h-10 text-xs rounded-xl border border-input bg-background/80 focus:border-amber-500 px-3"
                 />
                 <Button 
                   type="button" 
@@ -1573,31 +1573,13 @@ export const POS = () => {
                       setIsScanning(false);
                     }
                   }} 
-                  className="h-11 px-4 sm:px-5 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs sm:text-sm shrink-0 shadow-md transition-all active:scale-95 flex items-center gap-1"
+                  className="h-10 px-4 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs shrink-0 shadow-sm transition-all active:scale-95 flex items-center gap-1"
                 >
                   <Plus size={16} />
                   <span>إضافة</span>
                 </Button>
               </div>
             </div>
-
-            {/* Quick test item selection button */}
-            <Button 
-              type="button"
-              variant="outline"
-              onClick={() => {
-                if (availablePhysicalItems.length > 0) {
-                  const randomItem = availablePhysicalItems[Math.floor(Math.random() * availablePhysicalItems.length)];
-                  handleQrScanAdd(randomItem.id);
-                  setQrScanInput('');
-                  setIsScanning(false);
-                }
-              }} 
-              className="w-full mt-2 border-amber-500/40 text-amber-500 hover:bg-amber-500/10 text-xs font-bold rounded-xl h-10 transition-all flex items-center justify-center gap-1.5"
-            >
-              <Sparkles size={14} />
-              <span>تجربة كود عشوائي من المخزون</span>
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
