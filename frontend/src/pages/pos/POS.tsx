@@ -8,6 +8,8 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card } from '../../components/ui/card';
+import { toast } from 'sonner';
+import { Html5Qrcode } from 'html5-qrcode';
 import { 
   ScanLine, Search, X, CheckCircle2, ShoppingCart, User, Phone, 
   Clock, DollarSign, Printer, MessageCircle, QrCode, Plus, Minus, Trash2, 
@@ -460,59 +462,51 @@ export const POS = () => {
     return Math.max(0, availableStockForSelected - currentInCartForSelected);
   }, [selectedProductId, availableStockForSelected, currentInCartForSelected]);
 
-  // Handle Camera initialization for laptop/device camera
+  // Handle Camera scanner initialization via Html5Qrcode (Cross-browser / Mobile & Desktop)
   useEffect(() => {
     if (!isScanning) return;
-    let stream: MediaStream | null = null;
-    let animationId: number;
+    let html5QrCode: Html5Qrcode | null = null;
+    let isMounted = true;
 
-    async function startCamera() {
+    const startScanner = async () => {
       try {
         setCameraError('');
-        if (!navigator?.mediaDevices?.getUserMedia) {
-          throw new Error('الكاميرا غير مدعومة أو غير متاحة في هذا المتصفح');
-        }
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(console.error);
-        }
+        // Wait briefly for DOM mounting
+        await new Promise(r => setTimeout(r, 150));
+        if (!isMounted) return;
 
-        if ('BarcodeDetector' in window) {
-          const detector = new (window as any).BarcodeDetector({
-            formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'upc_a']
-          });
-          const scanFrame = async () => {
-            if (videoRef.current && videoRef.current.readyState === 4) {
-              try {
-                const codes = await detector.detect(videoRef.current);
-                if (codes.length > 0) {
-                  handleQrScanAdd(codes[0].rawValue);
-                  setIsScanning(false);
-                  return;
-                }
-              } catch (err) {
-                console.error(err);
-              }
+        const readerElem = document.getElementById('qr-reader-container');
+        if (!readerElem) return;
+
+        html5QrCode = new Html5Qrcode("qr-reader-container");
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 },
+            aspectRatio: 1.0,
+          },
+          (decodedText) => {
+            if (!isMounted) return;
+            handleQrScanAdd(decodedText);
+            if (html5QrCode && html5QrCode.isScanning) {
+              html5QrCode.stop().catch(() => {});
             }
-            animationId = requestAnimationFrame(scanFrame);
-          };
-          scanFrame();
-        }
-      } catch (err) {
-        console.error("Camera access failed:", err);
-        setCameraError('لم نتمكن من تشغيل الكاميرا. يرجى التأكد من سماح المتصفح بالكاميرا.');
+          },
+          () => {} // Silent on individual frame failures
+        );
+      } catch (err: any) {
+        console.error("Html5Qrcode scanner failed:", err);
+        setCameraError('لم نتمكن من تشغيل الكاميرا تلقائياً. يرجى التأكد من سماح المتصفح بإذن الكاميرا.');
       }
-    }
+    };
 
-    startCamera();
+    startScanner();
 
     return () => {
-      if (animationId) cancelAnimationFrame(animationId);
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
+      isMounted = false;
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
       }
     };
   }, [isScanning]);
@@ -564,12 +558,12 @@ export const POS = () => {
     setInputQuantity(1);
   };
 
-  // Quick Add via QR Code / Serial scan directly to cart
+  // Quick Select product via QR Code / Serial / Barcode scan
   const handleQrScanAdd = (scannedCode: string) => {
     if (!scannedCode || !scannedCode.trim()) return;
     const targetCode = scannedCode.trim().toLowerCase();
 
-    // Check matching physical item or product SKU / product Code
+    // Check matching physical item or product SKU / product Code / ID
     const matchedPhysical = availablePhysicalItems.find(i => 
       i.id.toLowerCase() === targetCode || i.serialNumber.toLowerCase() === targetCode
     );
@@ -579,6 +573,7 @@ export const POS = () => {
       targetProduct = allProducts.find(p => p.id === matchedPhysical.productId);
     } else {
       targetProduct = allProducts.find(p => 
+        p.id.toLowerCase() === targetCode ||
         p.sku.toLowerCase() === targetCode || 
         p.productCode.toLowerCase() === targetCode ||
         p.nameAr.toLowerCase().includes(targetCode)
@@ -586,30 +581,16 @@ export const POS = () => {
     }
 
     if (targetProduct) {
-      const branchData = store.getProductBranchData(targetProduct.id, currentBranchId);
-      if (branchData) {
-        const price = branchData.price1;
-        setCart(prev => {
-          const existingIdx = prev.findIndex(item => item.product.id === targetProduct!.id && item.priceTier === 'price1');
-          if (existingIdx !== -1) {
-            const updated = [...prev];
-            updated[existingIdx].quantity += 1;
-            return updated;
-          } else {
-            return [...prev, {
-              physicalItemId: matchedPhysical?.id || `ITEM-${Date.now()}`,
-              product: targetProduct!,
-              branchData,
-              priceTier: 'price1',
-              selectedPrice: price,
-              quantity: 1
-            }];
-          }
-        });
-      }
+      // Set product as selected in the dropdown so user can choose price tier
+      setSelectedProductId(targetProduct.id);
+      setSelectedPriceTier('price1');
+      setProductSearchTerm('');
+      setIsDropdownOpen(false);
       setIsScanning(false);
+      setQrScanInput('');
+      toast.success(`تم إدخال المنتج: ${targetProduct.nameAr} - اختر السعر المطلوب ثم اضغط إضافة`);
     } else {
-      alert('لم يتم العثور على منتج يطابق كود QR أو السيريال المدخل.');
+      toast.error('لم يتم العثور على منتج يطابق الباركود أو السيريال المدخل.');
     }
     setQrScanInput('');
   };
@@ -1522,17 +1503,13 @@ export const POS = () => {
           <div className="flex flex-col items-center pt-2 space-y-4">
             {/* Camera Viewport Frame */}
             <div className="w-48 h-48 sm:w-56 sm:h-56 max-w-full aspect-square border-2 border-amber-500 rounded-2xl relative overflow-hidden bg-black flex items-center justify-center shadow-md">
-              <video 
-                ref={videoRef} 
-                playsInline 
-                muted 
-                className="w-full h-full object-cover"
-              />
-              {/* Target reticle line */}
-              <div className="absolute w-32 h-32 sm:w-40 sm:h-40 border-2 border-amber-400 border-dashed rounded-xl pointer-events-none animate-pulse flex items-center justify-center">
+              <div id="qr-reader-container" className="w-full h-full object-cover [&_video]:w-full [&_video]:h-full [&_video]:object-cover" />
+              
+              {/* Target reticle line overlay */}
+              <div className="absolute w-32 h-32 sm:w-40 sm:h-40 border-2 border-amber-400 border-dashed rounded-xl pointer-events-none animate-pulse flex items-center justify-center z-10">
                 <div className="w-full h-0.5 bg-amber-400 shadow-[0_0_8px_#f59e0b]" />
               </div>
-              <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 backdrop-blur-xs">
+              <div className="absolute top-2 right-2 bg-amber-600/90 text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 backdrop-blur-xs z-10">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-200 animate-ping" /> الكاميرا نشطة
               </div>
             </div>
