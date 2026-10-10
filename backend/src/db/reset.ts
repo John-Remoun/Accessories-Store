@@ -16,6 +16,7 @@ export async function resetDatabaseToCleanState() {
   try {
     // Truncate tables with CASCADE
     await queryRunner.query(`TRUNCATE TABLE "physical_items", "invoice_items", "invoices", "product_compositions", "product_branch_data", "products", "categories", "customers", "fixed_expenses" CASCADE;`);
+    await queryRunner.query(`DELETE FROM "users" WHERE username NOT IN ('bola', 'mina', 'test');`);
     
     // Ensure invoice_items schema is relaxed to allow transient items and compositions without foreign key errors
     try {
