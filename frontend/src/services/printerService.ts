@@ -27,12 +27,12 @@ export interface PrinterStatus {
   message: string;
 }
 
-const PRINTER_CONFIG_KEY = 'xp420b_printer_config';
+const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 
 export const defaultPrinterConfig: PrinterServiceConfig = {
-  printerName: 'Xprinter XP-420B',
-  labelWidthMm: 40,
-  labelHeightMm: 30,
+  printerName: 'Xprinter XP-246B',
+  labelWidthMm: 48,
+  labelHeightMm: 25,
   serviceUrl: 'http://localhost:9100/print'
 };
 
@@ -49,32 +49,28 @@ export const getPrinterConfig = (): PrinterServiceConfig => {
 };
 
 /**
- * Generates Native TSPL Command Stream specifically formatted for XP-420B (203 dpi)
- * Default Label Size: 40mm x 30mm
+ * Generates Native TSPL Command Stream specifically formatted for Xprinter XP-246B (203 dpi, 48mm width max)
+ * Layout: Horizontal split (QR Code on Left, Product Name & Serial Number on Right)
+ * Label format: Labels with gaps (GAP 2 mm, 0 mm)
  */
 export function generateTSPLCommands(job: PrintLabelJob): string {
-  const width = job.labelWidthMm || 40;
-  const height = job.labelHeightMm || 30;
+  const width = job.labelWidthMm || 48;
+  const height = job.labelHeightMm || 25;
   const copies = Math.max(1, job.copies || 1);
   const serial = job.product.serial.trim();
   const name = job.product.name.trim();
-
-  // 203 dpi = ~8 dots/mm
-  const totalDotsWidth = Math.round(width * 8);
-  // QR size approx 24mm = 192 dots
-  const qrX = Math.max(10, Math.round((totalDotsWidth - 140) / 2));
 
   return [
     `SIZE ${width} mm, ${height} mm`,
     `GAP 2 mm, 0 mm`,
     `DIRECTION 1`,
     `CLS`,
-    `; --- QR Code carrying strictly the Product Serial / SKU ---`,
-    `QRCODE ${qrX},15,L,4,A,0,"${serial}"`,
-    `; --- Product Name Underneath QR ---`,
-    `TEXT 20,135,"TSS24.BF2",0,1,1,"${name}"`,
-    `; --- Serial Number Underneath Product Name ---`,
-    `TEXT 20,165,"3",0,1,1,"${serial}"`,
+    `; --- QR Code on the far left (X=15, Y=15, Cell width=4) ---`,
+    `QRCODE 15,15,L,4,A,0,"${serial}"`,
+    `; --- Product Name on the right (with auto text wrapping BLOCK) ---`,
+    `BLOCK 150,15,220,110,"TSS24.BF2",0,1,1,0,1,"${name}"`,
+    `; --- Product Serial Number underneath Product Name ---`,
+    `TEXT 150,140,"3",0,1,1,"${serial}"`,
     `; --- Execute Print Job for N copies ---`,
     `PRINT 1, ${copies}`
   ].join('\r\n');

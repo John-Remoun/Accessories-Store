@@ -1123,20 +1123,22 @@ export const Products = () => {
           {printModalProduct && (
             <div className="space-y-4">
               
-              {/* Realistic 40mm x 30mm Thermal Label Sticker Preview */}
-              <div className="bg-white text-black p-4 rounded-2xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-center space-y-1.5 mx-auto w-full max-w-[210px] aspect-[4/3] overflow-hidden shadow-xs select-none">
-                {/* 1. QR Code (approx 24mm x 24mm equivalent, safe margins) */}
-                <div className="p-1 bg-white rounded-lg border border-gray-200 shadow-2xs">
-                  <QRCodeSVG value={printModalProduct.sku} size={76} level="M" />
+              {/* Realistic 48mm x 25mm Horizontal Thermal Label Sticker Preview (Xprinter XP-246B) */}
+              <div className="bg-white text-black p-2.5 rounded-2xl border-2 border-dashed border-amber-400 flex flex-row items-center justify-between gap-2.5 mx-auto w-full max-w-[260px] h-[95px] overflow-hidden shadow-sm select-none" dir="rtl">
+                {/* 1. Far Left: QR Code */}
+                <div className="p-1 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
+                  <QRCodeSVG value={printModalProduct.sku} size={60} level="M" />
                 </div>
-                {/* 2. Product Name (Truncated so text never overflows) */}
-                <p className="font-bold text-xs text-gray-900 line-clamp-1 max-w-[190px] pt-0.5">
-                  {printModalProduct.nameAr}
-                </p>
-                {/* 3. Serial Number */}
-                <p className="font-mono font-black text-xs text-gray-700 tracking-wider">
-                  {printModalProduct.sku}
-                </p>
+
+                {/* 2. Middle & Right: Product Name & Serial Number */}
+                <div className="flex flex-col justify-center text-right overflow-hidden flex-1 space-y-1">
+                  <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-2 break-words">
+                    {printModalProduct.nameAr}
+                  </p>
+                  <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
+                    {printModalProduct.sku}
+                  </p>
+                </div>
               </div>
 
               {/* Product Meta Info */}
@@ -1220,13 +1222,13 @@ export const Products = () => {
 
                     setIsSendingJob(false);
                     if (res.success) {
-                      setPrintFeedback({ type: 'success', message: `تم إرسال أمر طباعة ${printCopies} ملصق بنجاح!` });
+                      setPrintFeedback({ type: 'success', message: `تم إرسال أمر طباعة ${printCopies} ملصق لـ Xprinter XP-246B بنجاح!` });
                       setTimeout(() => {
                         setPrintModalProduct(null);
                         setPrintFeedback(null);
                       }, 1500);
                     } else {
-                      // Fallback: download TSPL file automatically
+                      // Fallback 1: download TSPL file automatically
                       downloadTSPLFile({
                         printerName: printerConfig.printerName,
                         labelWidthMm: printerConfig.labelWidthMm,
@@ -1240,7 +1242,7 @@ export const Products = () => {
                       });
                       setPrintFeedback({ 
                         type: 'success', 
-                        message: `تم تجهيز وتنزيل ملف الطباعة المباشر (${printCopies} ملصق).` 
+                        message: `تم تنزيل ملف TSPL المباشر للطابعة (${printCopies} ملصق).` 
                       });
                       setTimeout(() => {
                         setPrintModalProduct(null);
@@ -1252,15 +1254,29 @@ export const Products = () => {
                 >
                   <Printer size={16} />
                   <span>
-                    {printCopies === 1 ? 'طباعة ملصق 1' : `طباعة ${printCopies} ملصق`}
+                    {printCopies === 1 ? 'طباعة ملصق 1 (TSPL المباشر)' : `طباعة ${printCopies} ملصق (TSPL المباشر)`}
                   </span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setTimeout(() => {
+                      window.print();
+                    }, 100);
+                  }}
+                  className="w-full h-10 border-border text-foreground font-bold text-xs rounded-xl gap-2 hover:bg-accent"
+                >
+                  <Printer size={14} className="text-amber-500" />
+                  <span>طباعة عبر المتصفح (Browser Print)</span>
                 </Button>
 
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setPrintModalProduct(null)}
-                  className="w-full h-9 text-xs text-muted-foreground hover:text-foreground font-bold rounded-xl"
+                  className="w-full h-8 text-xs text-muted-foreground hover:text-foreground font-bold rounded-xl"
                 >
                   إلغاء
                 </Button>
@@ -1654,7 +1670,22 @@ export const Products = () => {
             );
           })()}
         </DialogContent>
-      </Dialog>
+      {/* Hidden container for Browser Thermal Label Printing (@media print) formatted for XP-246B */}
+      {printModalProduct && (
+        <div id="printable-thermal-tickets" className="hidden print:block">
+          {Array.from({ length: printCopies }).map((_, index) => (
+            <div key={index} className="thermal-ticket-label">
+              <div className="qr-container">
+                <QRCodeSVG value={printModalProduct.sku} size={60} level="M" />
+              </div>
+              <div className="details-container">
+                <div className="product-name">{printModalProduct.nameAr}</div>
+                <div className="product-serial">{printModalProduct.sku}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   );

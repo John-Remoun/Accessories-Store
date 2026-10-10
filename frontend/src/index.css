@@ -212,7 +212,19 @@
   height: 0 !important;
 }
 
+@page {
+  size: 48mm 25mm;
+  margin: 0;
+}
+
 @media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 48mm !important;
+    background: #ffffff !important;
+  }
+
   .print\:hidden {
     display: none !important;
   }
@@ -229,25 +241,63 @@
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: 100% !important;
-    background: white !important;
+    width: 48mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
   }
   
   .thermal-ticket-label {
-    width: 50mm !important;
-    height: 30mm !important;
-    padding: 1.5mm !important;
-    margin: 0 auto !important;
+    width: 48mm !important;
+    height: 25mm !important;
+    padding: 1.5mm 2mm !important;
+    margin: 0 !important;
     page-break-after: always !important;
     break-after: page !important;
     display: flex !important;
-    flex-direction: column !important;
+    flex-direction: row !important;
     align-items: center !important;
-    justify-content: center !important;
-    text-align: center !important;
+    justify-content: space-between !important;
+    gap: 2mm !important;
     box-sizing: border-box !important;
     overflow: hidden !important;
-    background: white !important;
-    color: black !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    direction: rtl !important;
+  }
+
+  .thermal-ticket-label .qr-container {
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .thermal-ticket-label .details-container {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    text-align: right !important;
+    overflow: hidden !important;
+  }
+
+  .thermal-ticket-label .product-name {
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    word-break: break-word !important;
+    color: #000000 !important;
+    max-height: 16mm !important;
+    overflow: hidden !important;
+  }
+
+  .thermal-ticket-label .product-serial {
+    font-family: monospace !important;
+    font-size: 8.5px !important;
+    font-weight: 700 !important;
+    margin-top: 1mm !important;
+    color: #000000 !important;
+    letter-spacing: 0.5px !important;
   }
 }
