@@ -1670,6 +1670,8 @@ export const Products = () => {
             );
           })()}
         </DialogContent>
+      </Dialog>
+
       {/* Hidden container for Browser Thermal Label Printing (@media print) formatted for XP-246B */}
       {printModalProduct && (
         <div id="printable-thermal-tickets" className="hidden print:block">
