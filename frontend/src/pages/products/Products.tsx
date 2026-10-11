@@ -277,6 +277,152 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
+  // Isolated Thermal Label Printing (Handles 48mm x 25mm dimensions and exactly N separate pages)
+  const handleExecutePrintLabels = () => {
+    if (!printModalProduct) return;
+    const copies = Math.max(1, Number(printCopies) || 1);
+
+    // Grab the rendered QR SVG from preview
+    const svgEl = document.querySelector('#label-qr-preview-container svg');
+    const qrSvgString = svgEl ? svgEl.outerHTML : '';
+
+    const labelPagesHtml = Array.from({ length: copies })
+      .map(
+        (_, i) => `
+        <div class="thermal-label-page" key="${i}">
+          <div class="qr-col">
+            ${qrSvgString}
+          </div>
+          <div class="info-col">
+            <div class="prod-name">${printModalProduct.nameAr}</div>
+            <div class="prod-sku">${printModalProduct.sku}</div>
+          </div>
+        </div>
+      `
+      )
+      .join('\n');
+
+    const printDocumentHtml = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+      <head>
+        <meta charset="utf-8" />
+        <title>طباعة ملصقات - ${printModalProduct.nameAr}</title>
+        <style>
+          @page {
+            size: 48mm 25mm;
+            margin: 0;
+          }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
+          html, body {
+            width: 48mm;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            direction: rtl;
+          }
+          .thermal-label-page {
+            width: 48mm;
+            height: 25mm;
+            padding: 1.5mm 2.5mm;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 2mm;
+            page-break-after: always;
+            break-after: page;
+            overflow: hidden;
+            background: #ffffff;
+            color: #000000;
+            box-sizing: border-box;
+          }
+          .qr-col {
+            width: 20mm;
+            height: 20mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .qr-col svg {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+          }
+          .info-col {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: right;
+            overflow: hidden;
+          }
+          .prod-name {
+            font-size: 9.5px;
+            font-weight: 800;
+            line-height: 1.2;
+            color: #000000;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          .prod-sku {
+            font-family: monospace;
+            font-size: 8.5px;
+            font-weight: 700;
+            color: #111111;
+            margin-top: 1.5mm;
+            letter-spacing: 0.5px;
+          }
+        </style>
+      </head>
+      <body>
+        ${labelPagesHtml}
+      </body>
+      </html>
+    `;
+
+    let iframe = document.getElementById('thermal-print-iframe') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'thermal-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(printDocumentHtml);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error("Print iframe error", e);
+        }
+      }, 350);
+    }
+  };
+
   // New Product Form State
   const [npNameAr, setNpNameAr] = useState('');
   const [npNameEn, setNpNameEn] = useState('');
@@ -1119,7 +1265,7 @@ export const Products = () => {
               {/* Realistic 48mm x 25mm Horizontal Thermal Label Sticker Preview (Xprinter XP-246B) */}
               <div className="bg-white text-black p-2.5 rounded-2xl border-2 border-dashed border-amber-400 flex flex-row items-center justify-between gap-2.5 mx-auto w-full max-w-[260px] h-[95px] overflow-hidden shadow-sm select-none" dir="rtl">
                 {/* 1. Far Left: QR Code */}
-                <div className="p-1 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
+                <div id="label-qr-preview-container" className="p-1 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
                   <QRCodeSVG value={printModalProduct.sku} size={60} level="M" />
                 </div>
 
@@ -1185,11 +1331,7 @@ export const Products = () => {
               <div className="pt-2 space-y-2">
                 <Button
                   type="button"
-                  onClick={() => {
-                    setTimeout(() => {
-                      window.print();
-                    }, 100);
-                  }}
+                  onClick={handleExecutePrintLabels}
                   className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-md gap-2 flex items-center justify-center transition-all active:scale-[0.98]"
                 >
                   <Printer size={18} />
@@ -1597,23 +1739,6 @@ export const Products = () => {
           })()}
         </DialogContent>
       </Dialog>
-
-      {/* Hidden container for Browser Thermal Label Printing (@media print) formatted for XP-246B */}
-      {printModalProduct && (
-        <div id="printable-thermal-tickets" className="hidden print:block">
-          {Array.from({ length: printCopies }).map((_, index) => (
-            <div key={index} className="thermal-ticket-label">
-              <div className="qr-container">
-                <QRCodeSVG value={printModalProduct.sku} size={60} level="M" />
-              </div>
-              <div className="details-container">
-                <div className="product-name">{printModalProduct.nameAr}</div>
-                <div className="product-serial">{printModalProduct.sku}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
     </div>
   );
