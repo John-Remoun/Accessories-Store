@@ -1111,13 +1111,6 @@ export const Products = () => {
               <Printer size={18} className="text-amber-500" />
               <span>طباعة الملصق</span>
             </h3>
-            <button 
-              type="button" 
-              onClick={() => setPrintModalProduct(null)}
-              className="text-xs font-bold text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-lg bg-muted"
-            >
-              ✕
-            </button>
           </div>
 
           {printModalProduct && (
@@ -1188,95 +1181,28 @@ export const Products = () => {
                 </div>
               </div>
 
-              {/* Feedback Alert Message */}
-              {printFeedback && (
-                <div className={`p-3 rounded-xl border text-xs font-bold text-center animate-in fade-in ${
-                  printFeedback.type === 'success' 
-                    ? 'bg-amber-500/15 border-amber-500/30 text-amber-500' 
-                    : 'bg-rose-500/15 border-rose-500/30 text-rose-600'
-                }`}>
-                  {printFeedback.message}
-                </div>
-              )}
-
               {/* Action Buttons */}
               <div className="pt-2 space-y-2">
                 <Button
                   type="button"
-                  disabled={isSendingJob}
-                  onClick={async () => {
-                    setIsSendingJob(true);
-                    setPrintFeedback(null);
-
-                    const res = await sendPrintJobToLocalService({
-                      printerName: printerConfig.printerName,
-                      labelWidthMm: printerConfig.labelWidthMm,
-                      labelHeightMm: printerConfig.labelHeightMm,
-                      copies: printCopies,
-                      product: {
-                        id: printModalProduct.id,
-                        name: printModalProduct.nameAr,
-                        serial: printModalProduct.sku
-                      }
-                    });
-
-                    setIsSendingJob(false);
-                    if (res.success) {
-                      setPrintFeedback({ type: 'success', message: `تم إرسال أمر طباعة ${printCopies} ملصق لـ Xprinter XP-246B بنجاح!` });
-                      setTimeout(() => {
-                        setPrintModalProduct(null);
-                        setPrintFeedback(null);
-                      }, 1500);
-                    } else {
-                      // Fallback 1: download TSPL file automatically
-                      downloadTSPLFile({
-                        printerName: printerConfig.printerName,
-                        labelWidthMm: printerConfig.labelWidthMm,
-                        labelHeightMm: printerConfig.labelHeightMm,
-                        copies: printCopies,
-                        product: {
-                          id: printModalProduct.id,
-                          name: printModalProduct.nameAr,
-                          serial: printModalProduct.sku
-                        }
-                      });
-                      setPrintFeedback({ 
-                        type: 'success', 
-                        message: `تم تنزيل ملف TSPL المباشر للطابعة (${printCopies} ملصق).` 
-                      });
-                      setTimeout(() => {
-                        setPrintModalProduct(null);
-                        setPrintFeedback(null);
-                      }, 1800);
-                    }
-                  }}
-                  className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl shadow-md gap-2"
-                >
-                  <Printer size={16} />
-                  <span>
-                    {printCopies === 1 ? 'طباعة ملصق 1 (TSPL المباشر)' : `طباعة ${printCopies} ملصق (TSPL المباشر)`}
-                  </span>
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
                   onClick={() => {
                     setTimeout(() => {
                       window.print();
                     }, 100);
                   }}
-                  className="w-full h-10 border-border text-foreground font-bold text-xs rounded-xl gap-2 hover:bg-accent"
+                  className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-md gap-2 flex items-center justify-center transition-all active:scale-[0.98]"
                 >
-                  <Printer size={14} className="text-amber-500" />
-                  <span>طباعة عبر المتصفح (Browser Print)</span>
+                  <Printer size={18} />
+                  <span>
+                    {printCopies === 1 ? 'طباعة الملصق' : `طباعة (${printCopies}) ملصق`}
+                  </span>
                 </Button>
 
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setPrintModalProduct(null)}
-                  className="w-full h-8 text-xs text-muted-foreground hover:text-foreground font-bold rounded-xl"
+                  className="w-full h-9 text-xs text-muted-foreground hover:text-foreground font-bold rounded-xl"
                 >
                   إلغاء
                 </Button>
