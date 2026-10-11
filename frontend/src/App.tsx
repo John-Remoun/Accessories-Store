@@ -14,6 +14,7 @@ import { MasterDashboard } from './pages/dashboard/MasterDashboard';
 import { Employees } from './pages/dashboard/Employees';
 import { Reports } from './pages/dashboard/Reports';
 import { Customers } from './pages/customers/Customers';
+import { Suppliers } from './pages/suppliers/Suppliers';
 
 import { ProductCompositions } from './pages/products/ProductCompositions';
 
@@ -40,6 +41,7 @@ function App() {
           <Route path="employees" element={<Employees />} />
           <Route path="reports" element={<Reports />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="suppliers" element={<Suppliers />} />
           <Route path="pos" element={<POS />} />
           <Route path="products" element={<Products />} />
           <Route path="product-compositions" element={<ProductCompositions />} />

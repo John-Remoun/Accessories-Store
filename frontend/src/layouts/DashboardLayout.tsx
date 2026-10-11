@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { 
   LayoutDashboard, ShoppingCart, Package, QrCode, FileText, 
   Settings as SettingsIcon, LogOut, Sun, Moon, Users, UserPlus, Scan, BarChart3,
-  Store, ChevronRight, ChevronLeft, Layers, Menu, X
+  Store, ChevronRight, ChevronLeft, Layers, Menu, X, Truck
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/ui/button';
@@ -88,6 +88,8 @@ export const DashboardLayout = () => {
     { name: 'سجل الفواتير', path: '/invoices', icon: FileText },
     { name: 'سجل العملاء', path: `/customers?id=${activeBranchId}`, icon: Users },
     { name: 'الموظفين والطاقم', path: '/employees', icon: UserPlus },
+    { name: 'الموردين', path: '/suppliers', icon: Truck },
+    { name: 'الإعدادات', path: '/settings', icon: SettingsIcon },
   ];
 
   const employeeNav = [

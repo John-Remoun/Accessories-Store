@@ -1,5 +1,5 @@
 import { mockBranches, mockCategories, mockCustomers, mockPhysicalItems, mockInvoices, mockProducts, mockUsers, mockProductBranchData } from '../mock/data';
-import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, ProductComposition } from '../types';
+import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
 import { api } from './api';
 
 const STORE_KEY = 'accessories_store_data_v12';
@@ -15,6 +15,7 @@ export interface AppState {
   invoices: Invoice[];
   fixedExpenses: FixedExpense[];
   compositions: ProductComposition[];
+  suppliers: SupplierPurchase[];
 }
 
 class StoreService {
@@ -151,6 +152,7 @@ class StoreService {
           invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
           fixedExpenses: Array.isArray(parsed.fixedExpenses) ? parsed.fixedExpenses : [],
           compositions: Array.isArray(parsed.compositions) ? parsed.compositions : [],
+          suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
         };
 
         // Auto-reconcile default super admin users (Bola, Mina, Test)
@@ -189,6 +191,7 @@ class StoreService {
       invoices: [],
       fixedExpenses: [],
       compositions: [],
+      suppliers: [],
     };
   }
 
@@ -661,6 +664,83 @@ class StoreService {
     } catch (err) {
       console.warn('DB sync warning (deleteComposition):', err);
     }
+  }
+
+  // --- Suppliers & Purchases ---
+  public getSupplierPurchases(): SupplierPurchase[] {
+    if (!this.state.suppliers) this.state.suppliers = [];
+    return [...this.state.suppliers].sort((a, b) => {
+      const dateA = new Date(a.purchaseDate || a.createdAt || 0).getTime();
+      const dateB = new Date(b.purchaseDate || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }
+
+  public getSupplierPurchaseById(id: string): SupplierPurchase | undefined {
+    if (!this.state.suppliers) this.state.suppliers = [];
+    return this.state.suppliers.find(s => s.id === id);
+  }
+
+  public async addSupplierPurchase(purchase: SupplierPurchase) {
+    if (!this.state.suppliers) this.state.suppliers = [];
+    this.state.suppliers.unshift(purchase);
+    this.saveState();
+  }
+
+  public async updateSupplierPurchase(id: string, updates: Partial<SupplierPurchase>) {
+    if (!this.state.suppliers) this.state.suppliers = [];
+    const idx = this.state.suppliers.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      this.state.suppliers[idx] = {
+        ...this.state.suppliers[idx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      this.saveState();
+    }
+  }
+
+  public async deleteSupplierPurchase(id: string) {
+    if (!this.state.suppliers) return;
+    this.state.suppliers = this.state.suppliers.filter(s => s.id !== id);
+    this.saveState();
+  }
+
+  public async recordSupplierPayment(id: string, amount: number, notes?: string) {
+    if (!this.state.suppliers || amount <= 0) return;
+    const idx = this.state.suppliers.findIndex(s => s.id === id);
+    if (idx === -1) return;
+
+    const current = this.state.suppliers[idx];
+    const newPaidAmount = Number((current.paidAmount + amount).toFixed(2));
+    const newRemainingAmount = Math.max(0, Number((current.totalAmount - newPaidAmount).toFixed(2)));
+    
+    let newStatus: 'paid' | 'partial' | 'unpaid' = 'unpaid';
+    if (newRemainingAmount <= 0) {
+      newStatus = 'paid';
+    } else if (newPaidAmount > 0) {
+      newStatus = 'partial';
+    }
+
+    const newPaymentRecord: SupplierPaymentRecord = {
+      id: 'pay_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      amount,
+      date: new Date().toISOString(),
+      notes,
+    };
+
+    const updatedHistory = [...(current.paymentHistory || []), newPaymentRecord];
+
+    this.state.suppliers[idx] = {
+      ...current,
+      paidAmount: newPaidAmount,
+      remainingAmount: newRemainingAmount,
+      paymentStatus: newStatus,
+      paymentHistory: updatedHistory,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.saveState();
   }
 }
 

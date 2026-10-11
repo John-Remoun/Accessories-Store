@@ -146,3 +146,28 @@ export interface ProductComposition {
   createdProductId?: string;
   createdAt: string;
 }
+
+export interface SupplierPaymentRecord {
+  id: string;
+  amount: number;
+  date: string;
+  notes?: string;
+}
+
+export interface SupplierPurchase {
+  id: string;
+  supplierName: string;
+  supplierPhone?: string;
+  invoiceNumber?: string;
+  itemsDescription?: string;
+  branchId?: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: 'paid' | 'partial' | 'unpaid';
+  purchaseDate: string; // ISO string including date and time
+  notes?: string;
+  paymentHistory?: SupplierPaymentRecord[];
+  createdAt: string;
+  updatedAt?: string;
+}
