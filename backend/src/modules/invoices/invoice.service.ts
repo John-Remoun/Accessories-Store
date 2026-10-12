@@ -221,17 +221,7 @@ export class InvoiceService {
         });
 
         if (invoice) {
-          // Revert physical items to available
-          if (invoice.invoiceItems && invoice.invoiceItems.length > 0) {
-            const itemIds = invoice.invoiceItems.map((i) => i.physicalItemId);
-            await transactionalEntityManager
-              .createQueryBuilder()
-              .update(PhysicalItemEntity)
-              .set({ status: 'available' })
-              .where('id IN (:...itemIds)', { itemIds })
-              .execute();
-          }
-
+          // Do not restore physical items or inventory to stock on invoice deletion
           // Decrement employee sales count
           if (invoice.employeeId) {
             await transactionalEntityManager.decrement(UserEntity, { id: invoice.employeeId }, 'salesCount', 1);

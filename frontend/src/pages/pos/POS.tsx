@@ -14,7 +14,7 @@ import {
   ScanLine, Search, X, CheckCircle2, ShoppingCart, User, Phone, 
   Clock, DollarSign, Printer, MessageCircle, QrCode, Plus, Minus, Trash2, 
   Sparkles, CreditCard, Send, Check, AlertCircle, Package, ChevronDown, Star,
-  Filter, Layers, Coins, Lock, RotateCcw
+  Filter, Layers, Coins, Lock, RotateCcw, Loader2
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -231,6 +231,7 @@ export const POS = () => {
   const [cameraError, setCameraError] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState<boolean>(false);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string>('');
   const [lastPrintedInvoice, setLastPrintedInvoice] = useState<Invoice | null>(null);
@@ -732,9 +733,9 @@ export const POS = () => {
 
   const remainingDeferredAmount = Math.max(0, Number((finalTotal - effectivePaidAmount).toFixed(2)));
 
-  // Helper to send structured WhatsApp text message receipt
-  const sendWhatsAppTextInvoice = (inv: Invoice, custName: string, custPhone: string, cashierName: string) => {
-    if (!custPhone.trim()) return;
+  // Helper to generate structured WhatsApp text message receipt URL
+  const getWhatsAppInvoiceUrl = (inv: Invoice, custName: string, custPhone: string, cashierName: string): string => {
+    if (!custPhone.trim()) return '';
     const cleanPhone = custPhone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('2') ? cleanPhone : `20${cleanPhone.replace(/^0/, '')}`;
     
@@ -792,12 +793,12 @@ export const POS = () => {
     msg += `\nهدفنا ارضاء العميل وليس الربح\n`;
     msg += `متجر Salla Bola & Mina للإكسسوارات`;
 
-    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`;
   };
 
   // Complete Invoice Sale
   const handleCompleteSale = async () => {
-    if (cart.length === 0) return;
+    if (isSubmitting || cart.length === 0) return;
 
     // MANDATORY CUSTOMER CHECK
     if (!customerName.trim() || !customerPhone.trim()) {
@@ -806,34 +807,9 @@ export const POS = () => {
     }
     setCustomerError('');
 
-    const generateUniqueInvoiceNumber = (): string => {
-      const existingInvoices = store.getInvoices();
-      const existingSet = new Set(existingInvoices.map(i => i.invoiceNumber));
-      
-      for (let i = 0; i < 1000; i++) {
-        const num = Math.floor(10000000 + Math.random() * 90000000).toString();
-        if (!existingSet.has(num)) return num;
-      }
-
-      return `${Date.now()}`.slice(-9);
-    };
-
-    const invoiceNum = generateUniqueInvoiceNumber();
-
-    // Build invoice items
-    const invoiceItems = cart.map(item => ({
-      physicalItemId: item.physicalItemId || `QR-${item.product.sku}`,
-      productId: item.product.id,
-      productName: item.product.nameAr || item.product.nameEn,
-      unitPrice: item.selectedPrice,
-      unitCost: item.branchData?.cost || 0,
-      quantity: item.quantity
-    }));
-
     const cName = customerName.trim();
     const cPhone = customerPhone.trim();
     const cashierName = user?.name || 'الكاشير';
-
     const isMulti = paymentSubMethod === 'multi';
 
     if (isMulti) {
@@ -847,92 +823,148 @@ export const POS = () => {
       }
     }
 
-    const splitPaymentsData = isMulti ? {
-      cash: numSplitCash,
-      vodafone_cash: numSplitVodafone,
-      instapay: numSplitInstapay,
-    } : {
-      cash: paymentSubMethod === 'cash' ? effectivePaidAmount : 0,
-      vodafone_cash: paymentSubMethod === 'vodafone_cash' ? effectivePaidAmount : 0,
-      instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
-    };
+    // Lock immediately to prevent double-clicks / repeated submissions
+    setIsSubmitting(true);
 
-    let calculatedPaymentStatus = paymentStatus;
-    if (isMulti) {
-      if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
-        calculatedPaymentStatus = 'paid';
-      } else if (effectivePaidAmount > 0) {
-        calculatedPaymentStatus = 'partial';
-      } else {
-        calculatedPaymentStatus = 'deferred';
+    // Pre-open window synchronously during user click event to avoid browser popup blockers
+    let waWindow: Window | null = null;
+    if (cPhone) {
+      try {
+        waWindow = window.open('about:blank', '_blank');
+      } catch {
+        // Popups might be completely blocked by browser policy
       }
     }
 
-    const newInvoice: Invoice = {
-      id: `inv_${Date.now()}`,
-      invoiceNumber: invoiceNum,
-      branchId: currentBranchId,
-      employeeId: user?.id || 'admin-bola',
-      customerId: selectedCustomerId || undefined,
-      customerName: cName,
-      customerPhone: cPhone,
-      date: new Date().toISOString(),
-      items: invoiceItems,
-      subtotal,
-      discount,
-      total: finalTotal,
-      totalCost,
-      paymentMethod: isMulti ? 'multi' : paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
-      paymentStatus: calculatedPaymentStatus,
-      paymentSubMethod,
-      paidAmount: effectivePaidAmount,
-      remainingAmount: remainingDeferredAmount,
-      splitPayments: splitPaymentsData,
-    };
+    try {
+      const generateUniqueInvoiceNumber = (): string => {
+        const existingInvoices = store.getInvoices();
+        const existingSet = new Set(existingInvoices.map(i => i.invoiceNumber));
+        
+        for (let i = 0; i < 1000; i++) {
+          const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+          if (!existingSet.has(num)) return num;
+        }
 
-    // 1. Save invoice to system & backend
-    await store.addInvoice(newInvoice);
+        return `${Date.now()}`.slice(-9);
+      };
 
-    // 2. Deduct sold quantities from branch stock for catalog items
-    for (const item of cart) {
-      const bd = store.getProductBranchData(item.product.id, currentBranchId);
-      if (bd) {
-        const currentQty = Number(bd?.quantity || 0);
-        const newQty = Math.max(0, currentQty - item.quantity);
-        const cleanPrefix = item.product.sku.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
-        await store.adjustProductBranchQuantity(item.product.id, currentBranchId, newQty, cleanPrefix);
+      const invoiceNum = generateUniqueInvoiceNumber();
+
+      // Build invoice items
+      const invoiceItems = cart.map(item => ({
+        physicalItemId: item.physicalItemId || `QR-${item.product.sku}`,
+        productId: item.product.id,
+        productName: item.product.nameAr || item.product.nameEn,
+        unitPrice: item.selectedPrice,
+        unitCost: item.branchData?.cost || 0,
+        quantity: item.quantity
+      }));
+
+      const splitPaymentsData = isMulti ? {
+        cash: numSplitCash,
+        vodafone_cash: numSplitVodafone,
+        instapay: numSplitInstapay,
+      } : {
+        cash: paymentSubMethod === 'cash' ? effectivePaidAmount : 0,
+        vodafone_cash: paymentSubMethod === 'vodafone_cash' ? effectivePaidAmount : 0,
+        instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
+      };
+
+      let calculatedPaymentStatus = paymentStatus;
+      if (isMulti) {
+        if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
+          calculatedPaymentStatus = 'paid';
+        } else if (effectivePaidAmount > 0) {
+          calculatedPaymentStatus = 'partial';
+        } else {
+          calculatedPaymentStatus = 'deferred';
+        }
       }
+
+      const newInvoice: Invoice = {
+        id: `inv_${Date.now()}`,
+        invoiceNumber: invoiceNum,
+        branchId: currentBranchId,
+        employeeId: user?.id || 'admin-bola',
+        customerId: selectedCustomerId || undefined,
+        customerName: cName,
+        customerPhone: cPhone,
+        date: new Date().toISOString(),
+        items: invoiceItems,
+        subtotal,
+        discount,
+        total: finalTotal,
+        totalCost,
+        paymentMethod: isMulti ? 'multi' : paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
+        paymentStatus: calculatedPaymentStatus,
+        paymentSubMethod,
+        paidAmount: effectivePaidAmount,
+        remainingAmount: remainingDeferredAmount,
+        splitPayments: splitPaymentsData,
+      };
+
+      // 1. Save invoice to system & backend (backend automatically decrements stock in DB transaction)
+      await store.addInvoice(newInvoice);
+
+      // 2. Update local branch stock quantity in store memory for immediate reactive UI updates
+      for (const item of cart) {
+        const bd = store.getProductBranchData(item.product.id, currentBranchId);
+        if (bd) {
+          bd.quantity = Math.max(0, Number(bd.quantity || 0) - item.quantity);
+        }
+      }
+      store.saveState();
+
+      // Save customer to store if starred
+      if (isCustomerFavorite) {
+        const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
+        const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
+        await store.addCustomer({
+          id: targetId,
+          name: cName,
+          phone: cPhone,
+          branchId: currentBranchId
+        });
+        setCustomersList([...store.getCustomers()]);
+      }
+
+      setLastPrintedInvoice(newInvoice);
+
+      // 3. Open WhatsApp Web with text receipt
+      const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
+      if (waUrl) {
+        if (waWindow && !waWindow.closed) {
+          waWindow.location.href = waUrl;
+        } else {
+          window.open(waUrl, '_blank');
+        }
+      } else if (waWindow && !waWindow.closed) {
+        waWindow.close();
+      }
+
+      // 4. Reset cart and customer form fields immediately
+      setCart([]);
+      setDiscount(0);
+      setPaidAmountInput(0);
+      setSplitCash('');
+      setSplitVodafone('');
+      setSplitInstapay('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setSelectedCustomerId('');
+      setIsCustomerFavorite(false);
+
+      toast.success(`تم حفظ الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
+    } catch (err) {
+      if (waWindow && !waWindow.closed) {
+        waWindow.close();
+      }
+      console.error('Error completing sale:', err);
+      toast.error('حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Save customer to store if starred
-    if (isCustomerFavorite) {
-      const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
-      const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
-      await store.addCustomer({
-        id: targetId,
-        name: cName,
-        phone: cPhone,
-        branchId: currentBranchId
-      });
-      setCustomersList([...store.getCustomers()]);
-    }
-
-    setLastPrintedInvoice(newInvoice);
-
-    // 3. Immediately open WhatsApp Web with text receipt
-    sendWhatsAppTextInvoice(newInvoice, cName, cPhone, cashierName);
-
-    // 4. Reset cart and customer form fields immediately
-    setCart([]);
-    setDiscount(0);
-    setPaidAmountInput(0);
-    setSplitCash('');
-    setSplitVodafone('');
-    setSplitInstapay('');
-    setCustomerName('');
-    setCustomerPhone('');
-    setSelectedCustomerId('');
-    setIsCustomerFavorite(false);
   };
 
   return (
@@ -1871,11 +1903,20 @@ export const POS = () => {
               <Button 
                 type="button"
                 onClick={handleCompleteSale}
-                disabled={cart.length === 0}
-                className="w-full h-14 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-base rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                disabled={isSubmitting || cart.length === 0}
+                className="w-full h-14 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-black font-extrabold text-base rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all"
               >
-                <CheckCircle2 size={22} />
-                <span>إتمام البيع واصدار الفاتورة ({finalTotal.toFixed(2)} ج.م)</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={22} className="animate-spin" />
+                    <span>جارٍ إصدار الفاتورة وإرسال واتساب...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={22} />
+                    <span>إتمام البيع واصدار الفاتورة ({finalTotal.toFixed(2)} ج.م)</span>
+                  </>
+                )}
               </Button>
             </div>
 

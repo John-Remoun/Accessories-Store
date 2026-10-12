@@ -195,7 +195,7 @@ class StoreService {
     };
   }
 
-  private saveState() {
+  public saveState() {
     localStorage.setItem(STORE_KEY, JSON.stringify(this.state));
     this.notifyListeners();
   }

@@ -17,6 +17,8 @@ import {
 import vodafoneLogo from '../../assets/vodafone-logo.png';
 import instapayLogo from '../../assets/instapay-logo.png';
 
+import { Invoice } from '../../types';
+
 const MONTH_NAMES_AR = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
   'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
@@ -32,6 +34,18 @@ const getIsoDate = (dateStr: string) => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const getInvoicePaid = (inv: Invoice): number => {
+  if (inv.paidAmount !== undefined) return Number(inv.paidAmount);
+  if (inv.paymentStatus === 'paid') return Number(inv.total || 0);
+  return 0;
+};
+
+const getInvoiceRemaining = (inv: Invoice): number => {
+  if (inv.remainingAmount !== undefined) return Number(inv.remainingAmount);
+  if (inv.paymentStatus === 'paid') return 0;
+  return Math.max(0, Number(inv.total || 0) - (inv.paidAmount || 0));
 };
 
 export const Branches = () => {
@@ -100,23 +114,28 @@ export const Branches = () => {
 
   // Branch Specific Financial Stats
   const bInvs = store.getInvoicesByBranch(branch.id);
-  const rawRev = bInvs.reduce((acc, inv) => acc + (inv.total || 0), 0);
+  const collectedRev = bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+  const totalRemainingDebt = bInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
   const cost = bInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
-  // Deduct fixed expenses directly from Total Sales Revenue and Net Profit
-  const netRevenue = Math.max(0, rawRev - totalFixedExpenses);
-  const grossProfit = rawRev - cost;
+  // Deduct fixed expenses directly from Total Collected Sales Revenue and Net Profit
+  const netRevenue = Math.max(0, collectedRev - totalFixedExpenses);
+  const grossProfit = collectedRev - cost;
   const netProfit = grossProfit - totalFixedExpenses;
   const isProfitable = netProfit >= 0;
 
-  // Revenue Payment Method Breakdown (Cash in drawer, InstaPay, Vodafone Cash)
+  // Revenue Payment Method Breakdown (Cash in drawer, InstaPay, Vodafone Cash, and Deferred Debt)
   const paymentBreakdown = useMemo(() => {
     let cashTotal = 0;
     let instapayTotal = 0;
     let vodafoneTotal = 0;
+    let remainingTotal = 0;
 
     bInvs.forEach(inv => {
-      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      const amt = getInvoicePaid(inv);
+      remainingTotal += getInvoiceRemaining(inv);
+      if (amt <= 0) return;
+
       if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
         cashTotal += Number(inv.splitPayments.cash || 0);
         vodafoneTotal += Number(inv.splitPayments.vodafone_cash || 0);
@@ -136,7 +155,7 @@ export const Branches = () => {
     // Deduct expenses from Cash in Drawer first
     const netCashTotal = Math.max(0, cashTotal - totalFixedExpenses);
 
-    return { cashTotal: netCashTotal, instapayTotal, vodafoneTotal };
+    return { cashTotal: netCashTotal, instapayTotal, vodafoneTotal, remainingTotal };
   }, [bInvs, totalFixedExpenses]);
 
   const allProducts = store.getProducts();
@@ -183,6 +202,7 @@ export const Branches = () => {
     metrics: {
       invoicesCount: number;
       totalRevenue: number;
+      dayRemaining: number;
       totalCost: number;
       totalFixedExp: number;
       grossProfit: number;
@@ -200,7 +220,8 @@ export const Branches = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-    const totalRevenue = monthInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = monthInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const totalRemaining = monthInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
     const totalCost = monthInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     let monthCash = 0;
@@ -208,7 +229,8 @@ export const Branches = () => {
     let monthVodafone = 0;
 
     monthInvoices.forEach(inv => {
-      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      const amt = getInvoicePaid(inv);
+      if (amt <= 0) return;
       if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
         monthCash += Number(inv.splitPayments.cash || 0);
         monthVodafone += Number(inv.splitPayments.vodafone_cash || 0);
@@ -238,6 +260,7 @@ export const Branches = () => {
     return {
       invoicesCount: monthInvoices.length,
       totalRevenue,
+      totalRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
@@ -255,7 +278,8 @@ export const Branches = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear;
     });
-    const totalRevenue = yearInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = yearInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const totalRemaining = yearInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
     const totalCost = yearInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     const yearExpenses = fixedExpensesList.filter(exp => {
@@ -269,7 +293,8 @@ export const Branches = () => {
 
     const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
       const mInvs = yearInvoices.filter(inv => new Date(inv.date).getMonth() === mIdx);
-      const mRev = mInvs.reduce((acc, inv) => acc + (inv.total || 0), 0);
+      const mRev = mInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+      const mRem = mInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
       const mCost = mInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
       const mExp = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx)
                                .reduce((acc, exp) => acc + (exp.amount || 0), 0);
@@ -278,6 +303,7 @@ export const Branches = () => {
         monthName: mName,
         monthIndex: mIdx,
         revenue: mRev,
+        remaining: mRem,
         netProfit: mNet,
         invoicesCount: mInvs.length,
       };
@@ -286,6 +312,7 @@ export const Branches = () => {
     return {
       invoicesCount: yearInvoices.length,
       totalRevenue,
+      totalRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
@@ -331,7 +358,8 @@ export const Branches = () => {
     
     // Filter branch invoices for this date
     const dayInvoices = bInvs.filter(inv => getIsoDate(inv.date) === datePrefix);
-    const totalRevenue = dayInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+    const totalRevenue = dayInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const dayRemaining = dayInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
     const totalCost = dayInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
     let dayCash = 0;
@@ -339,7 +367,8 @@ export const Branches = () => {
     let dayVodafone = 0;
 
     dayInvoices.forEach(inv => {
-      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      const amt = getInvoicePaid(inv);
+      if (amt <= 0) return;
       if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
         dayCash += Number(inv.splitPayments.cash || 0);
         dayVodafone += Number(inv.splitPayments.vodafone_cash || 0);
@@ -367,6 +396,7 @@ export const Branches = () => {
     return {
       invoicesCount: dayInvoices.length,
       totalRevenue,
+      dayRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
@@ -473,10 +503,10 @@ export const Branches = () => {
 
         </div>
 
-        {/* BOTTOM ROW: 2 Financial KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        {/* BOTTOM ROW: 3 Financial KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 mt-5">
           
-          {/* Card 4: Net Total Sales Revenue (Deducted by Expenses) */}
+          {/* Card 4: Net Total Collected Sales Revenue (Deducted by Expenses) */}
           <Card 
             onClick={() => setIsRevenueModalOpen(true)}
             className="bg-card shadow-xs border border-border/80 border-l-4 border-l-emerald-500 hover:bg-emerald-500/10 transition-all rounded-2xl p-5 min-h-[100px] cursor-pointer group select-none"
@@ -484,7 +514,7 @@ export const Branches = () => {
             <div className="flex flex-row items-center justify-between w-full">
               <div className="flex flex-col items-start justify-center gap-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-muted-foreground">إجمالي إيرادات المبيعات</span>
+                  <span className="text-xs font-bold text-muted-foreground">إيرادات المبيعات المحصلة</span>
                   <span className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-md group-hover:scale-105 transition-transform">اضغط للتفاصيل 🔍</span>
                 </div>
                 <div className="flex items-baseline gap-1.5 mt-1">
@@ -498,11 +528,11 @@ export const Branches = () => {
             </div>
           </Card>
 
-          {/* Card 5: Net Profit (Deducted by Expenses) */}
+          {/* Card 5: Net Profit (Deducted by Expenses and based on collected revenue) */}
           <Card className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-5 min-h-[100px]">
             <div className="flex flex-row items-center justify-between w-full">
               <div className="flex flex-col items-start justify-center gap-1">
-                <span className="text-xs font-bold text-muted-foreground">صافي الربح</span>
+                <span className="text-xs font-bold text-muted-foreground">صافي الربح الفعلي المحصل</span>
                 <div className="flex items-baseline gap-1.5 mt-1">
                   <span className={`text-2xl sm:text-3xl font-extrabold font-mono ${isProfitable ? 'text-teal-400' : 'text-rose-500'}`}>
                     {netProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -512,6 +542,30 @@ export const Branches = () => {
               </div>
               <div className="w-12 h-12 rounded-full bg-teal-950/80 text-teal-400 border border-teal-500/30 flex items-center justify-center shrink-0 shadow-xs">
                 <Coins size={22} />
+              </div>
+            </div>
+          </Card>
+
+          {/* Card 6: Remaining Deferred Debt (المتبقي / الآجل) */}
+          <Card 
+            onClick={() => navigate(`/invoices?branchId=${branch.id}&paymentStatus=deferred`)}
+            className="bg-card shadow-xs border border-border/80 border-l-4 border-l-amber-500 hover:bg-amber-500/10 transition-all rounded-2xl p-5 min-h-[100px] cursor-pointer group select-none"
+          >
+            <div className="flex flex-row items-center justify-between w-full">
+              <div className="flex flex-col items-start justify-center gap-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-muted-foreground">إجمالي المتبقي (الآجل / ديون)</span>
+                  <span className="text-[10px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded-md group-hover:scale-105 transition-transform">فواتير الآجل 🔍</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 mt-1">
+                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-400">
+                    {totalRemainingDebt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs font-bold text-amber-400">ج.م</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-amber-950/80 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+                <Clock size={22} />
               </div>
             </div>
           </Card>
@@ -888,6 +942,22 @@ export const Branches = () => {
               </div>
             </div>
 
+            {/* Remaining Deferred Debt */}
+            <div className="bg-amber-500/10 p-3 sm:p-4 rounded-2xl border border-amber-500/30 flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold text-base sm:text-lg border border-amber-500/30 shrink-0">
+                  ⏳
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs sm:text-sm text-foreground">المتبقي (الآجل / غير محصل)</h4>
+                  <span className="text-[10px] text-muted-foreground font-semibold">ديون فواتير مؤجلة</span>
+                </div>
+              </div>
+              <div className="text-left font-mono font-extrabold text-sm sm:text-base text-amber-500">
+                {paymentBreakdown.remainingTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+              </div>
+            </div>
+
             {/* Total Sum Footer */}
             <div className="bg-muted/40 p-3.5 sm:p-4 rounded-2xl border border-border/80 flex items-center justify-between pt-3 font-bold mt-2">
               <span className="text-xs text-foreground">إجمالي المبيعات المحصلة بالفرع:</span>
@@ -1006,6 +1076,19 @@ export const Branches = () => {
                         {selectedDayModalData.metrics.dayVodafone.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
                       </span>
                     </div>
+
+                    {/* Remaining / Deferred Debt */}
+                    {selectedDayModalData.metrics.dayRemaining > 0 && (
+                      <div className="bg-amber-500/10 p-2 sm:p-2.5 rounded-xl border border-amber-500/25 flex items-center justify-between text-xs shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm">⏳</span>
+                          <span className="font-bold text-foreground text-[11px] sm:text-xs">المتبقي (الآجل / غير محصل)</span>
+                        </div>
+                        <span className="font-mono font-bold text-amber-500 text-[11px] sm:text-xs">
+                          {selectedDayModalData.metrics.dayRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                        </span>
+                      </div>
+                    )}
 
                   </div>
 
@@ -1149,6 +1232,19 @@ export const Branches = () => {
                     {monthMetrics.monthVodafone.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
                   </span>
                 </div>
+
+                {/* Remaining / Deferred Debt */}
+                {monthMetrics.totalRemaining > 0 && (
+                  <div className="bg-amber-500/10 p-2 sm:p-2.5 rounded-xl border border-amber-500/25 flex items-center justify-between text-xs shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm">⏳</span>
+                      <span className="font-bold text-foreground text-[11px] sm:text-xs">المتبقي (الآجل / غير محصل)</span>
+                    </div>
+                    <span className="font-mono font-bold text-amber-500 text-[11px] sm:text-xs">
+                      {monthMetrics.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                    </span>
+                  </div>
+                )}
 
               </div>
 

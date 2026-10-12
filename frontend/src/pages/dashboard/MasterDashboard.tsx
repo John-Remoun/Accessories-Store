@@ -70,6 +70,7 @@ export const MasterDashboard = () => {
     metrics: {
       invoicesCount: number;
       totalRevenue: number;
+      dayRemaining: number;
       totalCost: number;
       totalFixedExp: number;
       grossProfit: number;
@@ -92,6 +93,11 @@ export const MasterDashboard = () => {
     const totalRevenue = dayInvoices.reduce((acc, inv) => {
       const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       return acc + paid;
+    }, 0);
+    const dayRemaining = dayInvoices.reduce((acc, inv) => {
+      if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
+      if (inv.paymentStatus === 'paid') return acc;
+      return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
     }, 0);
     const totalCost = dayInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
@@ -131,6 +137,7 @@ export const MasterDashboard = () => {
     return {
       invoicesCount: dayInvoices.length,
       totalRevenue,
+      dayRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
@@ -150,6 +157,11 @@ export const MasterDashboard = () => {
     const totalRevenue = monthInvoices.reduce((acc, inv) => {
       const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       return acc + paid;
+    }, 0);
+    const totalRemaining = monthInvoices.reduce((acc, inv) => {
+      if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
+      if (inv.paymentStatus === 'paid') return acc;
+      return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
     }, 0);
     const totalCost = monthInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
 
@@ -189,6 +201,7 @@ export const MasterDashboard = () => {
     return {
       invoicesCount: monthInvoices.length,
       totalRevenue,
+      totalRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
@@ -352,7 +365,15 @@ export const MasterDashboard = () => {
   const branchPerformanceData = useMemo(() => {
     return branches.map((b, idx) => {
       const bInvs = store.getInvoicesByBranch(b.id);
-      const bRevenue = bInvs.reduce((acc, inv) => acc + (inv.total || 0), 0);
+      const bRevenue = bInvs.reduce((acc, inv) => {
+        const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
+        return acc + paid;
+      }, 0);
+      const bRemaining = bInvs.reduce((acc, inv) => {
+        if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
+        if (inv.paymentStatus === 'paid') return acc;
+        return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
+      }, 0);
       const bCost = bInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
       const bNetProfit = bRevenue - bCost;
       const bProfitMargin = bRevenue > 0 ? ((bNetProfit / bRevenue) * 100).toFixed(1) : '0';
@@ -378,6 +399,7 @@ export const MasterDashboard = () => {
         nameEn: b.nameEn,
         location: b.location,
         revenue: bRevenue,
+        remainingDebt: bRemaining,
         cost: bCost,
         netProfit: bNetProfit,
         profitMargin: bProfitMargin,
@@ -1093,6 +1115,19 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                       </span>
                     </div>
 
+                    {/* Remaining / Deferred Debt */}
+                    {selectedDayModalData.metrics.dayRemaining > 0 && (
+                      <div className="bg-amber-500/10 p-2 sm:p-2.5 rounded-xl border border-amber-500/25 flex items-center justify-between text-xs shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm">⏳</span>
+                          <span className="font-bold text-foreground text-[11px] sm:text-xs">المتبقي (الآجل / غير محصل)</span>
+                        </div>
+                        <span className="font-mono font-bold text-amber-500 text-[11px] sm:text-xs">
+                          {selectedDayModalData.metrics.dayRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                        </span>
+                      </div>
+                    )}
+
                   </div>
 
                 </div>
@@ -1235,6 +1270,19 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                     {monthMetrics.monthVodafone.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
                   </span>
                 </div>
+
+                {/* Remaining / Deferred Debt */}
+                {monthMetrics.totalRemaining > 0 && (
+                  <div className="bg-amber-500/10 p-2 sm:p-2.5 rounded-xl border border-amber-500/25 flex items-center justify-between text-xs shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm">⏳</span>
+                      <span className="font-bold text-foreground text-[11px] sm:text-xs">المتبقي (الآجل / غير محصل)</span>
+                    </div>
+                    <span className="font-mono font-bold text-amber-500 text-[11px] sm:text-xs">
+                      {monthMetrics.totalRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                    </span>
+                  </div>
+                )}
 
               </div>
 
