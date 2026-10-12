@@ -34,4 +34,6 @@ export const createInvoiceSchema = z.object({
   }).optional().nullable(),
   paidAmount: z.number().optional().default(0),
   remainingAmount: z.number().optional().default(0),
+  cashierName: z.string().optional().nullable(),
+  whatsappConfirmationToken: z.string().optional().nullable(),
 });

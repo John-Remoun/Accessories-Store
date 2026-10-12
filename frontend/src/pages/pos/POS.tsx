@@ -22,6 +22,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
 import instapayLogo from '../../assets/instapay-logo.png';
 import lightLogo from '../../assets/light-logo.png';
+import { WhatsAppReceiptModal, WhatsAppReceiptData } from '../../components/WhatsAppReceiptModal';
 
 interface CartLineItem {
   physicalItemId: string;
@@ -283,6 +284,11 @@ export const POS = () => {
   const [checkoutSuccess, setCheckoutSuccess] = useState<boolean>(false);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string>('');
   const [lastPrintedInvoice, setLastPrintedInvoice] = useState<Invoice | null>(null);
+
+  // In-Page WhatsApp Modal State (Zero External Tabs Workflow)
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
+  const [pendingReceiptData, setPendingReceiptData] = useState<WhatsAppReceiptData | null>(null);
+  const [pendingInvoicePayload, setPendingInvoicePayload] = useState<Invoice | null>(null);
 
   // Dedicated function to reset entire POS page to clean new-invoice state
   const resetPosScreen = useCallback(() => {
@@ -919,9 +925,9 @@ export const POS = () => {
     return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(msg)}`;
   };
 
-  // Complete Invoice Sale
+  // Complete Invoice Sale - Triggers In-Page WhatsApp Verification Flow
   const handleCompleteSale = async () => {
-    // 1. Double-click concurrency guard (Atomic Ref Check)
+    // 1. Double-click concurrency guard
     if (isSubmittingRef.current || isSubmitting || cart.length === 0) return;
 
     // 2. Mandatory Customer Name & Phone check
@@ -938,7 +944,7 @@ export const POS = () => {
 
     const rawPhoneDigits = customerPhone.replace(/\D/g, '');
     if (rawPhoneDigits.length < 10) {
-      const msg = 'رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لفتح محادثة الواتساب)!';
+      const msg = 'رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لإرسال إيصال الواتساب)!';
       setCustomerError(msg);
       toast.error(msg);
       const phoneEl = document.getElementById('pos-customer-phone');
@@ -955,121 +961,129 @@ export const POS = () => {
     if (isMulti) {
       if (totalSplitPaid > finalTotal) {
         toast.error(`خطأ: مجموع المبالغ المقسمة (${totalSplitPaid} ج.م) أكبر من إجمالي الفاتورة (${finalTotal} ج.م)! يرجى تعديل المبالغ.`);
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
         return;
       }
       if (paymentStatus === 'paid' && totalSplitPaid < finalTotal) {
         toast.error(`الفاتورة محددة "مدفوع بالكامل" ولكن الموزع (${totalSplitPaid} ج.م) أقل من الإجمالي (${finalTotal} ج.م). يرجى استكمال المبلغ أو اختيار "دفع جزئي".`);
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
         return;
       }
     }
 
-    // CHECK INVENTORY FOR ALL CART ITEMS BEFORE SUBMITTING (Concurrency check)
+    // CHECK INVENTORY FOR ALL CART ITEMS BEFORE PROCEEDING
     for (const item of cart) {
       if (item.product.id?.startsWith('comp_assembled_')) continue;
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
       const currentStock = Number(bd?.quantity ?? 0);
       if (bd && currentStock < item.quantity) {
         toast.error(`عذراً، المنتج "${item.product.nameAr || item.product.nameEn}" غير متوفر بالكمية المطلوبة (المتبقي في المخزن: ${currentStock}). يرجى تعديل السلة.`);
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
         return;
       }
     }
 
-    // Lock immediately to prevent double-clicks / repeated submissions
+    const generateUniqueInvoiceNumber = (): string => {
+      const existingInvoices = store.getInvoices();
+      const existingSet = new Set(existingInvoices.map(i => i.invoiceNumber));
+      for (let i = 0; i < 1000; i++) {
+        const num = Math.floor(10000000 + Math.random() * 90000000).toString();
+        if (!existingSet.has(num)) return num;
+      }
+      return `${Date.now()}`.slice(-9);
+    };
+
+    const invoiceNum = generateUniqueInvoiceNumber();
+
+    const invoiceItems = cart.map(item => ({
+      physicalItemId: item.physicalItemId || undefined,
+      productId: item.product.id,
+      productName: item.product.nameAr || item.product.nameEn,
+      unitPrice: item.selectedPrice,
+      unitCost: item.branchData?.cost || 0,
+      quantity: item.quantity
+    }));
+
+    const splitPaymentsData = isMulti ? {
+      cash: numSplitCash,
+      vodafone_cash: numSplitVodafone,
+      instapay: numSplitInstapay,
+    } : {
+      cash: paymentSubMethod === 'cash' ? effectivePaidAmount : 0,
+      vodafone_cash: paymentSubMethod === 'vodafone_cash' ? effectivePaidAmount : 0,
+      instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
+    };
+
+    let calculatedPaymentStatus: 'paid' | 'partial' | 'deferred' = 'paid';
+    if (paymentStatus === 'deferred' || effectivePaidAmount <= 0) {
+      calculatedPaymentStatus = 'deferred';
+    } else if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
+      calculatedPaymentStatus = 'paid';
+    } else {
+      calculatedPaymentStatus = 'partial';
+    }
+
+    const newInvoice: Invoice = {
+      id: `inv_${Date.now()}`,
+      invoiceNumber: invoiceNum,
+      branchId: currentBranchId,
+      employeeId: user?.id || 'admin-bola',
+      customerId: selectedCustomerId || undefined,
+      customerName: cName,
+      customerPhone: cPhone,
+      date: new Date().toISOString(),
+      items: invoiceItems,
+      subtotal,
+      discount,
+      total: finalTotal,
+      totalCost,
+      paymentMethod: isMulti ? 'multi' : paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
+      paymentStatus: calculatedPaymentStatus,
+      paymentSubMethod,
+      paidAmount: effectivePaidAmount,
+      remainingAmount: remainingDeferredAmount,
+      splitPayments: splitPaymentsData,
+    };
+
+    // Prepare in-page receipt preview data
+    const receiptData: WhatsAppReceiptData = {
+      invoiceNumber: invoiceNum,
+      customerName: cName,
+      customerPhone: cPhone,
+      cashierName,
+      date: new Date().toISOString(),
+      total: finalTotal,
+      paidAmount: effectivePaidAmount,
+      remainingAmount: remainingDeferredAmount,
+      paymentMethod: isMulti ? 'multi' : paymentSubMethod,
+      items: cart.map(item => ({
+        name: item.product.nameAr || item.product.nameEn,
+        count: item.quantity,
+        unitPrice: item.selectedPrice,
+        totalPrice: item.selectedPrice * item.quantity,
+      })),
+    };
+
+    setPendingReceiptData(receiptData);
+    setPendingInvoicePayload(newInvoice);
+    setIsWhatsAppModalOpen(true);
+  };
+
+  // Enforces WhatsApp-First Delivery Before Committing to Database
+  const handleConfirmSendReceiptViaWhatsApp = async (confirmationToken: string) => {
+    if (!pendingInvoicePayload) return;
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
-      const generateUniqueInvoiceNumber = (): string => {
-        const existingInvoices = store.getInvoices();
-        const existingSet = new Set(existingInvoices.map(i => i.invoiceNumber));
-        
-        for (let i = 0; i < 1000; i++) {
-          const num = Math.floor(10000000 + Math.random() * 90000000).toString();
-          if (!existingSet.has(num)) return num;
-        }
-
-        return `${Date.now()}`.slice(-9);
+      const invoiceToCommit: any = {
+        ...pendingInvoicePayload,
+        cashierName: user?.name || 'الكاشير',
+        whatsappConfirmationToken: confirmationToken,
       };
 
-      const invoiceNum = generateUniqueInvoiceNumber();
+      // 1. Commit invoice to backend (Backend aborts/rolls back if WhatsApp dispatch fails!)
+      await store.addInvoice(invoiceToCommit);
 
-      // Build invoice items
-      const invoiceItems = cart.map(item => ({
-        physicalItemId: item.physicalItemId || undefined,
-        productId: item.product.id,
-        productName: item.product.nameAr || item.product.nameEn,
-        unitPrice: item.selectedPrice,
-        unitCost: item.branchData?.cost || 0,
-        quantity: item.quantity
-      }));
-
-      const splitPaymentsData = isMulti ? {
-        cash: numSplitCash,
-        vodafone_cash: numSplitVodafone,
-        instapay: numSplitInstapay,
-      } : {
-        cash: paymentSubMethod === 'cash' ? effectivePaidAmount : 0,
-        vodafone_cash: paymentSubMethod === 'vodafone_cash' ? effectivePaidAmount : 0,
-        instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
-      };
-
-      let calculatedPaymentStatus: 'paid' | 'partial' | 'deferred' = 'paid';
-      if (paymentStatus === 'deferred' || effectivePaidAmount <= 0) {
-        calculatedPaymentStatus = 'deferred';
-      } else if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
-        calculatedPaymentStatus = 'paid';
-      } else {
-        calculatedPaymentStatus = 'partial';
-      }
-
-      const newInvoice: Invoice = {
-        id: `inv_${Date.now()}`,
-        invoiceNumber: invoiceNum,
-        branchId: currentBranchId,
-        employeeId: user?.id || 'admin-bola',
-        customerId: selectedCustomerId || undefined,
-        customerName: cName,
-        customerPhone: cPhone,
-        date: new Date().toISOString(),
-        items: invoiceItems,
-        subtotal,
-        discount,
-        total: finalTotal,
-        totalCost,
-        paymentMethod: isMulti ? 'multi' : paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
-        paymentStatus: calculatedPaymentStatus,
-        paymentSubMethod,
-        paidAmount: effectivePaidAmount,
-        remainingAmount: remainingDeferredAmount,
-        splitPayments: splitPaymentsData,
-      };
-
-      // Ensure WhatsApp URL can be constructed before committing sale
-      const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
-      if (!waUrl) {
-        throw new Error('تعذر تجهيز رابط فاتورة الواتساب. يرجى التأكد من كتابة رقم الهاتف بشكل صحيح.');
-      }
-
-      // 1. Commit invoice to database & store (guaranteed save)
-      try {
-        await store.addInvoice(newInvoice);
-      } catch (invErr: any) {
-        console.warn('Invoice sync warning, proceeding with checkout flow:', invErr);
-        if (invErr?.message?.includes('غير متوفر') || invErr?.message?.includes('نفدت')) {
-          toast.error(invErr.message);
-          isSubmittingRef.current = false;
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      // 2. Immediately update local branch stock for zero-latency reactive UI
+      // 2. Immediately update local branch stock
       for (const item of cart) {
         const bd = store.getProductBranchData(item.product.id, currentBranchId);
         if (bd) {
@@ -1081,41 +1095,28 @@ export const POS = () => {
       // Save customer to store if starred
       if (isCustomerFavorite) {
         try {
-          const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
+          const existing = store.getCustomers().find(c => 
+            (invoiceToCommit.customerPhone && c.phone.trim() === invoiceToCommit.customerPhone) || 
+            (invoiceToCommit.customerName && c.name.trim() === invoiceToCommit.customerName)
+          );
           const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
           await store.addCustomer({
             id: targetId,
-            name: cName,
-            phone: cPhone,
+            name: invoiceToCommit.customerName,
+            phone: invoiceToCommit.customerPhone,
             branchId: currentBranchId
           });
           setCustomersList([...store.getCustomers()]);
         } catch {}
       }
 
-      setLastPrintedInvoice(newInvoice);
+      setLastPrintedInvoice(invoiceToCommit);
 
-      // 3. Mark session so any restore from WhatsApp or browser back resets the screen cleanly
-      sessionStorage.setItem('pos_just_sold', 'true');
-
-      // 4. ZERO OUT POS SCREEN IMMEDIATELY (NEW INVOICE READY)
+      // 3. ZERO OUT POS SCREEN IMMEDIATELY FOR NEW INVOICE
       resetPosScreen();
-
-      toast.success(`تم حفظ الفاتورة #${invoiceNum} بنجاح! جارٍ التحويل للواتساب...`);
-
-      // 5. OPEN WHATSAPP LINK SEAMLESSLY (Supports both new tab and fallback)
-      let waWin: Window | null = null;
-      try {
-        waWin = window.open(waUrl, '_blank');
-      } catch (e) {
-        waWin = null;
-      }
-      if (!waWin || waWin.closed || typeof waWin.closed === 'undefined') {
-        window.location.href = waUrl;
-      }
     } catch (err: any) {
-      console.error('Error completing sale:', err);
-      toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
+      console.error('Invoice commit error:', err);
+      throw err;
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -2573,6 +2574,19 @@ export const POS = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* IN-PAGE WHATSAPP RECEIPT MODAL (Zero External Tabs / In-Page Verification) */}
+      <WhatsAppReceiptModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => {
+          setIsWhatsAppModalOpen(false);
+          setPendingReceiptData(null);
+          setPendingInvoicePayload(null);
+        }}
+        receiptData={pendingReceiptData}
+        onConfirmSend={handleConfirmSendReceiptViaWhatsApp}
+        isSending={isSubmitting}
+      />
     </>
   );
 };

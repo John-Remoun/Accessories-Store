@@ -8,6 +8,7 @@ import { CustomerEntity } from '../customers/customer.entity';
 import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
 import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, StockUpdateItem } from '../../common/socket/socket.service';
+import { whatsappService } from '../whatsapp/whatsapp.service';
 
 export class InvoiceService {
   private invoiceRepo = AppDataSource.getRepository(InvoiceEntity);
@@ -228,6 +229,34 @@ export class InvoiceService {
         remainingAmount: data.remainingAmount !== undefined ? data.remainingAmount : 0,
         invoiceItems: invoiceItemEntities,
       });
+
+      // --- WHATSAPP-FIRST INVOICE CREATION RULE ---
+      // The backend MUST NOT save the invoice or commit the transaction UNTIL the WhatsApp receipt
+      // is successfully verified and sent to customer. If WhatsApp dispatch fails, throwing here
+      // immediately triggers AppDataSource.transaction ROLLBACK, reverting stock deduction completely!
+      if (data.customerPhone && data.customerPhone.trim()) {
+        const receiptItems = data.items.map(it => ({
+          productName: it.productName || 'منتج إكسسوارات',
+          quantity: Number(it.quantity || 1),
+          unitPrice: Number(it.unitPrice || 0),
+          totalPrice: Number(it.unitPrice || 0) * Number(it.quantity || 1),
+        }));
+
+        await whatsappService.sendInvoiceReceipt({
+          invoiceNumber,
+          customerName: data.customerName || 'عميل',
+          customerPhone: data.customerPhone.trim(),
+          cashierName: (data as any).cashierName,
+          total,
+          paidAmount: data.paidAmount,
+          remainingAmount: data.remainingAmount,
+          paymentMethod: data.paymentMethod,
+          items: receiptItems,
+          confirmationToken: (data as any).whatsappConfirmationToken,
+        });
+      } else {
+        throw new AppError('رقم هاتف العميل إجباري لإرسال إيصال الواتساب أولاً قبل تأكيد الفاتورة وحفظها في قاعدة البيانات!', 400);
+      }
 
       await transactionalEntityManager.save(invoice);
 
