@@ -13,8 +13,30 @@ import {
   ArrowRight, Truck, Plus, Search, DollarSign, CheckCircle2, Clock, 
   AlertCircle, Calendar, Edit3, Trash2, History, CreditCard, 
   ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer,
-  Building2, Layers
+  Building2, Layers, Users
 } from 'lucide-react';
+
+const getLocalNowIso = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const toLocalDatetimeString = (dateStr?: string) => {
+  if (!dateStr) return getLocalNowIso();
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return getLocalNowIso();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
 
 export const Suppliers = () => {
   useStoreSync();
@@ -76,6 +98,11 @@ export const Suppliers = () => {
   const [selectedPurchaseForDetails, setSelectedPurchaseForDetails] = useState<SupplierPurchase | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Supplier Statement / Profile State
+  const [statementSupplier, setStatementSupplier] = useState<{ name: string; phone?: string } | null>(null);
+  const [isSupplierSelectModalOpen, setIsSupplierSelectModalOpen] = useState(false);
+  const [supplierSelectSearch, setSupplierSelectSearch] = useState('');
+
   // Form State for Add / Edit
   const [formData, setFormData] = useState<{
     supplierName: string;
@@ -97,14 +124,14 @@ export const Suppliers = () => {
     totalAmount: '',
     paidAmount: '',
     paymentMode: 'unpaid',
-    purchaseDateTime: new Date().toISOString().slice(0, 16),
+    purchaseDateTime: getLocalNowIso(),
     notes: '',
   });
 
   // Payment installment form state
   const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [paymentNotes, setPaymentNotes] = useState<string>('');
-  const [paymentDateTime, setPaymentDateTime] = useState<string>(new Date().toISOString().slice(0, 16));
+  const [paymentDateTime, setPaymentDateTime] = useState<string>(getLocalNowIso());
 
   // Get raw purchases list
   const purchases = store.getSupplierPurchases();
@@ -185,6 +212,171 @@ export const Suppliers = () => {
     }
   };
 
+  // Existing Unique Suppliers for Auto-fill and Statement Matching
+  const existingSuppliers = useMemo(() => {
+    const map = new Map<string, { 
+      name: string; 
+      phone: string; 
+      count: number; 
+      totalRemaining: number; 
+      totalPurchases: number; 
+      totalPaid: number;
+    }>();
+    purchases.forEach((p) => {
+      const name = (p.supplierName || '').trim();
+      if (!name) return;
+      const phone = (p.supplierPhone || '').trim();
+      const key = `${name.toLowerCase()}___${phone}`;
+      if (!map.has(key)) {
+        map.set(key, { 
+          name, 
+          phone, 
+          count: 1, 
+          totalRemaining: Number(p.remainingAmount || 0),
+          totalPurchases: Number(p.totalAmount || 0),
+          totalPaid: Number(p.paidAmount || 0),
+        });
+      } else {
+        const item = map.get(key)!;
+        item.count += 1;
+        item.totalRemaining += Number(p.remainingAmount || 0);
+        item.totalPurchases += Number(p.totalAmount || 0);
+        item.totalPaid += Number(p.paidAmount || 0);
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [purchases]);
+
+  // Purchases for the selected Statement Supplier
+  const statementPurchases = useMemo(() => {
+    if (!statementSupplier) return [];
+    const targetName = statementSupplier.name.trim().toLowerCase();
+    const targetPhone = (statementSupplier.phone || '').trim();
+    return purchases.filter((p) => {
+      const nameMatch = (p.supplierName || '').trim().toLowerCase() === targetName;
+      if (!nameMatch) return false;
+      if (targetPhone && p.supplierPhone) {
+        return (p.supplierPhone || '').trim() === targetPhone;
+      }
+      return true;
+    });
+  }, [purchases, statementSupplier]);
+
+  // Statement Summary Stats
+  const statementStats = useMemo(() => {
+    let totalPurchases = 0;
+    let totalPaid = 0;
+    let totalRemaining = 0;
+    statementPurchases.forEach(p => {
+      totalPurchases += Number(p.totalAmount || 0);
+      totalPaid += Number(p.paidAmount || 0);
+      totalRemaining += Number(p.remainingAmount || 0);
+    });
+    return {
+      totalPurchases: Number(totalPurchases.toFixed(2)),
+      totalPaid: Number(totalPaid.toFixed(2)),
+      totalRemaining: Number(totalRemaining.toFixed(2)),
+      billsCount: statementPurchases.length,
+    };
+  }, [statementPurchases]);
+
+  const handleOpenSupplierStatement = (name: string, phone?: string) => {
+    setStatementSupplier({ name, phone });
+  };
+
+  // Print Statement for specific supplier
+  const handlePrintSupplierStatement = () => {
+    if (!statementSupplier) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const reportTitle = `كشف حساب المورد: ${statementSupplier.name}`;
+    const rowsHtml = statementPurchases.map((p, idx) => {
+      const dt = formatArabicDateTime(p.purchaseDate);
+      const branchName = store.getBranch(p.branchId || 'b4')?.nameAr || 'فرع المكتب';
+      const statusLabel = p.paymentStatus === 'paid' ? 'مدفوع بالكامل' : p.paymentStatus === 'partial' ? 'دفع جزئي' : 'آجل (لم يُدفع)';
+      return `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">#${p.invoiceNumber || '-'}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${branchName}</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${p.itemsDescription || '-'}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${dt.dayName} ${dt.datePart} (${dt.timePart})</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">${p.totalAmount.toLocaleString()} ج.م</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: green;">${p.paidAmount.toLocaleString()} ج.م</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: red; font-weight: bold;">${p.remainingAmount.toLocaleString()} ج.م</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${statusLabel}</td>
+        </tr>
+      `;
+    }).join('');
+
+    printWindow.document.write(`
+      <html dir="rtl" lang="ar">
+        <head>
+          <title>${reportTitle}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; direction: rtl; }
+            h2, p { text-align: center; margin: 4px 0; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+            th { background-color: #f1f5f9; padding: 10px; border: 1px solid #cbd5e1; text-align: center; }
+            .kpi-box { display: flex; justify-content: space-around; margin: 15px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #fafafa; }
+            .kpi { text-align: center; }
+            .kpi-title { font-size: 12px; color: #64748b; }
+            .kpi-val { font-size: 16px; font-weight: bold; margin-top: 4px; }
+          </style>
+        </head>
+        <body>
+          <h2>${reportTitle}</h2>
+          ${statementSupplier.phone ? `<p style="font-weight: bold; color: #475569;">رقم الهاتف: ${statementSupplier.phone}</p>` : ''}
+          <p style="color: #64748b; font-size: 12px;">تاريخ استخراج الكشف: ${new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+          
+          <div class="kpi-box">
+            <div class="kpi">
+              <div class="kpi-title">إجمالي المشتريات</div>
+              <div class="kpi-val">${statementStats.totalPurchases.toLocaleString()} ج.م</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">إجمالي المسدد</div>
+              <div class="kpi-val" style="color: green;">${statementStats.totalPaid.toLocaleString()} ج.م</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">صافي الدين المتبقي للمورد</div>
+              <div class="kpi-val" style="color: red;">${statementStats.totalRemaining.toLocaleString()} ج.م</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">عدد الفواتير</div>
+              <div class="kpi-val">${statementStats.billsCount}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>م</th>
+                <th>رقم الفاتورة</th>
+                <th>الفرع</th>
+                <th>بيان البضاعة</th>
+                <th>التاريخ والوقت</th>
+                <th>إجمالي الثمن</th>
+                <th>المدفوع</th>
+                <th>المتبقي</th>
+                <th>حالة السداد</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 400);
+  };
+
   // Open Add Modal
   const handleOpenAdd = () => {
     setEditingPurchase(null);
@@ -197,7 +389,7 @@ export const Suppliers = () => {
       totalAmount: '',
       paidAmount: '',
       paymentMode: 'unpaid',
-      purchaseDateTime: new Date().toISOString().slice(0, 16),
+      purchaseDateTime: getLocalNowIso(),
       notes: '',
     });
     setIsAddEditOpen(true);
@@ -216,7 +408,7 @@ export const Suppliers = () => {
       totalAmount: item.totalAmount.toString(),
       paidAmount: item.paidAmount.toString(),
       paymentMode: mode,
-      purchaseDateTime: item.purchaseDate ? new Date(item.purchaseDate).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+      purchaseDateTime: toLocalDatetimeString(item.purchaseDate),
       notes: item.notes || '',
     });
     setIsAddEditOpen(true);
@@ -347,7 +539,7 @@ export const Suppliers = () => {
     setSelectedPurchaseForPayment(purchase);
     setPaymentAmount('');
     setPaymentNotes('');
-    setPaymentDateTime(new Date().toISOString().slice(0, 16));
+    setPaymentDateTime(getLocalNowIso());
     setIsPaymentModalOpen(true);
   };
 
@@ -522,7 +714,17 @@ export const Suppliers = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto z-10">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto z-10 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={() => setIsSupplierSelectModalOpen(true)}
+            className="flex-1 sm:flex-none gap-2 rounded-2xl text-xs font-bold border-amber-500/40 hover:bg-amber-500/10 text-amber-500 h-11 px-4 shadow-xs"
+            title="عرض كشوف حسابات الموردين وفواتير كل مورد"
+          >
+            <FileText size={16} />
+            <span>كشف حساب مورد</span>
+          </Button>
+
           <Button
             variant="outline"
             onClick={handlePrintReport}
@@ -635,10 +837,13 @@ export const Suppliers = () => {
         </Card>
 
         {/* Total Suppliers Count */}
-        <Card className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
+        <Card 
+          onClick={() => setIsSupplierSelectModalOpen(true)}
+          className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-bold text-muted-foreground">عدد الموردين</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+            <span className="text-xs sm:text-sm font-bold text-muted-foreground group-hover:text-amber-500 transition-colors">عدد الموردين</span>
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform">
               <Truck size={18} />
             </div>
           </div>
@@ -646,8 +851,8 @@ export const Suppliers = () => {
             <div className="text-lg sm:text-2xl font-black text-foreground">
               {stats.suppliersCount} <span className="text-xs text-muted-foreground font-normal">مورد</span>
             </div>
-            <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
-              <span>مسجلين بالنظام</span>
+            <div className="text-[11px] text-amber-500/90 mt-1 flex items-center gap-1 font-bold">
+              <span>عرض كشوف الحساب 📋</span>
             </div>
           </div>
         </Card>
@@ -775,14 +980,30 @@ export const Suppliers = () => {
                       {/* Supplier Info */}
                       <TableCell className="align-middle">
                         <div className="flex flex-col">
-                          <span className="font-extrabold text-xs sm:text-sm text-foreground flex items-center gap-1.5">
-                            {item.supplierName}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                              className="font-extrabold text-xs sm:text-sm text-foreground hover:text-amber-500 hover:underline transition-colors text-right"
+                              title="عرض كشف حساب هذا المورد"
+                            >
+                              {item.supplierName}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                              className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/30 font-bold transition-all shrink-0 flex items-center gap-1"
+                              title="عرض كشف الحساب وتفاصيل كل الفواتير"
+                            >
+                              <FileText size={11} />
+                              <span>كشف حساب</span>
+                            </button>
                             {item.invoiceNumber && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-normal">
                                 #{item.invoiceNumber}
                               </span>
                             )}
-                          </span>
+                          </div>
                           {item.supplierPhone ? (
                             <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5" dir="ltr">
                               <Phone size={11} /> {item.supplierPhone}
@@ -970,6 +1191,42 @@ export const Suppliers = () => {
               </select>
             </div>
 
+            {/* Auto-suggest dropdown for previously recorded suppliers */}
+            {existingSuppliers.length > 0 && !editingPurchase && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-2xl space-y-1.5 shadow-2xs">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-500">
+                  <span className="flex items-center gap-1.5">
+                    <Users size={14} />
+                    <span>اختيار مورد مسجل سابقاً (تعبئة تلقائية):</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    {existingSuppliers.length} مورد مسجل
+                  </span>
+                </div>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const [suppName, suppPhone] = val.split('___');
+                    setFormData(prev => ({
+                      ...prev,
+                      supplierName: suppName || prev.supplierName,
+                      supplierPhone: suppPhone || '',
+                    }));
+                  }}
+                  className="w-full rounded-xl text-xs h-10 px-3 bg-background border border-amber-500/30 text-foreground font-bold outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                >
+                  <option value="">-- اضغط لاختيار مورد وتعبئة اسمه ورقم هاتفه تلقائياً --</option>
+                  {existingSuppliers.map((s, idx) => (
+                    <option key={idx} value={`${s.name}___${s.phone || ''}`}>
+                      {s.name} {s.phone ? `(${s.phone})` : ''} — [{s.count} فاتورة] {s.totalRemaining > 0 ? `(متبقي له: ${s.totalRemaining.toLocaleString()} ج.م)` : '(خالص)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Row 1: Supplier Name & Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -977,11 +1234,17 @@ export const Suppliers = () => {
                   اسم المورد <span className="text-rose-500">*</span>
                 </label>
                 <Input
+                  list="suppliers-names-datalist"
                   value={formData.supplierName}
                   onChange={(e) => setFormData(prev => ({ ...prev, supplierName: e.target.value }))}
                   placeholder="مثال: مصنع الأندلس / الحاج رجب"
                   className="rounded-xl text-xs h-10"
                 />
+                <datalist id="suppliers-names-datalist">
+                  {existingSuppliers.map((s, idx) => (
+                    <option key={idx} value={s.name} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -989,16 +1252,22 @@ export const Suppliers = () => {
                   رقم الهاتف (اختياري)
                 </label>
                 <Input
+                  list="suppliers-phones-datalist"
                   value={formData.supplierPhone}
                   onChange={(e) => setFormData(prev => ({ ...prev, supplierPhone: e.target.value }))}
                   placeholder="010XXXXXXXX"
                   className="rounded-xl text-xs h-10"
                   dir="ltr"
                 />
+                <datalist id="suppliers-phones-datalist">
+                  {existingSuppliers.filter(s => s.phone).map((s, idx) => (
+                    <option key={idx} value={s.phone} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
-            {/* Row 2: Invoice No & Goods Description */}
+            {/* Row 2: Invoice No & Date/Time (Exact Clock & Date) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-foreground mb-1 block">
@@ -1013,16 +1282,37 @@ export const Suppliers = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-foreground mb-1 block">
-                  بيان البضاعة المشتراة
+                <label className="text-xs font-bold text-foreground mb-1 flex items-center justify-between">
+                  <span>التاريخ والوقت بالساعة والدقيقة <span className="text-rose-500">*</span></span>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, purchaseDateTime: getLocalNowIso() }))}
+                    className="text-[10px] text-amber-500 hover:underline font-bold"
+                    title="ضبط على اللحظة الحالية الآن"
+                  >
+                    الآن ⏱️
+                  </button>
                 </label>
                 <Input
-                  value={formData.itemsDescription}
-                  onChange={(e) => setFormData(prev => ({ ...prev, itemsDescription: e.target.value }))}
-                  placeholder="مثال: 50 سلسلة ستانلس + 100 خاتم فضي"
-                  className="rounded-xl text-xs h-10"
+                  type="datetime-local"
+                  value={formData.purchaseDateTime}
+                  onChange={(e) => setFormData(prev => ({ ...prev, purchaseDateTime: e.target.value }))}
+                  className="rounded-xl text-xs h-10 font-mono"
                 />
               </div>
+            </div>
+
+            {/* Row 3: Goods Description */}
+            <div>
+              <label className="text-xs font-bold text-foreground mb-1 block">
+                بيان البضاعة المشتراة
+              </label>
+              <Input
+                value={formData.itemsDescription}
+                onChange={(e) => setFormData(prev => ({ ...prev, itemsDescription: e.target.value }))}
+                placeholder="مثال: 50 سلسلة ستانلس + 100 خاتم فضي"
+                className="rounded-xl text-xs h-10"
+              />
             </div>
 
             {/* Row 3: Total Goods Cost */}
@@ -1152,23 +1442,7 @@ export const Suppliers = () => {
               </div>
             )}
 
-            {/* Row 6: Purchase Date & Time */}
-            <div>
-              <label className="text-xs font-bold text-foreground mb-1 block flex items-center justify-between">
-                <span>اليوم، التاريخ والوقت</span>
-                {formData.purchaseDateTime && (
-                  <span className="text-[11px] text-amber-500 font-normal">
-                    {formatArabicDateTime(formData.purchaseDateTime).dayName} - {formatArabicDateTime(formData.purchaseDateTime).timePart}
-                  </span>
-                )}
-              </label>
-              <Input
-                type="datetime-local"
-                value={formData.purchaseDateTime}
-                onChange={(e) => setFormData(prev => ({ ...prev, purchaseDateTime: e.target.value }))}
-                className="rounded-xl text-xs h-10"
-              />
-            </div>
+
 
             {/* Row 7: Notes */}
             <div>
@@ -1483,6 +1757,299 @@ export const Suppliers = () => {
               className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs"
             >
               نعم، حذف الفاتورة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== Supplier Statement / Ledger Modal (كشف حساب المورد) ==================== */}
+      <Dialog open={!!statementSupplier} onOpenChange={(open) => !open && setStatementSupplier(null)}>
+        <DialogContent className="w-[calc(100vw-1.25rem)] sm:w-full max-w-4xl max-h-[92dvh] rounded-3xl p-0 overflow-hidden flex flex-col bg-card border-border shadow-2xl" dir="rtl">
+          {statementSupplier && (
+            <>
+              {/* Header */}
+              <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <DialogTitle className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2">
+                    <FileText className="text-amber-500 shrink-0" size={22} />
+                    <span>كشف حساب المورد: {statementSupplier.name}</span>
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3">
+                    {statementSupplier.phone ? (
+                      <span className="flex items-center gap-1 font-mono text-foreground font-bold" dir="ltr">
+                        <Phone size={12} /> {statementSupplier.phone}
+                      </span>
+                    ) : (
+                      <span>بدون رقم هاتف</span>
+                    )}
+                    <span>•</span>
+                    <span>سجل ومتابعة كافة فواتير البضاعة والمبالغ المتبقية لهذا المورد.</span>
+                  </DialogDescription>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Button
+                    onClick={handlePrintSupplierStatement}
+                    variant="outline"
+                    className="flex-1 sm:flex-none gap-1.5 rounded-xl text-xs font-bold border-amber-500/40 text-amber-500 hover:bg-amber-500/10 h-9 shadow-xs"
+                    title="طباعة كشف الحساب"
+                  >
+                    <Printer size={15} />
+                    <span>طباعة كشف الحساب</span>
+                  </Button>
+                </div>
+              </DialogHeader>
+
+              {/* Statement Content */}
+              <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
+                
+                {/* 4 Summary Cards for this Supplier */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                  <Card className="p-3 sm:p-4 rounded-2xl border-border bg-card">
+                    <span className="text-[11px] sm:text-xs text-muted-foreground font-bold block">إجمالي المشتريات منه</span>
+                    <div className="text-base sm:text-xl font-black text-foreground font-mono mt-1">
+                      {statementStats.totalPurchases.toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">ج.م</span>
+                    </div>
+                  </Card>
+
+                  <Card className="p-3 sm:p-4 rounded-2xl border-border bg-card">
+                    <span className="text-[11px] sm:text-xs text-emerald-500 font-bold block">إجمالي المسدد له</span>
+                    <div className="text-base sm:text-xl font-black text-emerald-500 font-mono mt-1">
+                      {statementStats.totalPaid.toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">ج.م</span>
+                    </div>
+                  </Card>
+
+                  <Card className="p-3 sm:p-4 rounded-2xl border-rose-500/30 bg-rose-500/5">
+                    <span className="text-[11px] sm:text-xs text-rose-500 font-bold block">صافي الدين المتبقي</span>
+                    <div className="text-base sm:text-xl font-black text-rose-500 font-mono mt-1">
+                      {statementStats.totalRemaining.toLocaleString()} <span className="text-[10px] font-normal text-muted-foreground">ج.م</span>
+                    </div>
+                  </Card>
+
+                  <Card className="p-3 sm:p-4 rounded-2xl border-border bg-card">
+                    <span className="text-[11px] sm:text-xs text-muted-foreground font-bold block">عدد الفواتير</span>
+                    <div className="text-base sm:text-xl font-black text-amber-500 font-mono mt-1">
+                      {statementStats.billsCount} <span className="text-[10px] font-normal text-muted-foreground">فاتورة</span>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Invoices List Table */}
+                <div className="rounded-2xl border border-border overflow-hidden bg-card">
+                  <div className="p-3 border-b border-border bg-muted/30 flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Truck size={15} className="text-amber-500" />
+                      <span>تفاصيل فواتير المورد ({statementPurchases.length})</span>
+                    </h4>
+                    <span className="text-[11px] text-muted-foreground">
+                      موزعة عبر الفروع وتواريخ الشراء
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-muted/20">
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-right text-[11px] font-bold"># الفاتورة</TableHead>
+                          <TableHead className="text-right text-[11px] font-bold">الفرع</TableHead>
+                          <TableHead className="text-right text-[11px] font-bold">التاريخ والوقت</TableHead>
+                          <TableHead className="text-right text-[11px] font-bold">بيان البضاعة</TableHead>
+                          <TableHead className="text-center text-[11px] font-bold">إجمالي الثمن</TableHead>
+                          <TableHead className="text-center text-[11px] font-bold">المدفوع</TableHead>
+                          <TableHead className="text-center text-[11px] font-bold">المتبقي</TableHead>
+                          <TableHead className="text-center text-[11px] font-bold">حالة السداد</TableHead>
+                          <TableHead className="text-center text-[11px] font-bold">إجراء</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {statementPurchases.map((inv) => {
+                          const dt = formatArabicDateTime(inv.purchaseDate);
+                          const branchName = store.getBranch(inv.branchId || 'b4')?.nameAr || 'فرع المكتب';
+                          return (
+                            <TableRow key={inv.id} className="border-border hover:bg-muted/20 text-xs">
+                              <TableCell className="font-mono font-bold whitespace-nowrap">
+                                #{inv.invoiceNumber || inv.id.slice(-6)}
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-muted text-foreground">
+                                  {branchName}
+                                </span>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                <div className="text-[11px]">
+                                  <span className="font-bold">{dt.dayName}</span> {dt.datePart}
+                                  <div className="text-[10px] text-amber-500 font-mono">{dt.timePart}</div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="max-w-[160px] truncate" title={inv.itemsDescription || ''}>
+                                {inv.itemsDescription || <span className="text-muted-foreground/60 italic">—</span>}
+                              </TableCell>
+                              <TableCell className="text-center font-bold font-mono">
+                                {inv.totalAmount.toLocaleString()} ج.م
+                              </TableCell>
+                              <TableCell className="text-center font-bold font-mono text-emerald-500">
+                                {inv.paidAmount.toLocaleString()} ج.م
+                              </TableCell>
+                              <TableCell className="text-center font-bold font-mono text-rose-500">
+                                {inv.remainingAmount > 0 ? `${inv.remainingAmount.toLocaleString()} ج.م` : '0 ج.م'}
+                              </TableCell>
+                              <TableCell className="text-center whitespace-nowrap">
+                                {inv.paymentStatus === 'paid' ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                    مدفوع بالكامل
+                                  </span>
+                                ) : inv.paymentStatus === 'partial' ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                    دفع جزئي
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                    آجل / لم يدفع
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1">
+                                  {inv.remainingAmount > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleOpenPayment(inv)}
+                                      className="h-7 px-2 text-[10px] bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-lg"
+                                    >
+                                      تسديد
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleOpenDetails(inv)}
+                                    className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                                    title="التفاصيل وسجل الدفعات"
+                                  >
+                                    <History size={13} />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+              </div>
+
+              <DialogFooter className="p-4 border-t border-border bg-card shrink-0 flex flex-row justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setStatementSupplier(null)}
+                  className="rounded-xl text-xs font-bold px-6"
+                >
+                  إغلاق
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ==================== Supplier Select / Ledger Directory Modal ==================== */}
+      <Dialog open={isSupplierSelectModalOpen} onOpenChange={setIsSupplierSelectModalOpen}>
+        <DialogContent className="w-[calc(100vw-1.25rem)] sm:w-full max-w-2xl max-h-[90dvh] rounded-3xl p-0 overflow-hidden flex flex-col bg-card border-border shadow-2xl" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+              <FileText className="text-amber-500" size={20} />
+              <span>دليل كشوفات حسابات الموردين</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+              اختر أي مورد لعرض كشف حسابه الكامل وجميع الفواتير والديون المستحقة له.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
+            {/* Search Box */}
+            <div className="relative">
+              <Search size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={supplierSelectSearch}
+                onChange={(e) => setSupplierSelectSearch(e.target.value)}
+                placeholder="ابحث باسم المورد أو رقم الهاتف..."
+                className="pr-9 rounded-xl text-xs h-10"
+              />
+            </div>
+
+            {/* Suppliers List Cards */}
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto scrollbar-thin">
+              {existingSuppliers
+                .filter(s => {
+                  if (!supplierSelectSearch.trim()) return true;
+                  const q = supplierSelectSearch.trim().toLowerCase();
+                  return s.name.toLowerCase().includes(q) || (s.phone && s.phone.includes(q));
+                })
+                .map((s, idx) => (
+                  <div 
+                    key={idx}
+                    className="p-3 sm:p-3.5 rounded-2xl border border-border bg-card hover:border-amber-500/40 hover:bg-muted/20 transition-all flex items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 font-black text-sm">
+                        <Truck size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-xs sm:text-sm font-extrabold text-foreground">{s.name}</h4>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                          {s.phone ? (
+                            <span className="flex items-center gap-1 font-mono" dir="ltr">
+                              <Phone size={11} /> {s.phone}
+                            </span>
+                          ) : (
+                            <span>بدون هاتف</span>
+                          )}
+                          <span>•</span>
+                          <span className="font-bold text-amber-500">{s.count} فاتورة</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-left font-mono">
+                        <span className="text-[10px] text-muted-foreground block">صافي المتبقي له</span>
+                        <span className={`text-xs sm:text-sm font-extrabold ${s.totalRemaining > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          {s.totalRemaining > 0 ? `${s.totalRemaining.toLocaleString()} ج.م` : 'خالص'}
+                        </span>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setIsSupplierSelectModalOpen(false);
+                          setStatementSupplier({ name: s.name, phone: s.phone });
+                        }}
+                        className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs h-9 px-3.5 rounded-xl gap-1.5 shadow-xs"
+                      >
+                        <FileText size={14} />
+                        <span>فتح كشف الحساب</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+              {existingSuppliers.length === 0 && (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                  لا يوجد موردين مسجلين بعد. عند إضافة أول فاتورة مورد ستظهر هنا تلقائياً.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t border-border bg-card shrink-0 flex flex-row justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsSupplierSelectModalOpen(false)}
+              className="rounded-xl text-xs font-bold"
+            >
+              إلغاء
             </Button>
           </DialogFooter>
         </DialogContent>
