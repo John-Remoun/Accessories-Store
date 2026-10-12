@@ -5,6 +5,7 @@ export interface CustomSelectOption {
   value: string;
   label: string;
   sublabel?: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -13,6 +14,7 @@ export interface CustomSelectProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  icon?: React.ReactNode;
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
@@ -25,6 +27,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   value,
   onChange,
   placeholder = 'اختر...',
+  icon,
   disabled = false,
   className = '',
   triggerClassName = '',
@@ -63,20 +66,23 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
           isOpen ? 'border-amber-500 ring-2 ring-amber-500/20' : ''
         }`}
       >
-        <span className="truncate">
+        <div className="truncate flex items-center gap-2 min-w-0">
+          {(selectedOption?.icon || icon) && (
+            <span className="shrink-0 text-amber-500">{selectedOption?.icon || icon}</span>
+          )}
           {selectedOption ? (
-            <span className="flex items-center gap-1.5 truncate">
-              <span>{selectedOption.label}</span>
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="truncate">{selectedOption.label}</span>
               {selectedOption.sublabel && (
                 <span className="text-[10px] text-muted-foreground opacity-80 font-normal">
                   ({selectedOption.sublabel})
                 </span>
               )}
-            </span>
+            </div>
           ) : (
             <span className="text-muted-foreground font-normal">{placeholder}</span>
           )}
-        </span>
+        </div>
         <ChevronDown
           size={16}
           className={`text-muted-foreground shrink-0 transition-transform duration-200 ml-1 ${
@@ -88,7 +94,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       {/* Popover Dropdown */}
       {isOpen && (
         <div
-          className={`absolute z-[110] top-full mt-1.5 right-0 left-0 bg-card border border-border/90 rounded-2xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto ${dropdownClassName}`}
+          className={`absolute z-[110] top-full mt-1.5 right-0 left-0 bg-card/98 backdrop-blur-xl border border-amber-500/30 rounded-2xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 max-h-60 overflow-y-auto scrollbar-thin ${dropdownClassName}`}
         >
           {options.length === 0 ? (
             <div className="p-3 text-xs text-muted-foreground text-center">لا توجد خيارات</div>
@@ -110,7 +116,12 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                       : 'hover:bg-muted/60 text-foreground hover:text-amber-500'
                   }`}
                 >
-                  <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-2 truncate min-w-0">
+                    {opt.icon && (
+                      <span className={`shrink-0 ${isSelected ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                        {opt.icon}
+                      </span>
+                    )}
                     <span className="truncate">{opt.label}</span>
                     {opt.sublabel && (
                       <span className="text-[10px] text-muted-foreground font-normal">
@@ -128,3 +139,4 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     </div>
   );
 };
+

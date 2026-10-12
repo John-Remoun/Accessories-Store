@@ -36,71 +36,97 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ...options.headers,
   };
 
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
     });
-
-    if (response.ok) {
-      const resData = await response.json();
-      if (resData && resData.success) {
-        return resData.data as T;
-      }
-    }
-  } catch (err) {
-    // Backend fetch failed, proceed to Supabase direct fallback
+  } catch (netErr) {
+    const err: any = new Error('Express API unavailable');
+    err.isNetworkError = true;
+    throw err;
   }
 
-  throw new Error('Express API unavailable');
+  if (response.ok) {
+    const resData = await response.json().catch(() => null);
+    if (resData && resData.success) {
+      return resData.data as T;
+    }
+    return resData as T;
+  }
+
+  // Server responded with an error status (e.g. 401 Unauthorized, 400 Bad Request)
+  let errMsg = 'حدث خطأ في الخادم';
+  try {
+    const errData = await response.json().catch(() => null);
+    if (errData && errData.message) {
+      errMsg = errData.message;
+    }
+  } catch {}
+
+  const error: any = new Error(errMsg);
+  error.status = response.status;
+  throw error;
 }
 
 export const api = {
   // Auth
   login: async (username: string, password?: string) => {
+    const cleanUsername = username.trim();
+    const cleanPassword = password?.trim() || '';
+
+    if (!cleanUsername || !cleanPassword) {
+      const err: any = new Error('اسم المستخدم وكلمة السر إجبارية');
+      err.status = 400;
+      throw err;
+    }
+
     try {
       return await request<{ user: any; accessToken: string; refreshToken: string }>('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: cleanUsername, password: cleanPassword }),
       });
-    } catch {
-      // 1. Try checking Supabase users table
-      try {
-        const cleanName = username.trim();
-        const users = await supabaseFetch<any[]>(`/users?username=eq.${encodeURIComponent(cleanName)}&select=*`);
-        if (users && users.length > 0) {
-          const u = users[0];
-          const isSuper = u.role === 'admin' && !u.branch_id && !u.branchId;
-          return {
-            user: {
-              id: u.id,
-              username: u.username,
-              name: u.name || u.username,
-              role: isSuper ? 'admin' : (u.role || 'employee'),
-              branchId: u.branch_id || u.branchId,
-            },
-            accessToken: 'mock_access_token',
-            refreshToken: 'mock_refresh_token',
-          };
-        }
-      } catch {
-        // ignore Supabase fetch error and proceed to local determination
+    } catch (err: any) {
+      // If server explicitly rejected credentials (401 / 400 / 403), do NOT attempt fallback
+      if (err && (err.status === 401 || err.status === 400 || err.status === 403)) {
+        throw err;
       }
 
-      // 2. Fallback check: only default super admins are granted 'admin'
-      const cleanUser = username.trim().toLowerCase();
-      const isDefaultSuper = ['bola', 'mina', 'test'].includes(cleanUser);
+      // Only attempt fallback if network is completely offline
+      if (err?.isNetworkError) {
+        const cleanUserLower = cleanUsername.toLowerCase();
+        const rawStored = localStorage.getItem('accessories_store_data');
+        let localUser: any = null;
+        if (rawStored) {
+          try {
+            const parsed = JSON.parse(rawStored);
+            localUser = (parsed.users || []).find(
+              (u: any) => u && u.username && u.username.trim().toLowerCase() === cleanUserLower
+            );
+          } catch {}
+        }
 
-      return {
-        user: {
-          id: `u_${username.trim()}`,
-          username: username.trim(),
-          name: username.trim(),
-          role: isDefaultSuper ? 'admin' : 'employee',
-        },
-        accessToken: 'mock_access_token',
-        refreshToken: 'mock_refresh_token',
-      };
+        if (localUser && localUser.password && localUser.password === cleanPassword) {
+          const isSuper = ['bola', 'mina', 'test'].includes(cleanUserLower) ||
+                          (localUser.role === 'admin' && !localUser.branchId);
+          return {
+            user: {
+              id: localUser.id,
+              username: localUser.username,
+              name: localUser.name || localUser.username,
+              role: isSuper ? 'admin' : (localUser.role || 'employee'),
+              branchId: isSuper ? undefined : localUser.branchId,
+            },
+            accessToken: 'offline_token',
+            refreshToken: 'offline_token',
+          };
+        }
+      }
+
+      const invalidErr: any = new Error('اسم المستخدم أو كلمة المرور غير صحيحة');
+      invalidErr.status = 401;
+      throw invalidErr;
     }
   },
   getMe: async () => {

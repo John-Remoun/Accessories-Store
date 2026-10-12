@@ -53,6 +53,7 @@ export class UserService {
 
     if (updates.password) {
       updates.password = await bcrypt.hash(updates.password, 10);
+      updates.refreshToken = null as any;
     }
 
     Object.assign(user, updates);

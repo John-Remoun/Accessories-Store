@@ -9,12 +9,14 @@ import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/dialog';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import { 
   ArrowRight, Truck, Plus, Search, DollarSign, CheckCircle2, Clock, 
   AlertCircle, Calendar, Edit3, Trash2, History, CreditCard, 
   ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer,
-  Building2, Layers, Users
+  Building2, Layers, Users, ChevronDown
 } from 'lucide-react';
+
 
 const getLocalNowIso = () => {
   const now = new Date();
@@ -761,19 +763,25 @@ export const Suppliers = () => {
       {/* Branch Selector: Mobile Dropdown (No scroll!) + Desktop Tabs */}
       <div className="w-full min-w-0">
         {/* Mobile Dropdown - Fits 100% without horizontal scroll */}
-        <div className="sm:hidden w-full bg-card p-2 rounded-xl border border-border shadow-2xs flex items-center gap-2">
+        <div className="sm:hidden w-full bg-card p-2 rounded-xl border border-border/80 shadow-2xs flex items-center gap-2">
           <Building2 size={16} className="text-amber-500 shrink-0" />
-          <span className="text-[11px] font-bold text-muted-foreground shrink-0">عرض فرع:</span>
-          <select
-            value={selectedBranchId}
-            onChange={(e) => handleSelectBranch(e.target.value)}
-            className="flex-1 bg-background border border-border/80 rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:ring-1 focus:ring-amber-500"
-          >
-            <option value="all">كافة الفروع (الشامل)</option>
-            {branches.map(b => (
-              <option key={b.id} value={b.id}>{b.nameAr}</option>
-            ))}
-          </select>
+          <span className="text-[11px] font-bold text-muted-foreground shrink-0 whitespace-nowrap">عرض فرع:</span>
+          <div className="flex-1 min-w-0">
+            <CustomSelect
+              value={selectedBranchId}
+              onChange={handleSelectBranch}
+              size="sm"
+              options={[
+                { value: 'all', label: 'كافة الفروع (الشامل)', icon: <Layers size={14} /> },
+                ...branches.map(b => ({
+                  value: b.id,
+                  label: b.nameAr,
+                  icon: <Building2 size={14} />
+                }))
+              ]}
+              triggerClassName="bg-background text-xs font-black border-border/80"
+            />
+          </div>
         </div>
 
         {/* Desktop Branch Tabs */}
@@ -1378,17 +1386,17 @@ export const Suppliers = () => {
               <label className="text-xs font-bold text-foreground mb-1 block">
                 الفرع التابع له الفاتورة <span className="text-rose-500">*</span>
               </label>
-              <select
+              <CustomSelect
                 value={formData.branchId}
-                onChange={(e) => setFormData(prev => ({ ...prev, branchId: e.target.value }))}
-                className="w-full rounded-xl text-xs h-10 px-3 bg-background border border-border text-foreground font-bold outline-none focus:ring-1 focus:ring-amber-500"
-              >
-                {branches.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.nameAr}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setFormData(prev => ({ ...prev, branchId: val }))}
+                placeholder="اختر الفرع التابع له الفاتورة..."
+                options={branches.map(b => ({
+                  value: b.id,
+                  label: b.nameAr,
+                  icon: <Building2 size={14} />
+                }))}
+                triggerClassName="bg-background font-bold text-xs"
+              />
             </div>
 
             {/* Auto-suggest dropdown for previously recorded suppliers */}
@@ -1403,10 +1411,9 @@ export const Suppliers = () => {
                     {existingSuppliers.length} مورد مسجل
                   </span>
                 </div>
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    const val = e.target.value;
+                <CustomSelect
+                  value=""
+                  onChange={(val) => {
                     if (!val) return;
                     const [suppName, suppPhone] = val.split('___');
                     setFormData(prev => ({
@@ -1415,15 +1422,15 @@ export const Suppliers = () => {
                       supplierPhone: suppPhone || '',
                     }));
                   }}
-                  className="w-full rounded-xl text-xs h-10 px-3 bg-background border border-amber-500/30 text-foreground font-bold outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
-                >
-                  <option value="">-- اضغط لاختيار مورد وتعبئة اسمه ورقم هاتفه تلقائياً --</option>
-                  {existingSuppliers.map((s, idx) => (
-                    <option key={idx} value={`${s.name}___${s.phone || ''}`}>
-                      {s.name} {s.phone ? `(${s.phone})` : ''} — [{s.count} فاتورة] {s.totalRemaining > 0 ? `(متبقي له: ${s.totalRemaining.toLocaleString()} ج.م)` : '(خالص)'}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="-- اضغط لاختيار مورد وتعبئة اسمه ورقم هاتفه تلقائياً --"
+                  options={existingSuppliers.map((s) => ({
+                    value: `${s.name}___${s.phone || ''}`,
+                    label: s.name,
+                    sublabel: `${s.phone ? s.phone + ' • ' : ''}[${s.count} فاتورة] ${s.totalRemaining > 0 ? `(متبقي له: ${s.totalRemaining.toLocaleString()} ج.م)` : '(خالص)'}`,
+                    icon: <Users size={14} />
+                  }))}
+                  triggerClassName="bg-background border-amber-500/30 font-bold text-xs"
+                />
               </div>
             )}
 

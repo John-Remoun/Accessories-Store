@@ -22,17 +22,23 @@ export class AuthService {
       throw new AppError('Invalid username or password', 401);
     }
 
-    if (password && user.password) {
-      let isMatch = false;
-      if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
-        isMatch = await bcrypt.compare(password, user.password);
-      } else {
-        isMatch = user.password === password;
-      }
+    if (!password || !user.password) {
+      throw new AppError('Invalid username or password', 401);
+    }
 
-      if (!isMatch) {
-        throw new AppError('Invalid username or password', 401);
+    let isMatch = false;
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      isMatch = user.password === password;
+      if (isMatch) {
+        const hashed = await bcrypt.hash(password, 10);
+        await this.userRepo.update(user.id, { password: hashed });
       }
+    }
+
+    if (!isMatch) {
+      throw new AppError('Invalid username or password', 401);
     }
 
     const payload = { userId: user.id, username: user.username, role: user.role };
