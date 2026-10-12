@@ -10,7 +10,7 @@ import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/dialog';
 import { 
-  Truck, Plus, Search, DollarSign, CheckCircle2, Clock, 
+  ArrowRight, Truck, Plus, Search, DollarSign, CheckCircle2, Clock, 
   AlertCircle, Calendar, Edit3, Trash2, History, CreditCard, 
   ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer,
   Building2, Layers
@@ -494,29 +494,39 @@ export const Suppliers = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12" dir="rtl">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-32 sm:pb-20 max-w-7xl mx-auto px-1 sm:px-4" dir="rtl">
       
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-border shadow-xs">
-        <div className="flex items-center gap-3">
-          <Truck size={32} className="text-amber-500 shrink-0" />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+      {/* Super Admin Top Bar with Back Button (Same style as Master Dashboard) */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border/80 p-4 sm:p-6 rounded-3xl shadow-sm relative overflow-hidden">
+        <div className="flex items-center gap-4 z-10">
+          {/* Back Button */}
+          <Button 
+            onClick={() => navigate('/dashboard')} 
+            variant="outline"
+            className="rounded-2xl h-11 px-4 border-border/80 hover:bg-amber-500/10 hover:text-amber-500 transition-all font-bold gap-2 text-xs shadow-xs shrink-0"
+            title="الرجوع للشاشة الرئيسية"
+          >
+            <ArrowRight size={18} />
+            <span>رجوع</span>
+          </Button>
+
+          <div className="space-y-0.5">
+            <h1 className="text-xl sm:text-2xl font-serif font-bold text-foreground">
               {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين (كافة الفروع)'}
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground">
               {activeBranchObj 
                 ? `متابعة فواتير شراء البضاعة وحسابات الموردين الخاصة بـ ${activeBranchObj.nameAr}.`
-                : 'متابعة شاملة لجميع فواتير شراء البضاعة، المبالغ المسددة، والمتبقي لكل مورد عبر كافة الفروع.'}
+                : 'لوحة المتابعة الشاملة لفواتير شراء البضاعة، المبالغ المسددة، والمتبقي لكل مورد عبر كافة الفروع.'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto z-10">
           <Button
             variant="outline"
             onClick={handlePrintReport}
-            className="flex-1 sm:flex-none gap-2 rounded-xl text-xs font-bold border-border hover:bg-muted"
+            className="flex-1 sm:flex-none gap-2 rounded-2xl text-xs font-bold border-border/80 hover:bg-muted h-11 px-4 shadow-xs"
             title="طباعة كشف الحساب"
           >
             <Printer size={16} />
@@ -525,12 +535,14 @@ export const Suppliers = () => {
 
           <Button
             onClick={handleOpenAdd}
-            className="flex-1 sm:flex-none gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs shadow-md shadow-amber-500/20"
+            className="flex-1 sm:flex-none gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-2xl text-xs h-11 px-5 shadow-md shadow-amber-500/20"
           >
             <Plus size={18} />
             <span>إضافة فاتورة مورد جديدة</span>
           </Button>
         </div>
+
+        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Branch Switcher Tabs (All Branches + Individual Branches) */}
