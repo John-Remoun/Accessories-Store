@@ -277,10 +277,17 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
-  // Isolated Thermal Label Printing (Handles 48mm x 25mm dimensions and exactly N separate pages)
+  // Isolated Thermal Label Printing (Strict Vertical Portrait: QR, Name, Serial, Price 4)
   const handleExecutePrintLabels = () => {
     if (!printModalProduct) return;
     const copies = Math.max(1, Number(printCopies) || 1);
+
+    // Retrieve Price 4 for this product in active branch
+    const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
+    const rawPrice4 = bd?.price4 !== undefined && bd?.price4 !== null && bd?.price4 !== 0 
+      ? bd.price4 
+      : (bd?.price1 || '');
+    const price4Display = rawPrice4 !== '' ? String(rawPrice4) : '';
 
     // Grab the rendered QR SVG from preview
     const svgEl = document.querySelector('#label-qr-preview-container svg');
@@ -290,13 +297,12 @@ export const Products = () => {
       .map(
         (_, i) => `
         <div class="thermal-label-page" key="${i}">
-          <div class="qr-col">
+          <div class="qr-box">
             ${qrSvgString}
           </div>
-          <div class="info-col">
-            <div class="prod-name">${printModalProduct.nameAr}</div>
-            <div class="prod-sku">${printModalProduct.sku}</div>
-          </div>
+          <div class="prod-name">${printModalProduct.nameAr}</div>
+          <div class="prod-sku">${printModalProduct.sku}</div>
+          ${price4Display ? `<div class="prod-price">${price4Display}</div>` : ''}
         </div>
       `
       )
@@ -304,84 +310,95 @@ export const Products = () => {
 
     const printDocumentHtml = `
       <!DOCTYPE html>
-      <html dir="rtl">
+      <html dir="rtl" lang="ar">
       <head>
         <meta charset="utf-8" />
-        <title>طباعة ملصقات - ${printModalProduct.nameAr}</title>
+        <title> </title>
         <style>
           @page {
-            size: 48mm 25mm;
-            margin: 0;
+            size: 38mm 28mm portrait;
+            margin: 0 !important;
           }
-          * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+          *, *::before, *::after {
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           html, body {
-            width: 48mm;
-            margin: 0;
-            padding: 0;
-            background: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            direction: rtl;
+            width: 38mm !important;
+            height: 28mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            color: #000000 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", "Tahoma", sans-serif !important;
+            direction: rtl !important;
+            overflow: hidden !important;
           }
           .thermal-label-page {
-            width: 48mm;
-            height: 25mm;
-            padding: 1.5mm 2.5mm;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: space-between;
-            gap: 2mm;
-            page-break-after: always;
-            break-after: page;
-            overflow: hidden;
-            background: #ffffff;
-            color: #000000;
-            box-sizing: border-box;
+            width: 38mm !important;
+            height: 28mm !important;
+            max-height: 28mm !important;
+            padding: 1.2mm 1.5mm 1mm 1.5mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: flex-start !important;
+            text-align: center !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            color: #000000 !important;
           }
-          .qr-col {
-            width: 20mm;
-            height: 20mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
+          .qr-box {
+            width: 14mm !important;
+            height: 14mm !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            margin: 0 auto 0.6mm auto !important;
+            flex-shrink: 0 !important;
           }
-          .qr-col svg {
+          .qr-box svg {
             width: 100% !important;
             height: 100% !important;
-            display: block;
-          }
-          .info-col {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            text-align: right;
-            overflow: hidden;
+            display: block !important;
           }
           .prod-name {
-            font-size: 9.5px;
-            font-weight: 800;
-            line-height: 1.2;
-            color: #000000;
-            word-break: break-word;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+            font-size: 8px !important;
+            font-weight: 800 !important;
+            line-height: 1.15 !important;
+            color: #000000 !important;
+            max-width: 35mm !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            text-align: center !important;
+            margin-bottom: 0.5mm !important;
+            direction: rtl !important;
           }
           .prod-sku {
-            font-family: monospace;
-            font-size: 8.5px;
-            font-weight: 700;
-            color: #111111;
-            margin-top: 1.5mm;
-            letter-spacing: 0.5px;
+            font-family: monospace, "Courier New", Courier !important;
+            font-size: 7.5px !important;
+            font-weight: 700 !important;
+            color: #000000 !important;
+            letter-spacing: 0.3px !important;
+            line-height: 1 !important;
+            text-align: center !important;
+            margin-bottom: 0.6mm !important;
+          }
+          .prod-price {
+            font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
+            font-size: 9px !important;
+            font-weight: 900 !important;
+            color: #000000 !important;
+            line-height: 1 !important;
+            text-align: center !important;
           }
         </style>
       </head>
@@ -1262,37 +1279,60 @@ export const Products = () => {
           {printModalProduct && (
             <div className="space-y-4">
               
-              {/* Realistic 48mm x 25mm Horizontal Thermal Label Sticker Preview (Xprinter XP-246B) */}
-              <div className="bg-white text-black p-2.5 rounded-2xl border-2 border-dashed border-amber-400 flex flex-row items-center justify-between gap-2.5 mx-auto w-full max-w-[260px] h-[95px] overflow-hidden shadow-sm select-none" dir="rtl">
-                {/* 1. Far Left: QR Code */}
-                <div id="label-qr-preview-container" className="p-1 bg-white rounded-lg border border-gray-200 shadow-2xs shrink-0 flex items-center justify-center">
-                  <QRCodeSVG value={printModalProduct.sku} size={60} level="M" />
-                </div>
+              {(() => {
+                const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
+                const rawPrice4 = bd?.price4 !== undefined && bd?.price4 !== null && bd?.price4 !== 0 
+                  ? bd.price4 
+                  : (bd?.price1 || '');
+                const price4Display = rawPrice4 !== '' ? String(rawPrice4) : '';
 
-                {/* 2. Middle & Right: Product Name & Serial Number */}
-                <div className="flex flex-col justify-center text-right overflow-hidden flex-1 space-y-1">
-                  <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-2 break-words">
-                    {printModalProduct.nameAr}
-                  </p>
-                  <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
-                    {printModalProduct.sku}
-                  </p>
-                </div>
-              </div>
+                return (
+                  <>
+                    {/* Realistic Vertical Portrait Thermal Label Sticker Preview */}
+                    <div className="bg-white text-black p-3 rounded-2xl border-2 border-dashed border-amber-400 flex flex-col items-center justify-between mx-auto w-[160px] h-[195px] overflow-hidden shadow-md select-none text-center" dir="rtl">
+                      {/* Element 1: QR Code (Top, Centered) */}
+                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center">
+                        <QRCodeSVG value={printModalProduct.sku} size={70} level="M" />
+                      </div>
 
-              {/* Product Meta Info */}
-              <div className="space-y-2 text-xs bg-muted/30 p-3.5 rounded-2xl border border-border/50">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-bold">المنتج:</span>
-                  <span className="font-bold text-foreground line-clamp-1 max-w-[180px]">{printModalProduct.nameAr}</span>
-                </div>
-                <div className="flex justify-between items-center border-t border-border/40 pt-1.5">
-                  <span className="text-muted-foreground font-bold">السيريال:</span>
-                  <span className="font-mono font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                    {printModalProduct.sku}
-                  </span>
-                </div>
-              </div>
+                      {/* Element 2: Product Name (Below QR) */}
+                      <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-1 w-full px-1 truncate">
+                        {printModalProduct.nameAr}
+                      </p>
+
+                      {/* Element 3: Serial Number (Below Name) */}
+                      <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
+                        {printModalProduct.sku}
+                      </p>
+
+                      {/* Element 4: Price Level 4 ONLY (Bottom, raw number) */}
+                      <p className="font-mono font-black text-sm text-black">
+                        {price4Display || '—'}
+                      </p>
+                    </div>
+
+                    {/* Product Meta Info */}
+                    <div className="space-y-2 text-xs bg-muted/30 p-3.5 rounded-2xl border border-border/50">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground font-bold">المنتج:</span>
+                        <span className="font-bold text-foreground line-clamp-1 max-w-[180px]">{printModalProduct.nameAr}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-border/40 pt-1.5">
+                        <span className="text-muted-foreground font-bold">السيريال:</span>
+                        <span className="font-mono font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                          {printModalProduct.sku}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center border-t border-border/40 pt-1.5">
+                        <span className="text-muted-foreground font-bold">سعر 4 المطبوع:</span>
+                        <span className="font-mono font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                          {price4Display ? `${price4Display} ج.م` : 'غير محدد'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Quantity Controls */}
               <div className="space-y-1.5">
