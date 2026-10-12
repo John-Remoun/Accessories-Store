@@ -598,11 +598,20 @@ class StoreService {
   }
 
   public async deleteInvoicesByIds(ids: string[]) {
-    const set = new Set(ids);
-    this.state.invoices = (this.state.invoices || []).filter(i => !set.has(i?.id));
+    if (!ids || ids.length === 0) return;
+    const inputSet = new Set(ids);
+    // Find all matching invoices to capture both their id and invoiceNumber
+    const matched = (this.state.invoices || []).filter(i => inputSet.has(i?.id) || inputSet.has(i?.invoiceNumber));
+    const fullSet = new Set([
+      ...ids,
+      ...matched.map(m => m.id),
+      ...matched.map(m => m.invoiceNumber),
+    ].filter(Boolean));
+
+    this.state.invoices = (this.state.invoices || []).filter(i => !fullSet.has(i?.id) && !fullSet.has(i?.invoiceNumber));
     this.saveState();
     try {
-      await api.deleteInvoicesByIds(ids);
+      await api.deleteInvoicesByIds(Array.from(fullSet));
       await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteInvoicesByIds):', err);

@@ -147,7 +147,7 @@ export const Invoices = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-    const ids = monthInvoices.map(i => i.id);
+    const ids = Array.from(new Set(monthInvoices.flatMap(i => [i.id, i.invoiceNumber]).filter(Boolean))) as string[];
     if (ids.length > 0) {
       store.deleteInvoicesByIds(ids);
       setRefreshKey(prev => prev + 1);
@@ -158,7 +158,7 @@ export const Invoices = () => {
   const handleConfirmDeleteDay = () => {
     if (!selectedDate) return;
     const dayInvoices = branchInvoices.filter(inv => getIsoDate(inv.date) === selectedDate);
-    const ids = dayInvoices.map(i => i.id);
+    const ids = Array.from(new Set(dayInvoices.flatMap(i => [i.id, i.invoiceNumber]).filter(Boolean))) as string[];
     if (ids.length > 0) {
       store.deleteInvoicesByIds(ids);
       setRefreshKey(prev => prev + 1);
@@ -278,7 +278,11 @@ export const Invoices = () => {
 
   const handleConfirmDeleteSingle = () => {
     if (singleDeleteId) {
-      store.deleteInvoicesByIds([singleDeleteId]);
+      const inv = store.getInvoices().find(i => i.id === singleDeleteId || i.invoiceNumber === singleDeleteId);
+      const toDelete = inv
+        ? Array.from(new Set([inv.id, inv.invoiceNumber, singleDeleteId])).filter(Boolean) as string[]
+        : [singleDeleteId];
+      store.deleteInvoicesByIds(toDelete);
       setRefreshKey(prev => prev + 1);
       setSingleDeleteId(null);
     }

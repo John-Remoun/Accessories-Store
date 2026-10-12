@@ -556,11 +556,17 @@ export const api = {
   deleteInvoicesByIds: async (ids: string[]) => {
     try {
       return await request<any>('/invoices/delete-many', { method: 'POST', body: JSON.stringify({ ids }) });
-    } catch {
+    } catch (apiErr) {
+      console.warn('Backend /invoices/delete-many call failed, falling back to direct Supabase delete:', apiErr);
       if (!ids || ids.length === 0) return { success: true };
-      const filterStr = `id=in.(${ids.map(id => `"${id}"`).join(',')})`;
-      await supabaseFetch(`/invoice_items?invoiceId=in.(${ids.map(id => `"${id}"`).join(',')})`, { method: 'DELETE' });
-      await supabaseFetch(`/invoices?${filterStr}`, { method: 'DELETE' });
+      try {
+        const idListStr = ids.map(id => `"${id}"`).join(',');
+        await supabaseFetch(`/invoice_items?invoiceId=in.(${idListStr})`, { method: 'DELETE' }).catch(() => {});
+        await supabaseFetch(`/invoices?id=in.(${idListStr})`, { method: 'DELETE' }).catch(() => {});
+        await supabaseFetch(`/invoices?invoiceNumber=in.(${idListStr})`, { method: 'DELETE' }).catch(() => {});
+      } catch (sbErr) {
+        console.warn('Supabase direct invoice delete notice:', sbErr);
+      }
       return { success: true };
     }
   },

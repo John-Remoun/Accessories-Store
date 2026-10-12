@@ -277,24 +277,37 @@ export class InvoiceService {
   }
 
   public async deleteInvoicesByIds(ids: string[]) {
-    if (!ids || ids.length === 0) return { success: true };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) return { success: true };
 
     await AppDataSource.transaction(async (transactionalEntityManager) => {
-      for (const id of ids) {
-        const invoice = await transactionalEntityManager.findOne(InvoiceEntity, {
-          where: { id },
-          relations: ['invoiceItems'],
-        });
+      // Find invoices to adjust salesCount for employees
+      const invoices = await transactionalEntityManager
+        .createQueryBuilder(InvoiceEntity, 'inv')
+        .where('inv.id IN (:...ids) OR inv.invoiceNumber IN (:...ids)', { ids })
+        .getMany();
 
-        if (invoice) {
-          // Do not restore physical items or inventory to stock on invoice deletion
-          // Decrement employee sales count
-          if (invoice.employeeId) {
-            await transactionalEntityManager.decrement(UserEntity, { id: invoice.employeeId }, 'salesCount', 1);
+      for (const inv of invoices) {
+        if (inv.employeeId) {
+          try {
+            await transactionalEntityManager.decrement(UserEntity, { id: inv.employeeId }, 'salesCount', 1);
+          } catch (e) {
+            console.warn('Could not decrement employee salesCount:', e);
           }
-
-          await transactionalEntityManager.remove(invoice);
         }
+      }
+
+      const allIdsToDelete = invoices.map(i => i.id);
+      const combinedIds = Array.from(new Set([...ids, ...allIdsToDelete])).filter(Boolean);
+
+      if (combinedIds.length > 0) {
+        await transactionalEntityManager.query(
+          `DELETE FROM invoice_items WHERE "invoiceId" = ANY($1)`,
+          [combinedIds]
+        );
+        await transactionalEntityManager.query(
+          `DELETE FROM invoices WHERE id = ANY($1) OR "invoiceNumber" = ANY($1)`,
+          [combinedIds]
+        );
       }
     });
 

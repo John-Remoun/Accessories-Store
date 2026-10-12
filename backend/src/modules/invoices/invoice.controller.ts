@@ -45,8 +45,9 @@ export class InvoiceController {
 
   public async deleteMany(req: Request, res: Response, next: NextFunction) {
     try {
-      const { ids } = req.body;
-      const result = await invoiceService.deleteInvoicesByIds(ids);
+      const rawIds = req.body?.ids || req.body?.id || (req.params?.id ? [req.params.id] : []);
+      const idsArray = Array.isArray(rawIds) ? rawIds : [rawIds].filter(Boolean);
+      const result = await invoiceService.deleteInvoicesByIds(idsArray);
       return sendResponse(res, 200, 'Invoices deleted successfully', result);
     } catch (error) {
       next(error);
