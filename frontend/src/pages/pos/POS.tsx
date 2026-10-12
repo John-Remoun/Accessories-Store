@@ -1619,49 +1619,41 @@ export const POS = () => {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       
                       {/* 1. Cash Split Input */}
-                      <div className={`p-2.5 rounded-xl border transition-all space-y-1.5 ${
+                      <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
                         isCashLocked 
-                          ? 'bg-muted/30 border-border/40 opacity-65 select-none' 
-                          : 'bg-background border-border shadow-2xs'
+                          ? 'bg-muted/20 border-border/40 opacity-70 select-none' 
+                          : 'bg-card border-border shadow-xs hover:border-amber-500/40'
                       }`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                            <span>💵</span> نقداً (كاش)
-                            {isCashLocked && (
-                              <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-normal flex items-center gap-0.5">
-                                <Lock size={10} /> مقفولة
-                              </span>
-                            )}
+                        {/* Top Header: Title + Clear/Locked action */}
+                        <div className="flex items-center justify-between min-h-[24px]">
+                          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <span className="text-sm">💵</span> 
+                            <span>نقداً (كاش)</span>
                           </span>
 
                           <div className="flex items-center gap-1">
-                            {numSplitCash > 0 && (
+                            {isCashLocked ? (
+                              <span className="text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                                <Lock size={10} /> مقفولة
+                              </span>
+                            ) : numSplitCash > 0 ? (
                               <button
                                 type="button"
                                 onClick={() => handleClearSplitChannel('cash')}
-                                className="text-[10px] text-rose-500 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
-                                title="مسح خانة الكاش للتعديل"
+                                className="text-[10px] text-rose-500 hover:text-rose-400 font-bold px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center gap-0.5"
+                                title="تفريغ الخانة"
                               >
-                                مسح
+                                <span>✕</span>
+                                <span>مسح</span>
                               </button>
-                            )}
-
-                            {!isCashLocked && maxAllowedCash > 0 && numSplitCash < maxAllowedCash && (
-                              <button
-                                type="button"
-                                onClick={() => handleFillSplitRemainder('cash')}
-                                className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
-                                title={`ملء المتبقي (${maxAllowedCash} ج.م)`}
-                              >
-                                + الباقي ({maxAllowedCash})
-                              </button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 
+                        {/* Input Field */}
                         <div className="relative">
                           <Input
                             type="number"
@@ -1671,59 +1663,82 @@ export const POS = () => {
                             disabled={isCashLocked}
                             value={splitCash}
                             onChange={(e) => handleSplitChange('cash', e.target.value)}
-                            placeholder={isCashLocked ? "مغلقة (اكتمل الحساب)" : "0.00"}
-                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg ${
-                              isCashLocked ? 'bg-muted/50 cursor-not-allowed' : ''
+                            placeholder={isCashLocked ? "مغلقة" : "0.00"}
+                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-xl transition-all ${
+                              isCashLocked 
+                                ? 'bg-muted/40 cursor-not-allowed border-dashed text-muted-foreground' 
+                                : 'bg-background focus:border-amber-500'
                             }`}
                           />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground pointer-events-none">
                             ج.م
                           </span>
+                        </div>
+
+                        {/* Bottom Action / Status Pill */}
+                        <div className="min-h-[26px] flex items-center justify-center">
+                          {!isCashLocked && maxAllowedCash > 0 && numSplitCash < maxAllowedCash ? (
+                            <button
+                              type="button"
+                              onClick={() => handleFillSplitRemainder('cash')}
+                              className="w-full h-7 rounded-lg text-[10px] font-bold text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all flex items-center justify-center gap-1 shadow-2xs"
+                              title={`ملء المتبقي (${maxAllowedCash} ج.م)`}
+                            >
+                              <span>+</span>
+                              <span>المتبقي:</span>
+                              <span className="font-mono font-extrabold">{maxAllowedCash}</span>
+                              <span className="text-[9px]">ج.م</span>
+                            </button>
+                          ) : numSplitCash > 0 ? (
+                            <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مدفوع {numSplitCash} ج.م</span>
+                            </span>
+                          ) : isCashLocked ? (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              اكتمل الحساب
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground/40">
+                              —
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* 2. Vodafone Cash Split Input */}
-                      <div className={`p-2.5 rounded-xl border transition-all space-y-1.5 ${
+                      <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
                         isVodafoneLocked 
-                          ? 'bg-muted/30 border-border/40 opacity-65 select-none' 
-                          : 'bg-background border-border shadow-2xs'
+                          ? 'bg-muted/20 border-border/40 opacity-70 select-none' 
+                          : 'bg-card border-border shadow-xs hover:border-rose-500/40'
                       }`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                            <img src={vodafoneLogo} alt="فودافون" className="w-3.5 h-3.5 object-contain rounded-full" />
-                            فودافون كاش
-                            {isVodafoneLocked && (
-                              <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-normal flex items-center gap-0.5">
-                                <Lock size={10} /> مقفولة
-                              </span>
-                            )}
+                        {/* Top Header */}
+                        <div className="flex items-center justify-between min-h-[24px]">
+                          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <img src={vodafoneLogo} alt="فودافون" className="w-4 h-4 object-contain rounded-full" />
+                            <span>فودافون كاش</span>
                           </span>
 
                           <div className="flex items-center gap-1">
-                            {numSplitVodafone > 0 && (
+                            {isVodafoneLocked ? (
+                              <span className="text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                                <Lock size={10} /> مقفولة
+                              </span>
+                            ) : numSplitVodafone > 0 ? (
                               <button
                                 type="button"
                                 onClick={() => handleClearSplitChannel('vodafone')}
-                                className="text-[10px] text-rose-500 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
-                                title="مسح خانة فودافون كاش للتعديل"
+                                className="text-[10px] text-rose-500 hover:text-rose-400 font-bold px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center gap-0.5"
+                                title="تفريغ الخانة"
                               >
-                                مسح
+                                <span>✕</span>
+                                <span>مسح</span>
                               </button>
-                            )}
-
-                            {!isVodafoneLocked && maxAllowedVodafone > 0 && numSplitVodafone < maxAllowedVodafone && (
-                              <button
-                                type="button"
-                                onClick={() => handleFillSplitRemainder('vodafone')}
-                                className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
-                                title={`ملء المتبقي (${maxAllowedVodafone} ج.م)`}
-                              >
-                                + الباقي ({maxAllowedVodafone})
-                              </button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 
+                        {/* Input Field */}
                         <div className="relative">
                           <Input
                             type="number"
@@ -1733,59 +1748,82 @@ export const POS = () => {
                             disabled={isVodafoneLocked}
                             value={splitVodafone}
                             onChange={(e) => handleSplitChange('vodafone', e.target.value)}
-                            placeholder={isVodafoneLocked ? "مغلقة (اكتمل الحساب)" : "0.00"}
-                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg ${
-                              isVodafoneLocked ? 'bg-muted/50 cursor-not-allowed' : ''
+                            placeholder={isVodafoneLocked ? "مغلقة" : "0.00"}
+                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-xl transition-all ${
+                              isVodafoneLocked 
+                                ? 'bg-muted/40 cursor-not-allowed border-dashed text-muted-foreground' 
+                                : 'bg-background focus:border-rose-500'
                             }`}
                           />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground pointer-events-none">
                             ج.م
                           </span>
+                        </div>
+
+                        {/* Bottom Action / Status Pill */}
+                        <div className="min-h-[26px] flex items-center justify-center">
+                          {!isVodafoneLocked && maxAllowedVodafone > 0 && numSplitVodafone < maxAllowedVodafone ? (
+                            <button
+                              type="button"
+                              onClick={() => handleFillSplitRemainder('vodafone')}
+                              className="w-full h-7 rounded-lg text-[10px] font-bold text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-all flex items-center justify-center gap-1 shadow-2xs"
+                              title={`ملء المتبقي (${maxAllowedVodafone} ج.م)`}
+                            >
+                              <span>+</span>
+                              <span>المتبقي:</span>
+                              <span className="font-mono font-extrabold">{maxAllowedVodafone}</span>
+                              <span className="text-[9px]">ج.م</span>
+                            </button>
+                          ) : numSplitVodafone > 0 ? (
+                            <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مدفوع {numSplitVodafone} ج.م</span>
+                            </span>
+                          ) : isVodafoneLocked ? (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              اكتمل الحساب
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground/40">
+                              —
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* 3. InstaPay Split Input */}
-                      <div className={`p-2.5 rounded-xl border transition-all space-y-1.5 ${
+                      <div className={`p-3 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
                         isInstapayLocked 
-                          ? 'bg-muted/30 border-border/40 opacity-65 select-none' 
-                          : 'bg-background border-border shadow-2xs'
+                          ? 'bg-muted/20 border-border/40 opacity-70 select-none' 
+                          : 'bg-card border-border shadow-xs hover:border-purple-500/40'
                       }`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                            <img src={instapayLogo} alt="إنستاباي" className="w-3.5 h-3.5 object-contain rounded-xs" />
-                            إنستاباي
-                            {isInstapayLocked && (
-                              <span className="text-[9px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-normal flex items-center gap-0.5">
-                                <Lock size={10} /> مقفولة
-                              </span>
-                            )}
+                        {/* Top Header */}
+                        <div className="flex items-center justify-between min-h-[24px]">
+                          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <img src={instapayLogo} alt="إنستاباي" className="w-4 h-4 object-contain rounded-xs" />
+                            <span>إنستاباي</span>
                           </span>
 
                           <div className="flex items-center gap-1">
-                            {numSplitInstapay > 0 && (
+                            {isInstapayLocked ? (
+                              <span className="text-[10px] text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md font-medium flex items-center gap-1">
+                                <Lock size={10} /> مقفولة
+                              </span>
+                            ) : numSplitInstapay > 0 ? (
                               <button
                                 type="button"
                                 onClick={() => handleClearSplitChannel('instapay')}
-                                className="text-[10px] text-rose-500 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
-                                title="مسح خانة إنستاباي للتعديل"
+                                className="text-[10px] text-rose-500 hover:text-rose-400 font-bold px-2 py-0.5 rounded-md bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all flex items-center gap-0.5"
+                                title="تفريغ الخانة"
                               >
-                                مسح
+                                <span>✕</span>
+                                <span>مسح</span>
                               </button>
-                            )}
-
-                            {!isInstapayLocked && maxAllowedInstapay > 0 && numSplitInstapay < maxAllowedInstapay && (
-                              <button
-                                type="button"
-                                onClick={() => handleFillSplitRemainder('instapay')}
-                                className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
-                                title={`ملء المتبقي (${maxAllowedInstapay} ج.م)`}
-                              >
-                                + الباقي ({maxAllowedInstapay})
-                              </button>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 
+                        {/* Input Field */}
                         <div className="relative">
                           <Input
                             type="number"
@@ -1795,14 +1833,46 @@ export const POS = () => {
                             disabled={isInstapayLocked}
                             value={splitInstapay}
                             onChange={(e) => handleSplitChange('instapay', e.target.value)}
-                            placeholder={isInstapayLocked ? "مغلقة (اكتمل الحساب)" : "0.00"}
-                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg ${
-                              isInstapayLocked ? 'bg-muted/50 cursor-not-allowed' : ''
+                            placeholder={isInstapayLocked ? "مغلقة" : "0.00"}
+                            className={`h-9 text-xs font-mono font-bold text-left pl-8 rounded-xl transition-all ${
+                              isInstapayLocked 
+                                ? 'bg-muted/40 cursor-not-allowed border-dashed text-muted-foreground' 
+                                : 'bg-background focus:border-purple-500'
                             }`}
                           />
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground pointer-events-none">
                             ج.م
                           </span>
+                        </div>
+
+                        {/* Bottom Action / Status Pill */}
+                        <div className="min-h-[26px] flex items-center justify-center">
+                          {!isInstapayLocked && maxAllowedInstapay > 0 && numSplitInstapay < maxAllowedInstapay ? (
+                            <button
+                              type="button"
+                              onClick={() => handleFillSplitRemainder('instapay')}
+                              className="w-full h-7 rounded-lg text-[10px] font-bold text-purple-500 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 transition-all flex items-center justify-center gap-1 shadow-2xs"
+                              title={`ملء المتبقي (${maxAllowedInstapay} ج.م)`}
+                            >
+                              <span>+</span>
+                              <span>المتبقي:</span>
+                              <span className="font-mono font-extrabold">{maxAllowedInstapay}</span>
+                              <span className="text-[9px]">ج.م</span>
+                            </button>
+                          ) : numSplitInstapay > 0 ? (
+                            <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                              <span>✓</span>
+                              <span>مدفوع {numSplitInstapay} ج.م</span>
+                            </span>
+                          ) : isInstapayLocked ? (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              اكتمل الحساب
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground/40">
+                              —
+                            </span>
+                          )}
                         </div>
                       </div>
 
