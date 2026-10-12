@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { 
   ArrowRight, MapPin, Package, ShoppingCart, QrCode, 
-  ShieldCheck, LayoutDashboard, BarChart3, TrendingUp, Store
+  ShieldCheck, LayoutDashboard, BarChart3, TrendingUp, Store, Truck
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 
@@ -88,6 +88,32 @@ export const Dashboard = () => {
               <span className="hidden sm:inline text-muted-foreground/40 font-bold">•</span>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                 لوحة التحكم الشاملة لجميع الفروع والموظفين والنظام
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. CENTERED COMPACT ROW CARD for All Branches Suppliers Management */}
+      <div className="w-full max-w-6xl px-1 sm:px-2 pt-1 sm:pt-2">
+        <div 
+          onClick={() => navigate('/suppliers?view=all')}
+          className="group relative cursor-pointer bg-card/90 backdrop-blur-xl border border-amber-500/40 hover:border-amber-500 rounded-xl sm:rounded-2xl p-3 sm:p-5 transition-all duration-300 shadow-sm hover:shadow-xl hover:-translate-y-0.5 overflow-hidden flex flex-row items-center justify-between active:scale-[0.99] select-none"
+        >
+          {/* Background Ambient Glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all pointer-events-none" />
+
+          <div className="relative z-10 flex flex-row items-center gap-2.5 sm:gap-4 text-right w-full">
+            <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0 group-hover:scale-105 transition-transform">
+              <Truck className="w-4 h-4 sm:w-6 sm:h-6" strokeWidth={1.75} />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-3 text-right overflow-hidden flex-1">
+              <h2 className="text-xs sm:text-xl font-serif font-bold text-foreground group-hover:text-amber-500 transition-colors whitespace-nowrap">
+                سجل الموردين العام (كافة الفروع)
+              </h2>
+              <span className="hidden sm:inline text-muted-foreground/40 font-bold">•</span>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                إدارة ومتابعة فواتير وحسابات الموردين الشاملة لجميع الفروع وتفاصيل السداد
               </p>
             </div>
           </div>

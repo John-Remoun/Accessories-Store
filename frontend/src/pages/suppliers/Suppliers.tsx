@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStoreSync } from '../../hooks/useStoreSync';
@@ -11,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { 
   Truck, Plus, Search, DollarSign, CheckCircle2, Clock, 
   AlertCircle, Calendar, Edit3, Trash2, History, CreditCard, 
-  ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer
+  ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer,
+  Building2, Layers
 } from 'lucide-react';
 
 export const Suppliers = () => {
@@ -26,6 +28,40 @@ export const Suppliers = () => {
       </div>
     );
   }
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const branches = store.getBranches();
+
+  // Branch parameter from URL query (?id=b4 or ?view=all)
+  const queryParams = new URLSearchParams(location.search);
+  const branchParam = queryParams.get('id');
+  const viewParam = queryParams.get('view');
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (viewParam === 'all') return 'all';
+    return branchParam || localStorage.getItem('last_active_branch') || 'all';
+  });
+
+  useEffect(() => {
+    if (viewParam === 'all') {
+      setSelectedBranchId('all');
+    } else if (branchParam) {
+      setSelectedBranchId(branchParam);
+    }
+  }, [branchParam, viewParam]);
+
+  const handleSelectBranch = (bId: string) => {
+    setSelectedBranchId(bId);
+    if (bId === 'all') {
+      navigate('/suppliers?view=all');
+    } else {
+      navigate(`/suppliers?id=${bId}`);
+    }
+  };
+
+  const activeBranchObj = selectedBranchId !== 'all' ? store.getBranch(selectedBranchId) : null;
 
   // State
   const [search, setSearch] = useState<string>('');
@@ -46,6 +82,7 @@ export const Suppliers = () => {
     supplierPhone: string;
     invoiceNumber: string;
     itemsDescription: string;
+    branchId: string;
     totalAmount: string;
     paidAmount: string;
     paymentMode: 'paid' | 'partial' | 'unpaid';
@@ -56,6 +93,7 @@ export const Suppliers = () => {
     supplierPhone: '',
     invoiceNumber: '',
     itemsDescription: '',
+    branchId: selectedBranchId !== 'all' ? selectedBranchId : (branches[0]?.id || 'b4'),
     totalAmount: '',
     paidAmount: '',
     paymentMode: 'unpaid',
@@ -71,9 +109,17 @@ export const Suppliers = () => {
   // Get raw purchases list
   const purchases = store.getSupplierPurchases();
 
-  // Filtered purchases
+  // Filtered purchases by Branch, Status, and Search
   const filteredPurchases = useMemo(() => {
     return purchases.filter((item) => {
+      // Branch filter
+      if (selectedBranchId !== 'all') {
+        const itemBranch = item.branchId || 'b4';
+        if (itemBranch !== selectedBranchId) {
+          return false;
+        }
+      }
+
       // Status filter
       if (statusFilter !== 'all' && item.paymentStatus !== statusFilter) {
         return false;
@@ -82,28 +128,30 @@ export const Suppliers = () => {
       // Search filter
       if (search.trim()) {
         const query = search.trim().toLowerCase();
+        const branchObj = store.getBranch(item.branchId || 'b4');
+        const matchBranch = (branchObj?.nameAr || '').toLowerCase().includes(query);
         const matchName = (item.supplierName || '').toLowerCase().includes(query);
         const matchPhone = (item.supplierPhone || '').toLowerCase().includes(query);
         const matchInvoice = (item.invoiceNumber || '').toLowerCase().includes(query);
         const matchDesc = (item.itemsDescription || '').toLowerCase().includes(query);
         const matchNotes = (item.notes || '').toLowerCase().includes(query);
-        if (!matchName && !matchPhone && !matchInvoice && !matchDesc && !matchNotes) {
+        if (!matchName && !matchPhone && !matchInvoice && !matchDesc && !matchNotes && !matchBranch) {
           return false;
         }
       }
 
       return true;
     });
-  }, [purchases, statusFilter, search]);
+  }, [purchases, selectedBranchId, statusFilter, search]);
 
-  // Statistics
+  // Statistics calculated dynamically for the active branch (or all branches)
   const stats = useMemo(() => {
     let totalPurchases = 0;
     let totalPaid = 0;
     let totalRemaining = 0;
     const uniqueSuppliers = new Set<string>();
 
-    purchases.forEach((p) => {
+    filteredPurchases.forEach((p) => {
       totalPurchases += Number(p.totalAmount || 0);
       totalPaid += Number(p.paidAmount || 0);
       totalRemaining += Number(p.remainingAmount || 0);
@@ -117,9 +165,9 @@ export const Suppliers = () => {
       totalPaid: Number(totalPaid.toFixed(2)),
       totalRemaining: Number(totalRemaining.toFixed(2)),
       suppliersCount: uniqueSuppliers.size,
-      billsCount: purchases.length,
+      billsCount: filteredPurchases.length,
     };
-  }, [purchases]);
+  }, [filteredPurchases]);
 
   // Format Date in Arabic with Day Name, Date, and Time
   const formatArabicDateTime = (dateStr: string) => {
@@ -145,6 +193,7 @@ export const Suppliers = () => {
       supplierPhone: '',
       invoiceNumber: '',
       itemsDescription: '',
+      branchId: selectedBranchId !== 'all' ? selectedBranchId : (branches[0]?.id || 'b4'),
       totalAmount: '',
       paidAmount: '',
       paymentMode: 'unpaid',
@@ -163,6 +212,7 @@ export const Suppliers = () => {
       supplierPhone: item.supplierPhone || '',
       invoiceNumber: item.invoiceNumber || '',
       itemsDescription: item.itemsDescription || '',
+      branchId: item.branchId || (selectedBranchId !== 'all' ? selectedBranchId : 'b4'),
       totalAmount: item.totalAmount.toString(),
       paidAmount: item.paidAmount.toString(),
       paymentMode: mode,
@@ -180,6 +230,10 @@ export const Suppliers = () => {
       newPaid = num > 0 ? num.toString() : '';
     } else if (formData.paymentMode === 'unpaid') {
       newPaid = '0';
+    } else if (formData.paymentMode === 'partial') {
+      if (parseFloat(newPaid) >= num || parseFloat(newPaid) <= 0) {
+        newPaid = num > 0 ? (num / 2).toString() : '0';
+      }
     }
     setFormData(prev => ({
       ...prev,
@@ -244,6 +298,7 @@ export const Suppliers = () => {
     }
 
     const isoDate = formData.purchaseDateTime ? new Date(formData.purchaseDateTime).toISOString() : new Date().toISOString();
+    const resolvedBranchId = formData.branchId || (selectedBranchId !== 'all' ? selectedBranchId : 'b4');
 
     if (editingPurchase) {
       await store.updateSupplierPurchase(editingPurchase.id, {
@@ -251,6 +306,7 @@ export const Suppliers = () => {
         supplierPhone: formData.supplierPhone.trim() || undefined,
         invoiceNumber: formData.invoiceNumber.trim() || undefined,
         itemsDescription: formData.itemsDescription.trim() || undefined,
+        branchId: resolvedBranchId,
         totalAmount: total,
         paidAmount: paid,
         remainingAmount: remaining,
@@ -265,6 +321,7 @@ export const Suppliers = () => {
         supplierPhone: formData.supplierPhone.trim() || undefined,
         invoiceNumber: formData.invoiceNumber.trim() || undefined,
         itemsDescription: formData.itemsDescription.trim() || undefined,
+        branchId: resolvedBranchId,
         totalAmount: total,
         paidAmount: paid,
         remainingAmount: remaining,
@@ -346,13 +403,17 @@ export const Suppliers = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    const reportTitle = activeBranchObj ? `سجل فواتير وحسابات الموردين - ${activeBranchObj.nameAr}` : 'سجل فواتير وحسابات الموردين (كافة الفروع)';
+
     const rowsHtml = filteredPurchases.map((p, idx) => {
       const dt = formatArabicDateTime(p.purchaseDate);
+      const branchName = store.getBranch(p.branchId || 'b4')?.nameAr || 'فرع المكتب';
       const statusLabel = p.paymentStatus === 'paid' ? 'مدفوع بالكامل' : p.paymentStatus === 'partial' ? 'دفع جزئي' : 'آجل (لم يُدفع)';
       return `
         <tr>
           <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${idx + 1}</td>
           <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${p.supplierName}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${branchName}</td>
           <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${p.supplierPhone || '-'}</td>
           <td style="padding: 8px; border: 1px solid #ddd;">${p.itemsDescription || '-'}</td>
           <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${dt.dayName} ${dt.datePart}</td>
@@ -367,7 +428,7 @@ export const Suppliers = () => {
     printWindow.document.write(`
       <html dir="rtl" lang="ar">
         <head>
-          <title>تقرير فواتير الموردين والديون</title>
+          <title>${reportTitle}</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; direction: rtl; }
             h2, p { text-align: center; margin: 5px 0; }
@@ -380,7 +441,7 @@ export const Suppliers = () => {
           </style>
         </head>
         <body>
-          <h2>سجل فواتير وحسابات الموردين</h2>
+          <h2>${reportTitle}</h2>
           <p style="color: #64748b; font-size: 12px;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
           
           <div class="kpi-box">
@@ -407,6 +468,7 @@ export const Suppliers = () => {
               <tr>
                 <th>#</th>
                 <th>اسم المورد</th>
+                <th>الفرع</th>
                 <th>الهاتف</th>
                 <th>بيان البضاعة</th>
                 <th>تاريخ التوريد</th>
@@ -437,13 +499,15 @@ export const Suppliers = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/60 backdrop-blur-md p-4 sm:p-6 rounded-2xl border border-border shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
-            <Truck size={26} />
-          </div>
+          <Truck size={32} className="text-amber-500 shrink-0" />
           <div>
-            <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">سجل وحسابات الموردين</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
+              {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين (كافة الفروع)'}
+            </h1>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              متابعة فواتير شراء البضاعة، المبالغ المسددة، والمتبقي لكل مورد بدقة.
+              {activeBranchObj 
+                ? `متابعة فواتير شراء البضاعة وحسابات الموردين الخاصة بـ ${activeBranchObj.nameAr}.`
+                : 'متابعة شاملة لجميع فواتير شراء البضاعة، المبالغ المسددة، والمتبقي لكل مورد عبر كافة الفروع.'}
             </p>
           </div>
         </div>
@@ -467,6 +531,38 @@ export const Suppliers = () => {
             <span>إضافة فاتورة مورد جديدة</span>
           </Button>
         </div>
+      </div>
+
+      {/* Branch Switcher Tabs (All Branches + Individual Branches) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => handleSelectBranch('all')}
+          className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            selectedBranchId === 'all'
+              ? 'bg-amber-500 text-black shadow-md font-black'
+              : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          <Layers size={14} />
+          <span>كافة الفروع (الشامل)</span>
+        </button>
+
+        {branches.map(b => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => handleSelectBranch(b.id)}
+            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+              selectedBranchId === b.id
+                ? 'bg-amber-500 text-black shadow-md font-black'
+                : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            <Building2 size={14} />
+            <span>{b.nameAr}</span>
+          </button>
+        ))}
       </div>
 
       {/* 4 KPI Summary Cards */}
@@ -646,6 +742,7 @@ export const Suppliers = () => {
               <TableHeader className="bg-muted/40">
                 <TableRow className="border-border hover:bg-transparent">
                   <TableHead className="text-right text-xs font-bold">المورد</TableHead>
+                  <TableHead className="text-right text-xs font-bold">الفرع</TableHead>
                   <TableHead className="text-right text-xs font-bold">بيان البضاعة</TableHead>
                   <TableHead className="text-right text-xs font-bold">اليوم والتاريخ والوقت</TableHead>
                   <TableHead className="text-center text-xs font-bold">إجمالي الثمن</TableHead>
@@ -658,6 +755,7 @@ export const Suppliers = () => {
               <TableBody>
                 {filteredPurchases.map((item) => {
                   const dt = formatArabicDateTime(item.purchaseDate);
+                  const branchName = store.getBranch(item.branchId || 'b4')?.nameAr || 'فرع المكتب';
 
                   return (
                     <TableRow key={item.id} className="border-border hover:bg-muted/20 transition-colors">
@@ -681,6 +779,13 @@ export const Suppliers = () => {
                             <span className="text-[10px] text-muted-foreground/60 mt-0.5">بدون هاتف</span>
                           )}
                         </div>
+                      </TableCell>
+
+                      {/* Branch Info */}
+                      <TableCell className="align-middle whitespace-nowrap">
+                        <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/25">
+                          {branchName}
+                        </span>
                       </TableCell>
 
                       {/* Items Description */}
@@ -821,19 +926,38 @@ export const Suppliers = () => {
 
       {/* ==================== Add / Edit Modal ==================== */}
       <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
-        <DialogContent className="max-w-xl rounded-2xl p-6" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
-              <Truck className="text-amber-500" size={22} />
+        <DialogContent className="w-[calc(100vw-1.25rem)] sm:w-full max-w-xl max-h-[90dvh] rounded-3xl p-0 overflow-hidden flex flex-col bg-card border-border shadow-2xl" dir="rtl">
+          
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+              <Truck className="text-amber-500" size={20} />
               <span>{editingPurchase ? 'تعديل فاتورة مورد' : 'إضافة فاتورة شراء من مورد'}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
+            <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
               سجّل بيانات المورد، قيمة البضاعة المشتراة، وتفاصيل السداد بدقة.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
+          <div className="p-4 sm:p-6 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
             
+            {/* Field: Branch Selection */}
+            <div>
+              <label className="text-xs font-bold text-foreground mb-1 block">
+                الفرع التابع له الفاتورة <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={formData.branchId}
+                onChange={(e) => setFormData(prev => ({ ...prev, branchId: e.target.value }))}
+                className="w-full rounded-xl text-xs h-10 px-3 bg-background border border-border text-foreground font-bold outline-none focus:ring-1 focus:ring-amber-500"
+              >
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.nameAr}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Row 1: Supplier Name & Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -915,47 +1039,47 @@ export const Suppliers = () => {
               <label className="text-xs font-bold text-foreground mb-1.5 block">
                 حالة الدفع للمورد
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => handlePaymentModeSelect('paid')}
-                  className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                  className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                     formData.paymentMode === 'paid'
                       ? 'bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold shadow-xs'
                       : 'border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <CheckCircle2 size={18} />
-                  <span className="text-xs">أخد فلوسه كاملة</span>
-                  <span className="text-[10px] opacity-80">(مدفوع بالكامل)</span>
+                  <CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="text-[11px] sm:text-xs">أخد فلوسه كاملة</span>
+                  <span className="text-[9px] sm:text-[10px] opacity-80">(مدفوع بالكامل)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handlePaymentModeSelect('partial')}
-                  className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                  className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                     formData.paymentMode === 'partial'
                       ? 'bg-amber-500/15 border-amber-500 text-amber-600 dark:text-amber-400 font-extrabold shadow-xs'
                       : 'border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <Clock size={18} />
-                  <span className="text-xs">دفع جزء وباقي جزء</span>
-                  <span className="text-[10px] opacity-80">(دفع جزئي)</span>
+                  <Clock size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="text-[11px] sm:text-xs">دفع جزء وباقي جزء</span>
+                  <span className="text-[9px] sm:text-[10px] opacity-80">(دفع جزئي)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handlePaymentModeSelect('unpaid')}
-                  className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                  className={`p-2.5 sm:p-3 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                     formData.paymentMode === 'unpaid'
                       ? 'bg-rose-500/15 border-rose-500 text-rose-600 dark:text-rose-400 font-extrabold shadow-xs'
                       : 'border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
-                  <AlertCircle size={18} />
-                  <span className="text-xs">لسه ما دفعش خالص</span>
-                  <span className="text-[10px] opacity-80">(آجل بالكامل)</span>
+                  <AlertCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="text-[11px] sm:text-xs">لسه ما دفعش خالص</span>
+                  <span className="text-[9px] sm:text-[10px] opacity-80">(آجل بالكامل)</span>
                 </button>
               </div>
             </div>
@@ -1049,17 +1173,17 @@ export const Suppliers = () => {
 
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="p-4 border-t border-border bg-card shrink-0 flex flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setIsAddEditOpen(false)}
-              className="rounded-xl text-xs font-bold"
+              className="rounded-xl text-xs font-bold border-border"
             >
               إلغاء
             </Button>
             <Button
               onClick={handleSavePurchase}
-              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs"
+              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs px-5 shadow-sm"
             >
               {editingPurchase ? 'حفظ التعديلات' : 'إضافة الفاتورة'}
             </Button>
@@ -1069,25 +1193,29 @@ export const Suppliers = () => {
 
       {/* ==================== Installment Payment Modal ==================== */}
       <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl p-6" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
-              <CreditCard className="text-amber-500" size={22} />
+        <DialogContent className="w-[calc(100vw-1.25rem)] sm:w-full max-w-md max-h-[90dvh] rounded-3xl p-0 overflow-hidden flex flex-col bg-card border-border shadow-2xl" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+              <CreditCard className="text-amber-500" size={20} />
               <span>تسديد دفعة للمورد</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
+            <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
               تسجيل دفعة نقدية جديدة وتخفيض رصيد الدين المتبقي للمورد.
             </DialogDescription>
           </DialogHeader>
 
           {selectedPurchaseForPayment && (
-            <div className="space-y-4 py-3">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
               
               {/* Info summary card */}
               <div className="p-3 rounded-xl bg-muted/40 border border-border space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-muted-foreground">اسم المورد:</span>
                   <span className="font-extrabold text-foreground">{selectedPurchaseForPayment.supplierName}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">الفرع التابع له:</span>
+                  <span className="font-bold text-amber-500">{store.getBranch(selectedPurchaseForPayment.branchId || 'b4')?.nameAr || 'فرع المكتب'}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-muted-foreground">إجمالي الفاتورة:</span>
@@ -1164,17 +1292,17 @@ export const Suppliers = () => {
             </div>
           )}
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="p-4 border-t border-border bg-card shrink-0 flex flex-row justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => setIsPaymentModalOpen(false)}
-              className="rounded-xl text-xs font-bold"
+              className="rounded-xl text-xs font-bold border-border"
             >
               إلغاء
             </Button>
             <Button
               onClick={handleConfirmPayment}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs px-5 shadow-sm"
             >
               تأكيد سداد الدفعة
             </Button>
@@ -1184,16 +1312,16 @@ export const Suppliers = () => {
 
       {/* ==================== Details & History Modal ==================== */}
       <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-        <DialogContent className="max-w-lg rounded-2xl p-6" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
-              <History className="text-amber-500" size={22} />
+        <DialogContent className="w-[calc(100vw-1.25rem)] sm:w-full max-w-lg max-h-[90dvh] rounded-3xl p-0 overflow-hidden flex flex-col bg-card border-border shadow-2xl" dir="rtl">
+          <DialogHeader className="p-4 sm:p-5 border-b border-border bg-muted/20 shrink-0">
+            <DialogTitle className="text-base sm:text-lg font-black text-foreground flex items-center gap-2">
+              <History className="text-amber-500" size={20} />
               <span>تفاصيل الفاتورة وسجل الدفعات</span>
             </DialogTitle>
           </DialogHeader>
 
           {selectedPurchaseForDetails && (
-            <div className="space-y-4 py-2">
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
               
               {/* Supplier Header Box */}
               <div className="p-4 rounded-xl bg-card border border-border space-y-2.5">
@@ -1305,11 +1433,11 @@ export const Suppliers = () => {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="p-4 border-t border-border bg-card shrink-0 flex flex-row justify-end">
             <Button
               variant="outline"
               onClick={() => setIsDetailsModalOpen(false)}
-              className="rounded-xl text-xs font-bold w-full"
+              className="rounded-xl text-xs font-bold px-6"
             >
               إغلاق
             </Button>

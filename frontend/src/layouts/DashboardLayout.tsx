@@ -88,7 +88,7 @@ export const DashboardLayout = () => {
     { name: 'سجل الفواتير', path: '/invoices', icon: FileText },
     { name: 'سجل العملاء', path: `/customers?id=${activeBranchId}`, icon: Users },
     { name: 'الموظفين والطاقم', path: `/employees?id=${activeBranchId}`, icon: UserPlus },
-    { name: 'الموردين', path: '/suppliers', icon: Truck },
+    { name: 'الموردين', path: `/suppliers?id=${activeBranchId}`, icon: Truck },
   ];
 
   const employeeNav = [
