@@ -686,80 +686,91 @@ export const Suppliers = () => {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-32 sm:pb-20 max-w-7xl mx-auto px-1 sm:px-4" dir="rtl">
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-32 sm:pb-20 max-w-7xl mx-auto px-2 sm:px-4" dir="rtl">
       
-      {/* Super Admin Top Bar with Back Button (Same style as Master Dashboard) */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border/80 p-4 sm:p-6 rounded-3xl shadow-sm relative overflow-hidden">
-        <div className="flex items-center gap-4 z-10">
+      {/* Super Admin Top Header Card */}
+      <div className="bg-card border border-border/80 p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm relative overflow-hidden">
+        {/* Top Row: Title, Branch info, and Back Button */}
+        <div className="flex items-center justify-between gap-2.5 mb-3 sm:mb-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <Truck size={20} className="sm:w-6 sm:h-6" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-2xl font-serif font-black text-foreground truncate">
+                {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين'}
+              </h1>
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                {activeBranchObj 
+                  ? `متابعة فواتير وحسابات ${activeBranchObj.nameAr}`
+                  : 'كافة الفروع • متابعة الفواتير والديون'}
+              </p>
+            </div>
+          </div>
+
           {/* Back Button */}
           <Button 
             onClick={() => navigate('/dashboard')} 
             variant="outline"
-            className="rounded-2xl h-11 px-4 border-border/80 hover:bg-amber-500/10 hover:text-amber-500 transition-all font-bold gap-2 text-xs shadow-xs shrink-0"
+            className="rounded-xl sm:rounded-2xl h-9 sm:h-11 px-3 sm:px-4 border-border/80 hover:bg-amber-500/10 hover:text-amber-500 transition-all font-bold text-xs shrink-0 gap-1.5 shadow-2xs"
             title="الرجوع للشاشة الرئيسية"
           >
-            <ArrowRight size={18} />
+            <ArrowRight size={15} />
             <span>رجوع</span>
           </Button>
-
-          <div className="space-y-0.5">
-            <h1 className="text-xl sm:text-2xl font-serif font-bold text-foreground">
-              {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين (كافة الفروع)'}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {activeBranchObj 
-                ? `متابعة فواتير شراء البضاعة وحسابات الموردين الخاصة بـ ${activeBranchObj.nameAr}.`
-                : 'لوحة المتابعة الشاملة لفواتير شراء البضاعة، المبالغ المسددة، والمتبقي لكل مورد عبر كافة الفروع.'}
-            </p>
-          </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto z-10 flex-wrap">
-          <Button
-            variant="outline"
-            onClick={() => setIsSupplierSelectModalOpen(true)}
-            className="flex-1 sm:flex-none gap-2 rounded-2xl text-xs font-bold border-amber-500/40 hover:bg-amber-500/10 text-amber-500 h-11 px-4 shadow-xs"
-            title="عرض كشوف حسابات الموردين وفواتير كل مورد"
-          >
-            <FileText size={16} />
-            <span>كشف حساب مورد</span>
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={handlePrintReport}
-            className="flex-1 sm:flex-none gap-2 rounded-2xl text-xs font-bold border-border/80 hover:bg-muted h-11 px-4 shadow-xs"
-            title="طباعة كشف الحساب"
-          >
-            <Printer size={16} />
-            <span className="hidden xs:inline">طباعة تقرير</span>
-          </Button>
-
+        {/* Action Buttons Toolbar (Stacked on Mobile, Row on Desktop) */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2.5 border-t border-border/50">
+          {/* Primary Action Button */}
           <Button
             onClick={handleOpenAdd}
-            className="flex-1 sm:flex-none gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-2xl text-xs h-11 px-5 shadow-md shadow-amber-500/20"
+            className="w-full sm:w-auto gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm h-10 sm:h-11 px-5 shadow-md shadow-amber-500/20 order-1 sm:order-2"
           >
             <Plus size={18} />
             <span>إضافة فاتورة مورد جديدة</span>
           </Button>
+
+          {/* Secondary Action Buttons */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 order-2 sm:order-1 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setIsSupplierSelectModalOpen(true)}
+              className="gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-amber-500/40 hover:bg-amber-500/10 text-amber-500 h-9 sm:h-11 px-3 shadow-2xs"
+              title="عرض كشوف حسابات الموردين وفواتير كل مورد"
+            >
+              <FileText size={15} />
+              <span>كشف حساب مورد</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handlePrintReport}
+              className="gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-border/80 hover:bg-muted h-9 sm:h-11 px-3 shadow-2xs"
+              title="طباعة كشف الحساب"
+            >
+              <Printer size={15} />
+              <span>طباعة تقرير</span>
+            </Button>
+          </div>
         </div>
 
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Branch Switcher Tabs (All Branches + Individual Branches) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+      <div className="p-1 sm:p-1.5 bg-card border border-border/80 rounded-2xl flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none shadow-2xs">
         <button
           type="button"
           onClick={() => handleSelectBranch('all')}
-          className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             selectedBranchId === 'all'
-              ? 'bg-amber-500 text-black shadow-md font-black'
-              : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+              ? 'bg-amber-500 text-black shadow-sm font-black'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
         >
           <Layers size={14} />
-          <span>كافة الفروع (الشامل)</span>
+          <span>كافة الفروع</span>
         </button>
 
         {branches.map(b => (
@@ -767,10 +778,10 @@ export const Suppliers = () => {
             key={b.id}
             type="button"
             onClick={() => handleSelectBranch(b.id)}
-            className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
               selectedBranchId === b.id
-                ? 'bg-amber-500 text-black shadow-md font-black'
-                : 'bg-card border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+                ? 'bg-amber-500 text-black shadow-sm font-black'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
           >
             <Building2 size={14} />
@@ -779,58 +790,58 @@ export const Suppliers = () => {
         ))}
       </div>
 
-      {/* 4 KPI Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 4 KPI Summary Cards (2x2 on Mobile, 4 Cols on Desktop) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         
         {/* Total Purchases */}
-        <Card className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
+        <Card className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-bold text-muted-foreground">إجمالي المشتريات</span>
-            <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
-              <DollarSign size={18} />
+            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المشتريات</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+              <DollarSign size={15} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-lg sm:text-2xl font-black text-foreground">
-              {stats.totalPurchases.toLocaleString()} <span className="text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-2xl font-black text-foreground">
+              {stats.totalPurchases.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
+            <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
               <span>{stats.billsCount} فاتورة توريد</span>
             </div>
           </div>
         </Card>
 
         {/* Total Paid */}
-        <Card className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
+        <Card className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-bold text-muted-foreground">إجمالي المدفوع</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <CheckCircle2 size={18} />
+            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المدفوع</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={15} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-lg sm:text-2xl font-black text-emerald-500">
-              {stats.totalPaid.toLocaleString()} <span className="text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-2xl font-black text-emerald-500">
+              {stats.totalPaid.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1 font-medium">
+            <div className="text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
               <span>تم سداده للموردين</span>
             </div>
           </div>
         </Card>
 
         {/* Total Remaining (Debts) */}
-        <Card className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-rose-500/5 relative overflow-hidden border-rose-500/20">
+        <Card className="p-3 sm:p-5 rounded-2xl border-rose-500/20 bg-gradient-to-br from-card to-rose-500/5 relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-bold text-rose-500">الديون المتبقية للموردين</span>
-            <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center">
-              <AlertCircle size={18} />
+            <span className="text-[11px] sm:text-sm font-bold text-rose-500 truncate">الديون المتبقية</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+              <AlertCircle size={15} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-lg sm:text-2xl font-black text-rose-500">
-              {stats.totalRemaining.toLocaleString()} <span className="text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-2xl font-black text-rose-500">
+              {stats.totalRemaining.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-1 flex items-center gap-1 font-bold">
+            <div className="text-[10px] sm:text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
               <span>مستحق السداد</span>
             </div>
           </div>
@@ -839,20 +850,20 @@ export const Suppliers = () => {
         {/* Total Suppliers Count */}
         <Card 
           onClick={() => setIsSupplierSelectModalOpen(true)}
-          className="p-4 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+          className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs sm:text-sm font-bold text-muted-foreground group-hover:text-amber-500 transition-colors">عدد الموردين</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Truck size={18} />
+            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground group-hover:text-amber-500 transition-colors truncate">عدد الموردين</span>
+            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Truck size={15} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-lg sm:text-2xl font-black text-foreground">
-              {stats.suppliersCount} <span className="text-xs text-muted-foreground font-normal">مورد</span>
+          <div className="mt-2 sm:mt-3">
+            <div className="text-base sm:text-2xl font-black text-foreground">
+              {stats.suppliersCount} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">مورد</span>
             </div>
-            <div className="text-[11px] text-amber-500/90 mt-1 flex items-center gap-1 font-bold">
-              <span>عرض كشوف الحساب 📋</span>
+            <div className="text-[10px] sm:text-[11px] text-amber-500/90 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
+              <span>كشوف الحساب 📋</span>
             </div>
           </div>
         </Card>
@@ -860,16 +871,16 @@ export const Suppliers = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-2xl border border-border">
+      <div className="flex flex-col gap-2.5 bg-card p-3 sm:p-4 rounded-2xl border border-border shadow-2xs">
         
         {/* Search */}
-        <div className="relative flex-1">
-          <Search size={18} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative">
+          <Search size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باسم المورد، رقم الهاتف، رقم الفاتورة، أو نوع البضاعة..."
-            className="pr-10 rounded-xl bg-background/50 border-border text-xs sm:text-sm h-10"
+            placeholder="ابحث باسم المورد، الهاتف، رقم الفاتورة، أو البضاعة..."
+            className="pr-9.5 rounded-xl bg-background/50 border-border text-xs sm:text-sm h-10"
           />
           {search && (
             <button 
@@ -881,281 +892,451 @@ export const Suppliers = () => {
           )}
         </div>
 
-        {/* Status Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          <Button
-            size="sm"
-            variant={statusFilter === 'all' ? 'default' : 'outline'}
+        {/* Status Filters - Clean Touch Horizontal Scroll */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+          <button
+            type="button"
             onClick={() => setStatusFilter('all')}
-            className={`rounded-xl text-xs font-bold h-9 px-3 shrink-0 ${
-              statusFilter === 'all' ? 'bg-foreground text-background' : 'border-border'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+              statusFilter === 'all' 
+                ? 'bg-foreground text-background shadow-xs' 
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             }`}
           >
             الكل ({purchases.length})
-          </Button>
+          </button>
 
-          <Button
-            size="sm"
-            variant={statusFilter === 'paid' ? 'default' : 'outline'}
+          <button
+            type="button"
             onClick={() => setStatusFilter('paid')}
-            className={`rounded-xl text-xs font-bold h-9 px-3 shrink-0 ${
-              statusFilter === 'paid' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+              statusFilter === 'paid' 
+                ? 'bg-emerald-600 text-white shadow-xs' 
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
             }`}
           >
             مدفوع بالكامل ({purchases.filter(p => p.paymentStatus === 'paid').length})
-          </Button>
+          </button>
 
-          <Button
-            size="sm"
-            variant={statusFilter === 'partial' ? 'default' : 'outline'}
+          <button
+            type="button"
             onClick={() => setStatusFilter('partial')}
-            className={`rounded-xl text-xs font-bold h-9 px-3 shrink-0 ${
-              statusFilter === 'partial' ? 'bg-amber-500 text-black hover:bg-amber-600' : 'text-amber-500 border-amber-500/30 hover:bg-amber-500/10'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+              statusFilter === 'partial' 
+                ? 'bg-amber-500 text-black shadow-xs' 
+                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
             }`}
           >
             دفع جزئي ({purchases.filter(p => p.paymentStatus === 'partial').length})
-          </Button>
+          </button>
 
-          <Button
-            size="sm"
-            variant={statusFilter === 'unpaid' ? 'default' : 'outline'}
+          <button
+            type="button"
             onClick={() => setStatusFilter('unpaid')}
-            className={`rounded-xl text-xs font-bold h-9 px-3 shrink-0 ${
-              statusFilter === 'unpaid' ? 'bg-rose-600 text-white hover:bg-rose-700' : 'text-rose-500 border-rose-500/30 hover:bg-rose-500/10'
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+              statusFilter === 'unpaid' 
+                ? 'bg-rose-600 text-white shadow-xs' 
+                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
             }`}
           >
-            آجل / لم يُدفع ({purchases.filter(p => p.paymentStatus === 'unpaid').length})
-          </Button>
+            آجل / دين ({purchases.filter(p => p.paymentStatus === 'unpaid').length})
+          </button>
         </div>
 
       </div>
 
-      {/* Purchases List Table */}
-      <Card className="rounded-2xl border-border overflow-hidden">
-        {filteredPurchases.length === 0 ? (
-          <div className="p-12 text-center flex flex-col items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
-              <Truck size={32} />
-            </div>
-            <h3 className="text-base font-bold text-foreground">لا توجد فواتير موردين مسجلة</h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              {search || statusFilter !== 'all' 
-                ? 'لم يتم العثور على نتائج تطابق معايير البحث الحالية.' 
-                : 'اضغط على زر "إضافة فاتورة مورد جديدة" لتسجيل فواتير البضاعة والموردين ومتابعة سدادها.'}
-            </p>
-            {(!search && statusFilter === 'all') && (
-              <Button
-                onClick={handleOpenAdd}
-                className="mt-4 gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs"
-              >
-                <Plus size={16} />
-                <span>إضافة أول فاتورة</span>
-              </Button>
-            )}
+      {/* Purchases List: Mobile Cards + Desktop Table */}
+      {filteredPurchases.length === 0 ? (
+        <Card className="rounded-2xl border-border p-10 sm:p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
+            <Truck size={32} />
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-right text-xs font-bold">المورد</TableHead>
-                  <TableHead className="text-right text-xs font-bold">الفرع</TableHead>
-                  <TableHead className="text-right text-xs font-bold">بيان البضاعة</TableHead>
-                  <TableHead className="text-right text-xs font-bold">اليوم والتاريخ والوقت</TableHead>
-                  <TableHead className="text-center text-xs font-bold">إجمالي الثمن</TableHead>
-                  <TableHead className="text-center text-xs font-bold">المدفوع</TableHead>
-                  <TableHead className="text-center text-xs font-bold">المتبقي</TableHead>
-                  <TableHead className="text-center text-xs font-bold">حالة السداد</TableHead>
-                  <TableHead className="text-center text-xs font-bold">الإجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPurchases.map((item) => {
-                  const dt = formatArabicDateTime(item.purchaseDate);
-                  const branchName = store.getBranch(item.branchId || 'b4')?.nameAr || 'فرع المكتب';
+          <h3 className="text-base font-bold text-foreground">لا توجد فواتير موردين مسجلة</h3>
+          <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+            {search || statusFilter !== 'all' 
+              ? 'لم يتم العثور على نتائج تطابق معايير البحث الحالية.' 
+              : 'اضغط على زر "إضافة فاتورة مورد جديدة" لتسجيل فواتير البضاعة والموردين ومتابعة سدادها.'}
+          </p>
+          {(!search && statusFilter === 'all') && (
+            <Button
+              onClick={handleOpenAdd}
+              className="mt-4 gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs"
+            >
+              <Plus size={16} />
+              <span>إضافة أول فاتورة</span>
+            </Button>
+          )}
+        </Card>
+      ) : (
+        <>
+          {/* ==================== MOBILE VIEW (Dedicated Cards) ==================== */}
+          <div className="block md:hidden space-y-3">
+            {filteredPurchases.map((item) => {
+              const dt = formatArabicDateTime(item.purchaseDate);
+              const branchName = store.getBranch(item.branchId || 'b4')?.nameAr || 'فرع المكتب';
 
-                  return (
-                    <TableRow key={item.id} className="border-border hover:bg-muted/20 transition-colors">
-                      
-                      {/* Supplier Info */}
-                      <TableCell className="align-middle">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
-                              className="font-extrabold text-xs sm:text-sm text-foreground hover:text-amber-500 hover:underline transition-colors text-right"
-                              title="عرض كشف حساب هذا المورد"
-                            >
-                              {item.supplierName}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
-                              className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/30 font-bold transition-all shrink-0 flex items-center gap-1"
-                              title="عرض كشف الحساب وتفاصيل كل الفواتير"
-                            >
-                              <FileText size={11} />
-                              <span>كشف حساب</span>
-                            </button>
-                            {item.invoiceNumber && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-normal">
-                                #{item.invoiceNumber}
+              return (
+                <Card key={item.id} className="p-3.5 rounded-2xl border-border bg-card shadow-xs space-y-3">
+                  
+                  {/* Card Header: Supplier Name, Branch Badge & Status */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                          className="font-black text-sm text-foreground hover:text-amber-500 text-right underline-offset-2 hover:underline transition-colors"
+                          title="عرض كشف حساب هذا المورد"
+                        >
+                          {item.supplierName}
+                        </button>
+                        {item.invoiceNumber && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                            #{item.invoiceNumber}
+                          </span>
+                        )}
+                      </div>
+
+                      {item.supplierPhone ? (
+                        <a 
+                          href={`tel:${item.supplierPhone}`}
+                          className="text-[11px] text-muted-foreground hover:text-amber-500 flex items-center gap-1 font-mono transition-colors" 
+                          dir="ltr"
+                        >
+                          <Phone size={11} /> {item.supplierPhone}
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/60">بدون هاتف</span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {item.paymentStatus === 'paid' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <CheckCircle2 size={11} />
+                          <span>مدفوع بالكامل</span>
+                        </span>
+                      )}
+                      {item.paymentStatus === 'partial' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          <Clock size={11} />
+                          <span>دفع جزئي</span>
+                        </span>
+                      )}
+                      {item.paymentStatus === 'unpaid' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                          <AlertCircle size={11} />
+                          <span>آجل بالكامل</span>
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        {branchName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Goods Description */}
+                  {item.itemsDescription && (
+                    <div className="text-xs text-foreground bg-muted/40 p-2.5 rounded-xl border border-border/40">
+                      <span className="font-bold text-muted-foreground text-[11px]">بيان البضاعة: </span>
+                      <span>{item.itemsDescription}</span>
+                    </div>
+                  )}
+
+                  {/* Financial Metrics Box (3 Columns) */}
+                  <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block font-medium">إجمالي الثمن</span>
+                      <span className="text-xs sm:text-sm font-black text-foreground font-mono">
+                        {item.totalAmount.toLocaleString()} <span className="text-[9px] text-muted-foreground font-normal">ج.م</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-medium">المدفوع</span>
+                      <span className="text-xs sm:text-sm font-black text-emerald-500 font-mono">
+                        {item.paidAmount.toLocaleString()} <span className="text-[9px] text-emerald-400/80 font-normal">ج.م</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-rose-500 block font-bold">المتبقي دين</span>
+                      <span className={`text-xs sm:text-sm font-black font-mono ${item.remainingAmount > 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                        {item.remainingAmount.toLocaleString()} <span className="text-[9px] font-normal">ج.م</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Date & Action Buttons Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
+                    <div className="text-[11px] text-muted-foreground">
+                      <span className="font-bold text-foreground">{dt.dayName}</span> {dt.datePart} <span className="font-mono text-amber-500 text-[10px]">{dt.timePart}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.remainingAmount > 0 ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenPayment(item)}
+                          className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-[11px] gap-1 shadow-xs"
+                          title="تسديد دفعة جديدة للمورد"
+                        >
+                          <CreditCard size={12} />
+                          <span>تسديد دفعة</span>
+                        </Button>
+                      ) : null}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                        className="h-8 px-2.5 rounded-xl text-amber-500 border-amber-500/30 hover:bg-amber-500/10 text-[11px] font-bold gap-1"
+                        title="كشف حساب المورد"
+                      >
+                        <FileText size={12} />
+                        <span>كشف حساب</span>
+                      </Button>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleOpenDetails(item)}
+                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+                        title="عرض تفاصيل الفاتورة وسجل الدفعات"
+                      >
+                        <History size={14} />
+                      </Button>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleOpenEdit(item)}
+                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                        title="تعديل الفاتورة"
+                      >
+                        <Edit3 size={14} />
+                      </Button>
+
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
+                        title="حذف الفاتورة"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* ==================== DESKTOP VIEW (Full Table) ==================== */}
+          <Card className="hidden md:block rounded-2xl border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-right text-xs font-bold">المورد</TableHead>
+                    <TableHead className="text-right text-xs font-bold">الفرع</TableHead>
+                    <TableHead className="text-right text-xs font-bold">بيان البضاعة</TableHead>
+                    <TableHead className="text-right text-xs font-bold">اليوم والتاريخ والوقت</TableHead>
+                    <TableHead className="text-center text-xs font-bold">إجمالي الثمن</TableHead>
+                    <TableHead className="text-center text-xs font-bold">المدفوع</TableHead>
+                    <TableHead className="text-center text-xs font-bold">المتبقي</TableHead>
+                    <TableHead className="text-center text-xs font-bold">حالة السداد</TableHead>
+                    <TableHead className="text-center text-xs font-bold">الإجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPurchases.map((item) => {
+                    const dt = formatArabicDateTime(item.purchaseDate);
+                    const branchName = store.getBranch(item.branchId || 'b4')?.nameAr || 'فرع المكتب';
+
+                    return (
+                      <TableRow key={item.id} className="border-border hover:bg-muted/20 transition-colors">
+                        
+                        {/* Supplier Info */}
+                        <TableCell className="align-middle">
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                                className="font-extrabold text-xs sm:text-sm text-foreground hover:text-amber-500 hover:underline transition-colors text-right"
+                                title="عرض كشف حساب هذا المورد"
+                              >
+                                {item.supplierName}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
+                                className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/30 font-bold transition-all shrink-0 flex items-center gap-1"
+                                title="عرض كشف الحساب وتفاصيل كل الفواتير"
+                              >
+                                <FileText size={11} />
+                                <span>كشف حساب</span>
+                              </button>
+                              {item.invoiceNumber && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-mono font-normal">
+                                  #{item.invoiceNumber}
+                                </span>
+                              )}
+                            </div>
+                            {item.supplierPhone ? (
+                              <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5" dir="ltr">
+                                <Phone size={11} /> {item.supplierPhone}
                               </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/60 mt-0.5">بدون هاتف</span>
                             )}
                           </div>
-                          {item.supplierPhone ? (
-                            <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5" dir="ltr">
-                              <Phone size={11} /> {item.supplierPhone}
+                        </TableCell>
+
+                        {/* Branch Info */}
+                        <TableCell className="align-middle whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/25">
+                            {branchName}
+                          </span>
+                        </TableCell>
+
+                        {/* Items Description */}
+                        <TableCell className="align-middle max-w-[180px]">
+                          <p className="text-xs text-foreground truncate font-medium" title={item.itemsDescription || 'بدون بيان'}>
+                            {item.itemsDescription || <span className="text-muted-foreground/60 italic">بدون بيان</span>}
+                          </p>
+                        </TableCell>
+
+                        {/* Day, Date & Time */}
+                        <TableCell className="align-middle whitespace-nowrap">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-foreground">
+                              {dt.dayName}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground mt-0.5">
+                              {dt.datePart}
+                            </span>
+                            <span className="text-[10px] text-amber-500/90 font-mono mt-0.5">
+                              {dt.timePart}
+                            </span>
+                          </div>
+                        </TableCell>
+
+                        {/* Total Amount */}
+                        <TableCell className="align-middle text-center font-extrabold text-xs sm:text-sm text-foreground whitespace-nowrap">
+                          {item.totalAmount.toLocaleString()} <span className="text-[10px] text-muted-foreground font-normal">ج.م</span>
+                        </TableCell>
+
+                        {/* Paid Amount */}
+                        <TableCell className="align-middle text-center font-bold text-xs sm:text-sm text-emerald-500 whitespace-nowrap">
+                          {item.paidAmount.toLocaleString()} <span className="text-[10px] text-muted-foreground font-normal">ج.م</span>
+                        </TableCell>
+
+                        {/* Remaining Amount */}
+                        <TableCell className="align-middle text-center whitespace-nowrap">
+                          {item.remainingAmount > 0 ? (
+                            <span className="font-extrabold text-xs sm:text-sm text-rose-500">
+                              {item.remainingAmount.toLocaleString()} <span className="text-[10px] text-rose-400/80 font-normal">ج.م</span>
                             </span>
                           ) : (
-                            <span className="text-[10px] text-muted-foreground/60 mt-0.5">بدون هاتف</span>
+                            <span className="text-xs text-muted-foreground font-medium">0 ج.م</span>
                           )}
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      {/* Branch Info */}
-                      <TableCell className="align-middle whitespace-nowrap">
-                        <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/25">
-                          {branchName}
-                        </span>
-                      </TableCell>
+                        {/* Payment Status Badge */}
+                        <TableCell className="align-middle text-center whitespace-nowrap">
+                          {item.paymentStatus === 'paid' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <CheckCircle2 size={12} />
+                              <span>مدفوع بالكامل</span>
+                            </span>
+                          )}
+                          {item.paymentStatus === 'partial' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <Clock size={12} />
+                              <span>دفع جزئي</span>
+                            </span>
+                          )}
+                          {item.paymentStatus === 'unpaid' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                              <AlertCircle size={12} />
+                              <span>آجل / لم يُدفع</span>
+                            </span>
+                          )}
+                        </TableCell>
 
-                      {/* Items Description */}
-                      <TableCell className="align-middle max-w-[180px]">
-                        <p className="text-xs text-foreground truncate font-medium" title={item.itemsDescription || 'بدون بيان'}>
-                          {item.itemsDescription || <span className="text-muted-foreground/60 italic">بدون بيان</span>}
-                        </p>
-                      </TableCell>
+                        {/* Actions */}
+                        <TableCell className="align-middle text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            
+                            {/* Quick Pay Button */}
+                            {item.remainingAmount > 0 ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleOpenPayment(item)}
+                                className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-[11px] gap-1 shadow-xs"
+                                title="تسديد دفعة جديدة للمورد"
+                              >
+                                <CreditCard size={13} />
+                                <span>تسديد دفعة</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleOpenDetails(item)}
+                                className="h-8 px-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 text-[11px] font-bold gap-1 bg-emerald-500/5 hover:bg-emerald-500/15"
+                              >
+                                <Check size={13} />
+                                <span>خالص</span>
+                              </Button>
+                            )}
 
-                      {/* Day, Date & Time */}
-                      <TableCell className="align-middle whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-foreground">
-                            {dt.dayName}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground mt-0.5">
-                            {dt.datePart}
-                          </span>
-                          <span className="text-[10px] text-amber-500/90 font-mono mt-0.5">
-                            {dt.timePart}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      {/* Total Amount */}
-                      <TableCell className="align-middle text-center font-extrabold text-xs sm:text-sm text-foreground whitespace-nowrap">
-                        {item.totalAmount.toLocaleString()} <span className="text-[10px] text-muted-foreground font-normal">ج.م</span>
-                      </TableCell>
-
-                      {/* Paid Amount */}
-                      <TableCell className="align-middle text-center font-bold text-xs sm:text-sm text-emerald-500 whitespace-nowrap">
-                        {item.paidAmount.toLocaleString()} <span className="text-[10px] text-muted-foreground font-normal">ج.م</span>
-                      </TableCell>
-
-                      {/* Remaining Amount */}
-                      <TableCell className="align-middle text-center whitespace-nowrap">
-                        {item.remainingAmount > 0 ? (
-                          <span className="font-extrabold text-xs sm:text-sm text-rose-500">
-                            {item.remainingAmount.toLocaleString()} <span className="text-[10px] text-rose-400/80 font-normal">ج.م</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground font-medium">0 ج.م</span>
-                        )}
-                      </TableCell>
-
-                      {/* Payment Status Badge */}
-                      <TableCell className="align-middle text-center whitespace-nowrap">
-                        {item.paymentStatus === 'paid' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <CheckCircle2 size={12} />
-                            <span>مدفوع بالكامل</span>
-                          </span>
-                        )}
-                        {item.paymentStatus === 'partial' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                            <Clock size={12} />
-                            <span>دفع جزئي</span>
-                          </span>
-                        )}
-                        {item.paymentStatus === 'unpaid' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                            <AlertCircle size={12} />
-                            <span>آجل / لم يُدفع</span>
-                          </span>
-                        )}
-                      </TableCell>
-
-                      {/* Actions */}
-                      <TableCell className="align-middle text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          
-                          {/* Quick Pay Button */}
-                          {item.remainingAmount > 0 ? (
+                            {/* Details & History */}
                             <Button
-                              size="sm"
-                              onClick={() => handleOpenPayment(item)}
-                              className="h-8 px-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-[11px] gap-1 shadow-xs"
-                              title="تسديد دفعة جديدة للمورد"
-                            >
-                              <CreditCard size={13} />
-                              <span>تسديد دفعة</span>
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
+                              size="icon"
                               variant="ghost"
                               onClick={() => handleOpenDetails(item)}
-                              className="h-8 px-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 text-[11px] font-bold gap-1 bg-emerald-500/5 hover:bg-emerald-500/15"
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+                              title="عرض تفاصيل الفاتورة وسجل الدفعات"
                             >
-                              <Check size={13} />
-                              <span>خالص</span>
+                              <History size={15} />
                             </Button>
-                          )}
 
-                          {/* Details & History */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleOpenDetails(item)}
-                            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
-                            title="عرض تفاصيل الفاتورة وسجل الدفعات"
-                          >
-                            <History size={15} />
-                          </Button>
+                            {/* Edit */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleOpenEdit(item)}
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
+                              title="تعديل الفاتورة"
+                            >
+                              <Edit3 size={15} />
+                            </Button>
 
-                          {/* Edit */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleOpenEdit(item)}
-                            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
-                            title="تعديل الفاتورة"
-                          >
-                            <Edit3 size={15} />
-                          </Button>
+                            {/* Delete */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeleteConfirmId(item.id)}
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
+                              title="حذف الفاتورة"
+                            >
+                              <Trash2 size={15} />
+                            </Button>
+                          </div>
+                        </TableCell>
 
-                          {/* Delete */}
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
-                            title="حذف الفاتورة"
-                          >
-                            <Trash2 size={15} />
-                          </Button>
-                        </div>
-                      </TableCell>
-
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </>
+      )}
 
       {/* ==================== Add / Edit Modal ==================== */}
       <Dialog open={isAddEditOpen} onOpenChange={setIsAddEditOpen}>
@@ -1834,7 +2015,7 @@ export const Suppliers = () => {
                   </Card>
                 </div>
 
-                {/* Invoices List Table */}
+                {/* Invoices List for Statement */}
                 <div className="rounded-2xl border border-border overflow-hidden bg-card">
                   <div className="p-3 border-b border-border bg-muted/30 flex items-center justify-between">
                     <h4 className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -1842,11 +2023,99 @@ export const Suppliers = () => {
                       <span>تفاصيل فواتير المورد ({statementPurchases.length})</span>
                     </h4>
                     <span className="text-[11px] text-muted-foreground">
-                      موزعة عبر الفروع وتواريخ الشراء
+                      موزعة عبر الفروع والتواريخ
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Mobile View: Invoice Cards */}
+                  <div className="block md:hidden p-2.5 space-y-2.5 bg-muted/10">
+                    {statementPurchases.map((inv) => {
+                      const dt = formatArabicDateTime(inv.purchaseDate);
+                      const branchName = store.getBranch(inv.branchId || 'b4')?.nameAr || 'فرع المكتب';
+                      return (
+                        <div key={inv.id} className="p-3 rounded-xl border border-border bg-card space-y-2 shadow-2xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-xs">#{inv.invoiceNumber || inv.id.slice(-6)}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                {branchName}
+                              </span>
+                            </div>
+
+                            <div>
+                              {inv.paymentStatus === 'paid' ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                                  مدفوع بالكامل
+                                </span>
+                              ) : inv.paymentStatus === 'partial' ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                  دفع جزئي
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                  آجل / لم يدفع
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {inv.itemsDescription && (
+                            <div className="text-[11px] text-foreground bg-muted/40 p-2 rounded-lg">
+                              <span className="font-bold text-muted-foreground">بيان البضاعة: </span>
+                              <span>{inv.itemsDescription}</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-muted/20 text-center">
+                            <div>
+                              <span className="text-[9px] text-muted-foreground block">الإجمالي</span>
+                              <span className="text-xs font-bold font-mono">{inv.totalAmount.toLocaleString()} ج.م</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-emerald-500 block">المدفوع</span>
+                              <span className="text-xs font-bold font-mono text-emerald-500">{inv.paidAmount.toLocaleString()} ج.م</span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] text-rose-500 block">المتبقي</span>
+                              <span className={`text-xs font-bold font-mono ${inv.remainingAmount > 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                                {inv.remainingAmount.toLocaleString()} ج.م
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px]">
+                            <span className="text-muted-foreground text-[10px]">
+                              {dt.dayName} {dt.datePart} <span className="font-mono text-amber-500">{dt.timePart}</span>
+                            </span>
+
+                            <div className="flex items-center gap-1.5">
+                              {inv.remainingAmount > 0 && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleOpenPayment(inv)}
+                                  className="h-7 px-2.5 text-[10px] bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-lg"
+                                >
+                                  تسديد دفعة
+                                </Button>
+                              )}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleOpenDetails(inv)}
+                                className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                                title="التفاصيل"
+                              >
+                                <History size={13} />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Desktop View: Full Table */}
+                  <div className="hidden md:block overflow-x-auto">
                     <Table>
                       <TableHeader className="bg-muted/20">
                         <TableRow className="border-border hover:bg-transparent">
@@ -1980,7 +2249,7 @@ export const Suppliers = () => {
             </div>
 
             {/* Suppliers List Cards */}
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto scrollbar-thin">
+            <div className="space-y-2.5 max-h-[50vh] overflow-y-auto scrollbar-thin">
               {existingSuppliers
                 .filter(s => {
                   if (!supplierSelectSearch.trim()) return true;
@@ -1990,7 +2259,7 @@ export const Suppliers = () => {
                 .map((s, idx) => (
                   <div 
                     key={idx}
-                    className="p-3 sm:p-3.5 rounded-2xl border border-border bg-card hover:border-amber-500/40 hover:bg-muted/20 transition-all flex items-center justify-between gap-3 shadow-2xs"
+                    className="p-3 sm:p-3.5 rounded-2xl border border-border bg-card hover:border-amber-500/40 hover:bg-muted/20 transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 shadow-2xs"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 font-black text-sm">
@@ -2012,8 +2281,8 @@ export const Suppliers = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-left font-mono">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                      <div className="text-right sm:text-left font-mono">
                         <span className="text-[10px] text-muted-foreground block">صافي المتبقي له</span>
                         <span className={`text-xs sm:text-sm font-extrabold ${s.totalRemaining > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                           {s.totalRemaining > 0 ? `${s.totalRemaining.toLocaleString()} ج.م` : 'خالص'}
