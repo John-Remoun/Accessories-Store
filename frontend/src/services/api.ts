@@ -461,7 +461,13 @@ export const api = {
   createInvoice: async (invoice: any) => {
     try {
       return await request<any>('/invoices', { method: 'POST', body: JSON.stringify(invoice) });
-    } catch {
+    } catch (err: any) {
+      // If the backend actively rejected the request (e.g. 400 Bad Request, out of stock, double sell), rethrow!
+      if (err && (err.status === 400 || err.status === 409 || err.status === 422 || err.message?.includes('نفدت') || err.message?.includes('غير متوفر') || err.message?.includes('إلغاء'))) {
+        throw err;
+      }
+
+      console.warn('Backend /invoices failed with network error, falling back to direct Supabase write:', err);
       const { items, ...invHeader } = invoice;
       const cleanHeader = {
         id: invHeader.id || `inv_${Date.now()}`,
@@ -484,6 +490,30 @@ export const api = {
         remainingAmount: Number(invHeader.remainingAmount || 0),
         isFavorite: false,
       };
+
+      // Check stock sufficiency in Supabase before creating invoice!
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.productId) {
+            const bId = cleanHeader.branchId || 'b4';
+            const pId = item.productId;
+            const soldQty = Number(item.quantity || 1);
+            try {
+              const bdList = await supabaseFetch<any[]>(`/product_branch_data?productId=eq.${pId}&branchId=eq.${bId}`);
+              if (Array.isArray(bdList) && bdList.length > 0) {
+                const currentQty = Number(bdList[0].quantity || 0);
+                if (currentQty < soldQty) {
+                  throw new Error(`الكمية غير متوفرة في المخزن للمنتج "${item.productName || pId}" (المتاح: ${currentQty}). تم إلغاء الفاتورة.`);
+                }
+              }
+            } catch (stockCheckErr: any) {
+              if (stockCheckErr.message?.includes('الكمية غير متوفرة')) {
+                throw stockCheckErr;
+              }
+            }
+          }
+        }
+      }
 
       // 1. Insert invoice header
       await supabaseFetch('/invoices', {
@@ -531,6 +561,7 @@ export const api = {
       }
 
       // 4. Auto-deduct stock quantity from product_branch_data in Supabase
+      const updatedStockList: Array<{ productId: string; newQuantity: number }> = [];
       if (Array.isArray(items)) {
         for (const item of items) {
           if (item.productId) {
@@ -547,6 +578,7 @@ export const api = {
                   method: 'PATCH',
                   body: JSON.stringify({ quantity: newQty }),
                 });
+                updatedStockList.push({ productId: pId, newQuantity: newQty });
               }
             } catch (e) {
               console.warn('Stock auto-deduct notice:', e);
@@ -555,7 +587,10 @@ export const api = {
         }
       }
 
-      return cleanHeader;
+      return {
+        ...cleanHeader,
+        updatedStock: updatedStockList,
+      };
     }
   },
   deleteInvoicesByIds: async (ids: string[]) => {

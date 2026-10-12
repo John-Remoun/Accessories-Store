@@ -21,14 +21,52 @@ export interface AppState {
 class StoreService {
   private state: AppState;
   private listeners: Set<() => void> = new Set();
+  private isSyncing = false;
+  private tombstonedInvoiceIds: Set<string> = new Set();
+  private broadcastChannel: BroadcastChannel | null = null;
 
   constructor() {
     this.state = this.loadState();
     this.syncWithBackend();
 
     if (typeof window !== 'undefined') {
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          this.broadcastChannel = new BroadcastChannel('accessories_store_sync_v2');
+          this.broadcastChannel.onmessage = (event) => {
+            const { type, payload } = event.data || {};
+            if (type === 'STOCK_UPDATED' && payload) {
+              this.applyRealtimeStockUpdate(payload.branchId, payload.items, false);
+            } else if (type === 'INVOICE_CREATED' && payload) {
+              if (!this.state.invoices) this.state.invoices = [];
+              if (!this.state.invoices.some(i => i.id === payload.id || i.invoiceNumber === payload.invoiceNumber)) {
+                this.state.invoices.unshift(payload);
+                this.saveState(false);
+              }
+            } else if (type === 'INVOICES_DELETED' && payload && Array.isArray(payload.ids)) {
+              const delSet = new Set(payload.ids);
+              payload.ids.forEach((id: string) => this.tombstonedInvoiceIds.add(id));
+              this.state.invoices = (this.state.invoices || []).filter(i => !delSet.has(i.id) && !delSet.has(i.invoiceNumber));
+              this.saveState(false);
+            }
+          };
+        } catch (bcErr) {
+          console.warn('BroadcastChannel initialization notice:', bcErr);
+        }
+      }
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORE_KEY) {
+          this.state = this.loadState();
+          this.notifyListeners();
+        }
+      });
+
       window.addEventListener('focus', () => this.syncWithBackend());
-      setInterval(() => this.syncWithBackend(), 1500);
+      // High-speed lightweight check every 2.5s for inventory & invoices
+      setInterval(() => this.quickSyncStockAndInvoices(), 2500);
+      // Full sync every 45s
+      setInterval(() => this.syncWithBackend(), 45000);
     }
   }
 
@@ -45,7 +83,88 @@ class StoreService {
     });
   }
 
+  public async quickSyncStockAndInvoices() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+    try {
+      const [branchDataList, invs] = await Promise.allSettled([
+        api.getProductBranchDataList(),
+        api.getInvoices(),
+      ]);
+
+      let stateChanged = false;
+
+      // 1. Check stock changes
+      if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
+        const previousData = this.state.productBranchData || [];
+        const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
+
+        branchDataList.value.forEach(newBd => {
+          const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
+          if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
+            const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
+            const nQty = Number(newBd.quantity || 0);
+            changedItems.push({
+              productId: newBd.productId,
+              productName: prod?.nameAr || prod?.nameEn || 'منتج',
+              newQuantity: nQty,
+              isOutOfStock: nQty <= 0
+            });
+            stateChanged = true;
+          }
+        });
+
+        if (stateChanged || previousData.length === 0) {
+          this.state.productBranchData = branchDataList.value.map(bd => ({
+            ...bd,
+            cost: Number(bd.cost || 0),
+            price1: Number(bd.price1 || 0),
+            price2: Number(bd.price2 || 0),
+            price3: Number(bd.price3 || 0),
+            price4: Number(bd.price4 || 0),
+            minStock: Number(bd.minStock ?? 10),
+            quantity: Number(bd.quantity || 0)
+          }));
+
+          if (changedItems.length > 0 && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
+              detail: {
+                branchId: branchDataList.value[0]?.branchId || 'b4',
+                items: changedItems,
+                timestamp: new Date().toISOString()
+              }
+            }));
+          }
+        }
+      }
+
+      // 2. Check invoice changes
+      if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
+        const filteredInvs = invs.value
+          .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
+          .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+
+        const currentIds = (this.state.invoices || []).map(i => i.id).join(',');
+        const newIds = filteredInvs.map(i => i.id).join(',');
+        if (currentIds !== newIds) {
+          this.state.invoices = filteredInvs;
+          stateChanged = true;
+        }
+      }
+
+      if (stateChanged) {
+        this.saveState(false);
+      }
+    } catch {
+      // quiet fail on quick sync
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
   public async syncWithBackend() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
     try {
       const [
         fixedExp,
@@ -74,9 +193,11 @@ class StoreService {
       }
 
       if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
-        this.state.invoices = invs.value.sort(
-          (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
-        );
+        this.state.invoices = invs.value
+          .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
+          .sort(
+            (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+          );
       }
 
       if (branchList.status === 'fulfilled' && Array.isArray(branchList.value) && branchList.value.length > 0) {
@@ -161,10 +282,11 @@ class StoreService {
         this.state.physicalItems = physItems.value;
       }
 
-      this.saveState();
-      this.notifyListeners();
+      this.saveState(false);
     } catch (e) {
       console.warn('Backend sync warning:', e);
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -239,9 +361,11 @@ class StoreService {
     };
   }
 
-  public saveState() {
+  public saveState(notify = true) {
     localStorage.setItem(STORE_KEY, JSON.stringify(this.state));
-    this.notifyListeners();
+    if (notify) {
+      this.notifyListeners();
+    }
   }
 
   public resetState() {
@@ -459,21 +583,35 @@ class StoreService {
     }
   }
 
-  public applyRealtimeStockUpdate(branchId: string, items: Array<{ productId: string; newQuantity: number }>) {
+  public applyRealtimeStockUpdate(branchId: string, items: Array<{ productId: string; newQuantity: number }>, broadcast = true) {
     if (!this.state.productBranchData) this.state.productBranchData = [];
+    let hasChanges = false;
     for (const item of items) {
       const idx = this.state.productBranchData.findIndex(
         bd => bd && bd.productId === item.productId && (bd.branchId === branchId || !branchId)
       );
       if (idx !== -1) {
-        this.state.productBranchData[idx] = {
-          ...this.state.productBranchData[idx],
-          quantity: item.newQuantity,
-        };
+        if (Number(this.state.productBranchData[idx].quantity) !== Number(item.newQuantity)) {
+          this.state.productBranchData[idx] = {
+            ...this.state.productBranchData[idx],
+            quantity: Number(item.newQuantity),
+          };
+          hasChanges = true;
+        }
       }
     }
-    this.saveState();
-    this.notifyListeners();
+    if (hasChanges) {
+      this.saveState(false);
+      if (broadcast && this.broadcastChannel) {
+        try {
+          this.broadcastChannel.postMessage({
+            type: 'STOCK_UPDATED',
+            payload: { branchId, items }
+          });
+        } catch {}
+      }
+      this.notifyListeners();
+    }
   }
 
   public async deleteProduct(id: string) {
@@ -561,19 +699,56 @@ class StoreService {
     return this.getInvoices().filter(i => i?.branchId === branchId);
   }
   public async addInvoice(invoice: Invoice) {
+    // 1. Send to server/DB first!
+    const created = await api.createInvoice(invoice);
+
+    const invoiceToStore = created && created.id ? created : invoice;
+
+    // 2. Only commit to local state after backend confirmation
     if (!this.state.invoices) this.state.invoices = [];
-    this.state.invoices.unshift(invoice);
-    this.saveState();
-    try {
-      await api.createInvoice(invoice);
-      await this.syncWithBackend();
-    } catch (err) {
-      console.warn('DB sync warning (createInvoice):', err);
-      // Rollback local invoice if creation was rejected
-      this.state.invoices = (this.state.invoices || []).filter(i => i.id !== invoice.id);
-      this.saveState();
-      throw err;
+    this.state.invoices = this.state.invoices.filter(
+      i => i.id !== invoiceToStore.id && i.invoiceNumber !== invoiceToStore.invoiceNumber
+    );
+    this.state.invoices.unshift(invoiceToStore);
+
+    // 3. Immediately apply the stock numbers returned by the DB transaction
+    if (created && Array.isArray(created.updatedStock) && created.updatedStock.length > 0) {
+      this.applyRealtimeStockUpdate(invoice.branchId, created.updatedStock, true);
     }
+
+    this.saveState(false);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'INVOICE_CREATED',
+          payload: invoiceToStore
+        });
+      } catch {}
+    }
+
+    this.notifyListeners();
+    return invoiceToStore;
+  }
+
+  public addInvoiceFromSocket(invoice: any) {
+    if (!invoice || !invoice.id) return;
+    if (this.tombstonedInvoiceIds.has(invoice.id) || this.tombstonedInvoiceIds.has(invoice.invoiceNumber)) return;
+    if (!this.state.invoices) this.state.invoices = [];
+    if (!this.state.invoices.some(i => i.id === invoice.id || i.invoiceNumber === invoice.invoiceNumber)) {
+      this.state.invoices.unshift(invoice);
+      this.saveState(false);
+      this.notifyListeners();
+    }
+  }
+
+  public deleteInvoicesFromSocket(ids: string[]) {
+    if (!ids || ids.length === 0) return;
+    const delSet = new Set(ids);
+    ids.forEach(id => this.tombstonedInvoiceIds.add(id));
+    this.state.invoices = (this.state.invoices || []).filter(i => !delSet.has(i.id) && !delSet.has(i.invoiceNumber));
+    this.saveState(false);
+    this.notifyListeners();
   }
   public toggleFavoriteInvoice(id: string) {
     const inv = (this.state.invoices || []).find(i => i?.id === id);
@@ -639,11 +814,27 @@ class StoreService {
       ...matched.map(m => m.invoiceNumber),
     ].filter(Boolean));
 
+    // Tombstone all IDs so background sync will NEVER re-add them
+    fullSet.forEach(id => this.tombstonedInvoiceIds.add(id));
+
+    // Instant local removal with ZERO LAG
     this.state.invoices = (this.state.invoices || []).filter(i => !fullSet.has(i?.id) && !fullSet.has(i?.invoiceNumber));
-    this.saveState();
+    this.saveState(false);
+    this.notifyListeners();
+
+    // Broadcast instant deletion across tabs
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'INVOICES_DELETED',
+          payload: { ids: Array.from(fullSet) }
+        });
+      } catch {}
+    }
+
+    // Call API in background without blocking UI or doing heavy sync
     try {
       await api.deleteInvoicesByIds(Array.from(fullSet));
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteInvoicesByIds):', err);
     }

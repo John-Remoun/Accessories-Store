@@ -847,9 +847,15 @@ export const POS = () => {
   const handleCompleteSale = async () => {
     if (isSubmitting || cart.length === 0) return;
 
-    // MANDATORY CUSTOMER CHECK
+    // MANDATORY CUSTOMER & WHATSAPP CHECK
     if (!customerName.trim() || !customerPhone.trim()) {
-      setCustomerError('اسم العميل ورقم التليفون إجباري لإتمام الفاتورة!');
+      setCustomerError('اسم العميل ورقم التليفون إجباري لإتمام الفاتورة وإرسالها بالواتساب!');
+      return;
+    }
+
+    const rawPhoneDigits = customerPhone.replace(/\D/g, '');
+    if (rawPhoneDigits.length < 10) {
+      setCustomerError('رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لفتح محادثة الواتساب)!');
       return;
     }
     setCustomerError('');
@@ -951,17 +957,23 @@ export const POS = () => {
         splitPayments: splitPaymentsData,
       };
 
-      // 1. Save invoice to system & backend (backend automatically decrements stock in DB transaction)
+      // Ensure WhatsApp URL can be constructed before committing sale
+      const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
+      if (!waUrl) {
+        throw new Error('تعذر تجهيز رابط فاتورة الواتساب. يرجى التأكد من كتابة رقم الهاتف بشكل صحيح.');
+      }
+
+      // 1. Save invoice to database (store.addInvoice only records invoice upon verified DB success & stock deduction)
       await store.addInvoice(newInvoice);
 
-      // 2. Update local branch stock quantity in store memory for immediate reactive UI updates
+      // 2. Immediately update local branch stock for zero-latency reactive UI
       for (const item of cart) {
         const bd = store.getProductBranchData(item.product.id, currentBranchId);
         if (bd) {
           bd.quantity = Math.max(0, Number(bd.quantity || 0) - item.quantity);
         }
       }
-      store.saveState();
+      store.saveState(false);
 
       // Save customer to store if starred
       if (isCustomerFavorite) {
@@ -978,28 +990,25 @@ export const POS = () => {
 
       setLastPrintedInvoice(newInvoice);
 
-      // 3. Open WhatsApp cleanly on ANY device without ever opening a blank tab
-      const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
-      if (waUrl) {
-        const isTouchOrMobile = typeof navigator !== 'undefined' && (
-          /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-          (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
-          window.innerWidth <= 768
-        );
+      // 3. MANDATORY WHATSAPP DISPATCH: Clean launch on any mobile or desktop without blank tabs
+      const isTouchOrMobile = typeof navigator !== 'undefined' && (
+        /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
+        window.innerWidth <= 768
+      );
 
-        if (isTouchOrMobile) {
-          // On mobile or tablet: direct navigate to WhatsApp URL (launches WhatsApp app directly, ZERO blank tab)
+      if (isTouchOrMobile) {
+        // Direct mobile location navigation: directly launches native WhatsApp, NEVER opens about:blank
+        window.location.href = waUrl;
+      } else {
+        // Desktop browser: open WhatsApp Web
+        const win = window.open(waUrl, '_blank', 'noopener,noreferrer');
+        if (!win) {
           window.location.href = waUrl;
-        } else {
-          // On desktop PC/Mac: open WhatsApp Web
-          const win = window.open(waUrl, '_blank', 'noopener,noreferrer');
-          if (!win) {
-            window.location.href = waUrl;
-          }
         }
       }
 
-      // 4. Reset cart and customer form fields immediately
+      // 4. Reset cart and checkout form only after success
       setCart([]);
       setDiscount(0);
       setPaidAmountInput(0);
@@ -1011,7 +1020,7 @@ export const POS = () => {
       setSelectedCustomerId('');
       setIsCustomerFavorite(false);
 
-      toast.success(`تم حفظ الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
+      toast.success(`تم خصم الكمية وإصدار الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
     } catch (err: any) {
       console.error('Error completing sale:', err);
       toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');

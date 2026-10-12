@@ -54,6 +54,20 @@ export function initSocketClient(): Socket {
     }
   });
 
+  socket.on('invoice:created', (invoice: any) => {
+    console.log('⚡ [Socket.io Client] Real-time invoice:created received:', invoice?.invoiceNumber);
+    if (invoice) {
+      store.addInvoiceFromSocket(invoice);
+    }
+  });
+
+  socket.on('invoices:deleted', (data: { ids: string[] }) => {
+    console.log('⚡ [Socket.io Client] Real-time invoices:deleted received:', data?.ids);
+    if (data && Array.isArray(data.ids)) {
+      store.deleteInvoicesFromSocket(data.ids);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('⚠️ [Socket.io Client] Disconnected from server.');
   });

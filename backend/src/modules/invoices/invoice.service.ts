@@ -7,7 +7,7 @@ import { ProductBranchDataEntity } from '../products/product-branch-data.entity'
 import { CustomerEntity } from '../customers/customer.entity';
 import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
-import { broadcastStockUpdate, StockUpdateItem } from '../../common/socket/socket.service';
+import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, StockUpdateItem } from '../../common/socket/socket.service';
 
 export class InvoiceService {
   private invoiceRepo = AppDataSource.getRepository(InvoiceEntity);
@@ -266,20 +266,24 @@ export class InvoiceService {
       return this.formatInvoiceResponse(invoice);
     });
 
-    // Transaction committed successfully! Broadcast real-time stock update to all connected clients
-    if (updatedStockItems.length > 0) {
-      try {
+    // Transaction committed successfully! Broadcast real-time events to all connected clients
+    try {
+      broadcastInvoiceCreated(formattedInvoice);
+      if (updatedStockItems.length > 0) {
         broadcastStockUpdate({
           branchId: targetBranchId,
           invoiceNumber: formattedInvoice.invoiceNumber,
           items: updatedStockItems,
         });
-      } catch (broadcastErr) {
-        console.warn('⚠️ [Socket.io] Broadcast error after invoice commit:', broadcastErr);
       }
+    } catch (broadcastErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after invoice commit:', broadcastErr);
     }
 
-    return formattedInvoice;
+    return {
+      ...formattedInvoice,
+      updatedStock: updatedStockItems,
+    };
   }
 
   public async deleteInvoicesByIds(ids: string[]) {
@@ -314,6 +318,12 @@ export class InvoiceService {
           `DELETE FROM invoices WHERE id = ANY($1) OR "invoiceNumber" = ANY($1)`,
           [combinedIds]
         );
+
+        try {
+          broadcastInvoicesDeleted(combinedIds);
+        } catch (bErr) {
+          console.warn('⚠️ [Socket.io] Broadcast error after invoice delete:', bErr);
+        }
       }
     });
 

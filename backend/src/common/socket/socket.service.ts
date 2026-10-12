@@ -68,3 +68,19 @@ export function broadcastStockUpdate(payload: Omit<StockUpdatePayload, 'timestam
     io.to(`branch:${fullPayload.branchId}`).emit('inventory:stock-updated', fullPayload);
   }
 }
+
+export function broadcastInvoiceCreated(invoice: any): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting invoice created: #${invoice?.invoiceNumber}`);
+  io.emit('invoice:created', invoice);
+  if (invoice?.branchId) {
+    io.to(`branch:${invoice.branchId}`).emit('invoice:created', invoice);
+  }
+}
+
+export function broadcastInvoicesDeleted(ids: string[]): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting invoices deleted:`, ids);
+  io.emit('invoices:deleted', { ids, timestamp: new Date().toISOString() });
+}
+
