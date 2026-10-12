@@ -466,7 +466,7 @@ export const api = {
       const cleanHeader = {
         id: invHeader.id || `inv_${Date.now()}`,
         invoiceNumber: invHeader.invoiceNumber || `${Math.floor(10000000 + Math.random() * 90000000)}`,
-        branchId: invHeader.branchId || 'b1',
+        branchId: invHeader.branchId || (typeof localStorage !== 'undefined' ? localStorage.getItem('last_active_branch') : null) || 'b4',
         employeeId: invHeader.employeeId || 'u1',
         customerId: invHeader.customerId || null,
         customerName: invHeader.customerName || '',
@@ -535,7 +535,7 @@ export const api = {
         for (const item of items) {
           if (item.productId) {
             try {
-              const bId = cleanHeader.branchId || 'b1';
+              const bId = cleanHeader.branchId || 'b4';
               const pId = item.productId;
               const soldQty = Number(item.quantity || 1);
 
