@@ -873,9 +873,12 @@ export const POS = () => {
     // Lock immediately to prevent double-clicks / repeated submissions
     setIsSubmitting(true);
 
-    // Pre-open window synchronously during user click event to avoid browser popup blockers
+    // Detect mobile devices to open WhatsApp directly without blank tab artifacts
+    const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // Pre-open window synchronously ONLY on desktop to bypass browser popup blockers
     let waWindow: Window | null = null;
-    if (cPhone) {
+    if (cPhone && !isMobileDevice) {
       try {
         waWindow = window.open('about:blank', '_blank');
       } catch {
@@ -900,7 +903,7 @@ export const POS = () => {
 
       // Build invoice items
       const invoiceItems = cart.map(item => ({
-        physicalItemId: item.physicalItemId || `QR-${item.product.sku}`,
+        physicalItemId: item.physicalItemId || undefined,
         productId: item.product.id,
         productName: item.product.nameAr || item.product.nameEn,
         unitPrice: item.selectedPrice,
@@ -978,10 +981,13 @@ export const POS = () => {
 
       setLastPrintedInvoice(newInvoice);
 
-      // 3. Open WhatsApp Web with text receipt
+      // 3. Open WhatsApp Web or mobile app with text receipt
       const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
       if (waUrl) {
-        if (waWindow && !waWindow.closed) {
+        if (isMobileDevice) {
+          // Direct mobile navigation to WhatsApp without creating blank tabs
+          window.location.href = waUrl;
+        } else if (waWindow && !waWindow.closed) {
           waWindow.location.href = waUrl;
         } else {
           window.open(waUrl, '_blank');
@@ -1003,12 +1009,12 @@ export const POS = () => {
       setIsCustomerFavorite(false);
 
       toast.success(`تم حفظ الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
-    } catch (err) {
+    } catch (err: any) {
       if (waWindow && !waWindow.closed) {
         waWindow.close();
       }
       console.error('Error completing sale:', err);
-      toast.error('حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
+      toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
     } finally {
       setIsSubmitting(false);
     }

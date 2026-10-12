@@ -76,28 +76,34 @@ export class InvoiceService {
       for (const itemPayload of data.items) {
         let physicalItemId: string | undefined = undefined;
 
-        // 1. If physicalItemId is provided, atomically lock & update physical piece status
+        // 1. If physicalItemId is provided, check if it exists in physical_items before updating
         if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
           const pId = itemPayload.physicalItemId.trim();
-          const updatePhysResult: any = await transactionalEntityManager.query(
-            `UPDATE physical_items 
-             SET status = 'sold', "updatedAt" = NOW() 
-             WHERE id = $1 AND status != 'sold' 
-             RETURNING id`,
+          const existingPhys: any = await transactionalEntityManager.query(
+            `SELECT id, status FROM physical_items WHERE id = $1`,
             [pId]
           );
 
-          const physAffected = Array.isArray(updatePhysResult) && typeof updatePhysResult[1] === 'number'
-            ? updatePhysResult[1]
-            : (Array.isArray(updatePhysResult) ? updatePhysResult.length : 0);
+          const physList = Array.isArray(existingPhys) && Array.isArray(existingPhys[0])
+            ? existingPhys[0]
+            : (Array.isArray(existingPhys) ? existingPhys : []);
 
-          if (physAffected === 0) {
-            throw new AppError(
-              `القطعة (${pId}) تم بيعها للتو بواسطة مستخدم آخر! تم إلغاء الفاتورة لمنع البيع المزدوج.`,
-              400
+          if (physList.length > 0) {
+            if (physList[0].status === 'sold') {
+              throw new AppError(
+                `القطعة (${pId}) تم بيعها للتو بواسطة مستخدم آخر! تم إلغاء الفاتورة لمنع البيع المزدوج.`,
+                400
+              );
+            }
+
+            await transactionalEntityManager.query(
+              `UPDATE physical_items 
+               SET status = 'sold', "updatedAt" = NOW() 
+               WHERE id = $1`,
+              [pId]
             );
+            physicalItemId = pId;
           }
-          physicalItemId = pId;
         }
 
         // Safely check if productId exists in database to prevent FK constraint failure

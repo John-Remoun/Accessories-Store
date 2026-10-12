@@ -542,6 +542,10 @@ class StoreService {
       await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createInvoice):', err);
+      // Rollback local invoice if creation was rejected
+      this.state.invoices = (this.state.invoices || []).filter(i => i.id !== invoice.id);
+      this.saveState();
+      throw err;
     }
   }
   public toggleFavoriteInvoice(id: string) {
