@@ -686,21 +686,21 @@ export const Suppliers = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 pb-32 sm:pb-20 max-w-7xl mx-auto px-2 sm:px-4" dir="rtl">
+    <div className="w-full max-w-full min-w-0 overflow-x-hidden space-y-3 sm:space-y-6 animate-in fade-in duration-500 pb-32 sm:pb-20 max-w-7xl mx-auto px-1 sm:px-4" dir="rtl">
       
       {/* Super Admin Top Header Card */}
-      <div className="bg-card border border-border/80 p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm relative overflow-hidden">
+      <div className="w-full min-w-0 bg-card border border-border/80 p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm relative overflow-hidden">
         {/* Top Row: Title, Branch info, and Back Button */}
-        <div className="flex items-center justify-between gap-2.5 mb-3 sm:mb-4">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-              <Truck size={20} className="sm:w-6 sm:h-6" />
+        <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-4 w-full min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <Truck size={18} className="sm:w-6 sm:h-6" />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-2xl font-serif font-black text-foreground truncate">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-sm sm:text-2xl font-serif font-black text-foreground truncate">
                 {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين'}
               </h1>
-              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                 {activeBranchObj 
                   ? `متابعة فواتير وحسابات ${activeBranchObj.nameAr}`
                   : 'كافة الفروع • متابعة الفواتير والديون'}
@@ -712,45 +712,45 @@ export const Suppliers = () => {
           <Button 
             onClick={() => navigate('/dashboard')} 
             variant="outline"
-            className="rounded-xl sm:rounded-2xl h-9 sm:h-11 px-3 sm:px-4 border-border/80 hover:bg-amber-500/10 hover:text-amber-500 transition-all font-bold text-xs shrink-0 gap-1.5 shadow-2xs"
+            className="rounded-xl sm:rounded-2xl h-8 sm:h-11 px-2.5 sm:px-4 border-border/80 hover:bg-amber-500/10 hover:text-amber-500 transition-all font-bold text-xs shrink-0 gap-1 shadow-2xs"
             title="الرجوع للشاشة الرئيسية"
           >
-            <ArrowRight size={15} />
+            <ArrowRight size={14} />
             <span>رجوع</span>
           </Button>
         </div>
 
         {/* Action Buttons Toolbar (Stacked on Mobile, Row on Desktop) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2.5 border-t border-border/50">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-border/50 w-full min-w-0">
           {/* Primary Action Button */}
           <Button
             onClick={handleOpenAdd}
-            className="w-full sm:w-auto gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm h-10 sm:h-11 px-5 shadow-md shadow-amber-500/20 order-1 sm:order-2"
+            className="w-full sm:w-auto gap-2 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm h-10 sm:h-11 px-4 shadow-md shadow-amber-500/20 order-1 sm:order-2"
           >
-            <Plus size={18} />
+            <Plus size={17} />
             <span>إضافة فاتورة مورد جديدة</span>
           </Button>
 
-          {/* Secondary Action Buttons */}
+          {/* Secondary Action Buttons (50% each on mobile, side by side) */}
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 order-2 sm:order-1 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => setIsSupplierSelectModalOpen(true)}
-              className="gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-amber-500/40 hover:bg-amber-500/10 text-amber-500 h-9 sm:h-11 px-3 shadow-2xs"
+              className="w-full sm:w-auto gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-amber-500/40 hover:bg-amber-500/10 text-amber-500 h-9 sm:h-11 px-2.5 shadow-2xs justify-center"
               title="عرض كشوف حسابات الموردين وفواتير كل مورد"
             >
-              <FileText size={15} />
-              <span>كشف حساب مورد</span>
+              <FileText size={14} />
+              <span className="truncate">كشف حساب مورد</span>
             </Button>
 
             <Button
               variant="outline"
               onClick={handlePrintReport}
-              className="gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-border/80 hover:bg-muted h-9 sm:h-11 px-3 shadow-2xs"
+              className="w-full sm:w-auto gap-1.5 rounded-xl sm:rounded-2xl text-xs font-bold border-border/80 hover:bg-muted h-9 sm:h-11 px-2.5 shadow-2xs justify-center"
               title="طباعة كشف الحساب"
             >
-              <Printer size={15} />
-              <span>طباعة تقرير</span>
+              <Printer size={14} />
+              <span className="truncate">طباعة تقرير</span>
             </Button>
           </div>
         </div>
@@ -758,90 +758,109 @@ export const Suppliers = () => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
       </div>
 
-      {/* Branch Switcher Tabs (All Branches + Individual Branches) */}
-      <div className="p-1 sm:p-1.5 bg-card border border-border/80 rounded-2xl flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none shadow-2xs">
-        <button
-          type="button"
-          onClick={() => handleSelectBranch('all')}
-          className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            selectedBranchId === 'all'
-              ? 'bg-amber-500 text-black shadow-sm font-black'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          }`}
-        >
-          <Layers size={14} />
-          <span>كافة الفروع</span>
-        </button>
+      {/* Branch Selector: Mobile Dropdown (No scroll!) + Desktop Tabs */}
+      <div className="w-full min-w-0">
+        {/* Mobile Dropdown - Fits 100% without horizontal scroll */}
+        <div className="sm:hidden w-full bg-card p-2 rounded-xl border border-border shadow-2xs flex items-center gap-2">
+          <Building2 size={16} className="text-amber-500 shrink-0" />
+          <span className="text-[11px] font-bold text-muted-foreground shrink-0">عرض فرع:</span>
+          <select
+            value={selectedBranchId}
+            onChange={(e) => handleSelectBranch(e.target.value)}
+            className="flex-1 bg-background border border-border/80 rounded-lg px-2 py-1.5 text-xs font-bold text-foreground outline-none focus:ring-1 focus:ring-amber-500"
+          >
+            <option value="all">كافة الفروع (الشامل)</option>
+            {branches.map(b => (
+              <option key={b.id} value={b.id}>{b.nameAr}</option>
+            ))}
+          </select>
+        </div>
 
-        {branches.map(b => (
+        {/* Desktop Branch Tabs */}
+        <div className="hidden sm:flex items-center gap-1.5 p-1.5 bg-card border border-border/80 rounded-2xl overflow-x-auto scrollbar-none shadow-2xs w-full min-w-0">
           <button
-            key={b.id}
             type="button"
-            onClick={() => handleSelectBranch(b.id)}
-            className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-              selectedBranchId === b.id
+            onClick={() => handleSelectBranch('all')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+              selectedBranchId === 'all'
                 ? 'bg-amber-500 text-black shadow-sm font-black'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
             }`}
           >
-            <Building2 size={14} />
-            <span>{b.nameAr}</span>
+            <Layers size={14} />
+            <span>كافة الفروع</span>
           </button>
-        ))}
+
+          {branches.map(b => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => handleSelectBranch(b.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+                selectedBranchId === b.id
+                  ? 'bg-amber-500 text-black shadow-sm font-black'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <Building2 size={14} />
+              <span>{b.nameAr}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 4 KPI Summary Cards (2x2 on Mobile, 4 Cols on Desktop) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 w-full min-w-0">
         
         {/* Total Purchases */}
-        <Card className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المشتريات</span>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
-              <DollarSign size={15} className="sm:w-[18px] sm:h-[18px]" />
+        <Card className="p-2.5 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden w-full min-w-0">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المشتريات</span>
+            <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+              <DollarSign size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-2 sm:mt-3">
-            <div className="text-base sm:text-2xl font-black text-foreground">
-              {stats.totalPurchases.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-1.5 sm:mt-3">
+            <div className="text-sm sm:text-2xl font-black text-foreground font-mono truncate">
+              {stats.totalPurchases.toLocaleString()} <span className="text-[9px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
+            <div className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
               <span>{stats.billsCount} فاتورة توريد</span>
             </div>
           </div>
         </Card>
 
         {/* Total Paid */}
-        <Card className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المدفوع</span>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-              <CheckCircle2 size={15} className="sm:w-[18px] sm:h-[18px]" />
+        <Card className="p-2.5 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden w-full min-w-0">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-sm font-bold text-muted-foreground truncate">إجمالي المدفوع</span>
+            <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-2 sm:mt-3">
-            <div className="text-base sm:text-2xl font-black text-emerald-500">
-              {stats.totalPaid.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-1.5 sm:mt-3">
+            <div className="text-sm sm:text-2xl font-black text-emerald-500 font-mono truncate">
+              {stats.totalPaid.toLocaleString()} <span className="text-[9px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
+            <div className="text-[9px] sm:text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-1 flex items-center gap-1 font-medium truncate">
               <span>تم سداده للموردين</span>
             </div>
           </div>
         </Card>
 
         {/* Total Remaining (Debts) */}
-        <Card className="p-3 sm:p-5 rounded-2xl border-rose-500/20 bg-gradient-to-br from-card to-rose-500/5 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-sm font-bold text-rose-500 truncate">الديون المتبقية</span>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-              <AlertCircle size={15} className="sm:w-[18px] sm:h-[18px]" />
+        <Card className="p-2.5 sm:p-5 rounded-2xl border-rose-500/20 bg-gradient-to-br from-card to-rose-500/5 relative overflow-hidden w-full min-w-0">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-sm font-bold text-rose-500 truncate">الديون المتبقية</span>
+            <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+              <AlertCircle size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-2 sm:mt-3">
-            <div className="text-base sm:text-2xl font-black text-rose-500">
-              {stats.totalRemaining.toLocaleString()} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
+          <div className="mt-1.5 sm:mt-3">
+            <div className="text-sm sm:text-2xl font-black text-rose-500 font-mono truncate">
+              {stats.totalRemaining.toLocaleString()} <span className="text-[9px] sm:text-xs text-muted-foreground font-normal">ج.م</span>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
+            <div className="text-[9px] sm:text-[11px] text-rose-600/80 dark:text-rose-400/80 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
               <span>مستحق السداد</span>
             </div>
           </div>
@@ -850,19 +869,19 @@ export const Suppliers = () => {
         {/* Total Suppliers Count */}
         <Card 
           onClick={() => setIsSupplierSelectModalOpen(true)}
-          className="p-3 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group"
+          className="p-2.5 sm:p-5 rounded-2xl border-border bg-gradient-to-br from-card to-muted/30 relative overflow-hidden cursor-pointer hover:border-amber-500/40 hover:shadow-md transition-all group w-full min-w-0"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] sm:text-sm font-bold text-muted-foreground group-hover:text-amber-500 transition-colors truncate">عدد الموردين</span>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-              <Truck size={15} className="sm:w-[18px] sm:h-[18px]" />
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] sm:text-sm font-bold text-muted-foreground group-hover:text-amber-500 transition-colors truncate">عدد الموردين</span>
+            <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Truck size={14} className="sm:w-[18px] sm:h-[18px]" />
             </div>
           </div>
-          <div className="mt-2 sm:mt-3">
-            <div className="text-base sm:text-2xl font-black text-foreground">
-              {stats.suppliersCount} <span className="text-[10px] sm:text-xs text-muted-foreground font-normal">مورد</span>
+          <div className="mt-1.5 sm:mt-3">
+            <div className="text-sm sm:text-2xl font-black text-foreground font-mono truncate">
+              {stats.suppliersCount} <span className="text-[9px] sm:text-xs text-muted-foreground font-normal">مورد</span>
             </div>
-            <div className="text-[10px] sm:text-[11px] text-amber-500/90 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
+            <div className="text-[9px] sm:text-[11px] text-amber-500/90 mt-0.5 sm:mt-1 flex items-center gap-1 font-bold truncate">
               <span>كشوف الحساب 📋</span>
             </div>
           </div>
@@ -871,16 +890,16 @@ export const Suppliers = () => {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col gap-2.5 bg-card p-3 sm:p-4 rounded-2xl border border-border shadow-2xs">
+      <div className="flex flex-col gap-2 bg-card p-2.5 sm:p-4 rounded-2xl border border-border shadow-2xs w-full min-w-0">
         
         {/* Search */}
-        <div className="relative">
-          <Search size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative w-full">
+          <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ابحث باسم المورد، الهاتف، رقم الفاتورة، أو البضاعة..."
-            className="pr-9.5 rounded-xl bg-background/50 border-border text-xs sm:text-sm h-10"
+            placeholder="ابحث باسم المورد، الهاتف، رقم الفاتورة..."
+            className="pr-9 rounded-xl bg-background/50 border-border text-xs sm:text-sm h-9 sm:h-10 w-full"
           />
           {search && (
             <button 
@@ -892,12 +911,12 @@ export const Suppliers = () => {
           )}
         </div>
 
-        {/* Status Filters - Clean Touch Horizontal Scroll */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+        {/* Status Filters - 2x2 Grid on Mobile (No Horizontal Scrolling!), Row on Desktop */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 w-full min-w-0">
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center truncate ${
               statusFilter === 'all' 
                 ? 'bg-foreground text-background shadow-xs' 
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
@@ -909,19 +928,19 @@ export const Suppliers = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('paid')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center truncate ${
               statusFilter === 'paid' 
                 ? 'bg-emerald-600 text-white shadow-xs' 
                 : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
             }`}
           >
-            مدفوع بالكامل ({purchases.filter(p => p.paymentStatus === 'paid').length})
+            مدفوع ({purchases.filter(p => p.paymentStatus === 'paid').length})
           </button>
 
           <button
             type="button"
             onClick={() => setStatusFilter('partial')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center truncate ${
               statusFilter === 'partial' 
                 ? 'bg-amber-500 text-black shadow-xs' 
                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
@@ -933,7 +952,7 @@ export const Suppliers = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('unpaid')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
+            className={`py-1.5 px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center truncate ${
               statusFilter === 'unpaid' 
                 ? 'bg-rose-600 text-white shadow-xs' 
                 : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
@@ -947,11 +966,11 @@ export const Suppliers = () => {
 
       {/* Purchases List: Mobile Cards + Desktop Table */}
       {filteredPurchases.length === 0 ? (
-        <Card className="rounded-2xl border-border p-10 sm:p-12 text-center flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
-            <Truck size={32} />
+        <Card className="rounded-2xl border-border p-8 sm:p-12 text-center flex flex-col items-center justify-center w-full min-w-0">
+          <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-3">
+            <Truck size={28} />
           </div>
-          <h3 className="text-base font-bold text-foreground">لا توجد فواتير موردين مسجلة</h3>
+          <h3 className="text-sm sm:text-base font-bold text-foreground">لا توجد فواتير موردين مسجلة</h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-sm">
             {search || statusFilter !== 'all' 
               ? 'لم يتم العثور على نتائج تطابق معايير البحث الحالية.' 
@@ -969,29 +988,29 @@ export const Suppliers = () => {
         </Card>
       ) : (
         <>
-          {/* ==================== MOBILE VIEW (Dedicated Cards) ==================== */}
-          <div className="block md:hidden space-y-3">
+          {/* ==================== MOBILE VIEW (Dedicated Nested Cards) ==================== */}
+          <div className="block md:hidden space-y-2.5 w-full min-w-0">
             {filteredPurchases.map((item) => {
               const dt = formatArabicDateTime(item.purchaseDate);
               const branchName = store.getBranch(item.branchId || 'b4')?.nameAr || 'فرع المكتب';
 
               return (
-                <Card key={item.id} className="p-3.5 rounded-2xl border-border bg-card shadow-xs space-y-3">
+                <div key={item.id} className="p-3 rounded-2xl border border-border bg-card shadow-xs space-y-2.5 w-full min-w-0 overflow-hidden">
                   
-                  {/* Card Header: Supplier Name, Branch Badge & Status */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5 min-w-0">
+                  {/* Top Row: Supplier Name, Branch Badge & Payment Status Badge */}
+                  <div className="flex items-start justify-between gap-2 w-full min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
-                          className="font-black text-sm text-foreground hover:text-amber-500 text-right underline-offset-2 hover:underline transition-colors"
+                          className="font-black text-sm text-foreground hover:text-amber-500 text-right truncate underline-offset-2 hover:underline"
                           title="عرض كشف حساب هذا المورد"
                         >
                           {item.supplierName}
                         </button>
                         {item.invoiceNumber && (
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-bold">
                             #{item.invoiceNumber}
                           </span>
                         )}
@@ -1000,36 +1019,33 @@ export const Suppliers = () => {
                       {item.supplierPhone ? (
                         <a 
                           href={`tel:${item.supplierPhone}`}
-                          className="text-[11px] text-muted-foreground hover:text-amber-500 flex items-center gap-1 font-mono transition-colors" 
+                          className="text-[11px] text-muted-foreground hover:text-amber-500 flex items-center gap-1 font-mono mt-0.5" 
                           dir="ltr"
                         >
                           <Phone size={11} /> {item.supplierPhone}
                         </a>
                       ) : (
-                        <span className="text-[10px] text-muted-foreground/60">بدون هاتف</span>
+                        <span className="text-[10px] text-muted-foreground/60 mt-0.5 block">بدون هاتف</span>
                       )}
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {item.paymentStatus === 'paid' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                          <CheckCircle2 size={11} />
-                          <span>مدفوع بالكامل</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          مدفوع بالكامل
                         </span>
                       )}
                       {item.paymentStatus === 'partial' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                          <Clock size={11} />
-                          <span>دفع جزئي</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          دفع جزئي
                         </span>
                       )}
                       {item.paymentStatus === 'unpaid' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                          <AlertCircle size={11} />
-                          <span>آجل بالكامل</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                          آجل بالكامل
                         </span>
                       )}
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-muted text-muted-foreground border border-border">
                         {branchName}
                       </span>
                     </div>
@@ -1037,41 +1053,42 @@ export const Suppliers = () => {
 
                   {/* Goods Description */}
                   {item.itemsDescription && (
-                    <div className="text-xs text-foreground bg-muted/40 p-2.5 rounded-xl border border-border/40">
-                      <span className="font-bold text-muted-foreground text-[11px]">بيان البضاعة: </span>
+                    <div className="text-xs text-foreground bg-muted/40 p-2 rounded-xl border border-border/40 break-words">
+                      <span className="font-bold text-muted-foreground text-[10px]">بيان البضاعة: </span>
                       <span>{item.itemsDescription}</span>
                     </div>
                   )}
 
-                  {/* Financial Metrics Box (3 Columns) */}
-                  <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-muted/30 border border-border/60 text-center">
-                    <div>
-                      <span className="text-[10px] text-muted-foreground block font-medium">إجمالي الثمن</span>
-                      <span className="text-xs sm:text-sm font-black text-foreground font-mono">
-                        {item.totalAmount.toLocaleString()} <span className="text-[9px] text-muted-foreground font-normal">ج.م</span>
+                  {/* Financial Metrics Box (3 Columns - Guaranteed 100% width) */}
+                  <div className="grid grid-cols-3 gap-1 p-2 rounded-xl bg-muted/30 border border-border/60 text-center w-full min-w-0">
+                    <div className="min-w-0 px-0.5">
+                      <span className="text-[9px] text-muted-foreground block truncate">إجمالي الثمن</span>
+                      <span className="text-xs font-black text-foreground font-mono truncate block">
+                        {item.totalAmount.toLocaleString()} <span className="text-[8px] font-normal">ج.م</span>
                       </span>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block font-medium">المدفوع</span>
-                      <span className="text-xs sm:text-sm font-black text-emerald-500 font-mono">
-                        {item.paidAmount.toLocaleString()} <span className="text-[9px] text-emerald-400/80 font-normal">ج.م</span>
+                    <div className="min-w-0 px-0.5 border-x border-border/40">
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 block truncate">المدفوع</span>
+                      <span className="text-xs font-black text-emerald-500 font-mono truncate block">
+                        {item.paidAmount.toLocaleString()} <span className="text-[8px] font-normal">ج.م</span>
                       </span>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-rose-500 block font-bold">المتبقي دين</span>
-                      <span className={`text-xs sm:text-sm font-black font-mono ${item.remainingAmount > 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
-                        {item.remainingAmount.toLocaleString()} <span className="text-[9px] font-normal">ج.م</span>
+                    <div className="min-w-0 px-0.5">
+                      <span className="text-[9px] text-rose-500 block font-bold truncate">المتبقي دين</span>
+                      <span className={`text-xs font-black font-mono truncate block ${item.remainingAmount > 0 ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                        {item.remainingAmount.toLocaleString()} <span className="text-[8px] font-normal">ج.م</span>
                       </span>
                     </div>
                   </div>
 
                   {/* Date & Action Buttons Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
-                    <div className="text-[11px] text-muted-foreground">
-                      <span className="font-bold text-foreground">{dt.dayName}</span> {dt.datePart} <span className="font-mono text-amber-500 text-[10px]">{dt.timePart}</span>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-border/40 w-full min-w-0">
+                    <div className="text-[10px] text-muted-foreground flex items-center justify-between sm:justify-start gap-1.5">
+                      <span>{dt.dayName} {dt.datePart}</span>
+                      <span className="font-mono text-amber-500 font-bold">{dt.timePart}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap w-full sm:w-auto">
                       {item.remainingAmount > 0 ? (
                         <Button
                           size="sm"
@@ -1088,52 +1105,54 @@ export const Suppliers = () => {
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenSupplierStatement(item.supplierName, item.supplierPhone)}
-                        className="h-8 px-2.5 rounded-xl text-amber-500 border-amber-500/30 hover:bg-amber-500/10 text-[11px] font-bold gap-1"
+                        className="h-8 px-2 rounded-xl text-amber-500 border-amber-500/30 hover:bg-amber-500/10 text-[11px] font-bold gap-1"
                         title="كشف حساب المورد"
                       >
                         <FileText size={12} />
                         <span>كشف حساب</span>
                       </Button>
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleOpenDetails(item)}
-                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
-                        title="عرض تفاصيل الفاتورة وسجل الدفعات"
-                      >
-                        <History size={14} />
-                      </Button>
+                      <div className="flex items-center gap-1 border-r border-border/60 pr-1 mr-0.5">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleOpenDetails(item)}
+                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+                          title="عرض تفاصيل الفاتورة وسجل الدفعات"
+                        >
+                          <History size={13} />
+                        </Button>
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleOpenEdit(item)}
-                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10"
-                        title="تعديل الفاتورة"
-                      >
-                        <Edit3 size={14} />
-                      </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleOpenEdit(item)}
+                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-amber-500"
+                          title="تعديل الفاتورة"
+                        >
+                          <Edit3 size={13} />
+                        </Button>
 
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10"
-                        title="حذف الفاتورة"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-rose-500"
+                          title="حذف الفاتورة"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
-                </Card>
+                </div>
               );
             })}
           </div>
 
           {/* ==================== DESKTOP VIEW (Full Table) ==================== */}
-          <Card className="hidden md:block rounded-2xl border-border overflow-hidden">
+          <Card className="hidden md:block rounded-2xl border-border overflow-hidden w-full min-w-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/40">

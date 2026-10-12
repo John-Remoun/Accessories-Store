@@ -343,8 +343,8 @@ export const DashboardLayout = () => {
         </header>
 
         {/* Page Content View */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8 touch-pan-y overscroll-y-contain overscroll-x-none">
-          <div className="mx-auto max-w-7xl min-h-full flex flex-col justify-between">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-6 md:p-8 bg-muted/10 scrollbar-none pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8 touch-pan-y overscroll-y-contain overscroll-x-none w-full max-w-full min-w-0">
+          <div className="mx-auto max-w-7xl min-h-full flex flex-col justify-between w-full max-w-full min-w-0 overflow-x-hidden">
             <Outlet />
             {/* Mobile Bottom Spacing Buffer: Guarantees zero content cutoff under fixed bottom navigation bar */}
             <div className="h-24 md:hidden shrink-0 pointer-events-none select-none" aria-hidden="true" />
