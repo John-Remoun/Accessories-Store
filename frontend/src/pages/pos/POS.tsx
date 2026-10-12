@@ -577,7 +577,10 @@ export const POS = () => {
       .reduce((acc, c) => acc + c.quantity, 0);
 
     const maxCanAdd = Math.max(0, availableStockCount - currentInCartQty);
-    if (maxCanAdd <= 0) return;
+    if (maxCanAdd <= 0) {
+      toast.warning(`الكمية غير متوفرة في هذا الفرع (المتبقي في المخزن: ${availableStockCount} قطعة)`);
+      return;
+    }
 
     const qtyToAdd = Math.min(inputQuantity, maxCanAdd);
     if (qtyToAdd <= 0) return;
@@ -606,6 +609,8 @@ export const POS = () => {
       }
     });
 
+    toast.success(`تمت إضافة ${qtyToAdd} قطعة من "${currentSelectedProduct.nameAr}" إلى السلة`);
+
     // Reset selection inputs
     setSelectedProductId('');
     setInputQuantity(1);
@@ -615,35 +620,43 @@ export const POS = () => {
   const handleQrScanAdd = (scannedCode: string) => {
     if (!scannedCode || !scannedCode.trim()) return;
     const targetCode = scannedCode.trim().toLowerCase();
+    const cleanPrefixCode = targetCode.replace(/^qr-/, '');
 
     // Check matching physical item or product SKU / product Code / ID
-    const matchedPhysical = availablePhysicalItems.find(i => 
-      i.id.toLowerCase() === targetCode || i.serialNumber.toLowerCase() === targetCode
+    const allPhysicals = store.getPhysicalItems();
+    const matchedPhysical = allPhysicals.find(i => 
+      (i.id && i.id.toLowerCase() === targetCode) || 
+      (i.serialNumber && i.serialNumber.toLowerCase() === targetCode) ||
+      (i.serialNumber && i.serialNumber.toLowerCase() === cleanPrefixCode) ||
+      (i.id && i.id.toLowerCase().replace(/^qr-/, '') === cleanPrefixCode)
     );
 
     let targetProduct: Product | undefined;
+    const prodsPool = store.getProducts();
     if (matchedPhysical) {
-      targetProduct = allProducts.find(p => p.id === matchedPhysical.productId);
+      targetProduct = prodsPool.find(p => p.id === matchedPhysical.productId);
     } else {
-      targetProduct = allProducts.find(p => 
-        p.id.toLowerCase() === targetCode ||
-        p.sku.toLowerCase() === targetCode || 
-        p.productCode.toLowerCase() === targetCode ||
-        p.nameAr.toLowerCase().includes(targetCode)
+      targetProduct = prodsPool.find(p => 
+        (p.id && p.id.toLowerCase() === targetCode) ||
+        (p.sku && p.sku.toLowerCase() === targetCode) || 
+        (p.productCode && p.productCode.toLowerCase() === targetCode) ||
+        (p.nameAr && p.nameAr.toLowerCase().includes(targetCode)) ||
+        (p.nameEn && p.nameEn.toLowerCase().includes(targetCode))
       );
     }
 
     if (targetProduct) {
-      // Set product as selected in the dropdown so user can choose price tier
+      // Set product as selected in the dropdown so user can choose price tier or click add
       setSelectedProductId(targetProduct.id);
       setSelectedPriceTier('price1');
+      setInputQuantity(1);
       setProductSearchTerm('');
       setIsDropdownOpen(false);
       setIsScanning(false);
       setQrScanInput('');
-      toast.success(`تم إدخال المنتج: ${targetProduct.nameAr} - اختر السعر المطلوب ثم اضغط إضافة`);
+      toast.success(`تم التعرف على المنتج: ${targetProduct.nameAr} - جاهز للإضافة`);
     } else {
-      toast.error('لم يتم العثور على منتج يطابق الباركود أو السيريال المدخل.');
+      toast.error('لم يتم العثور على منتج يطابق الباركود أو كود الـ QR المدخل.');
     }
     setQrScanInput('');
   };
@@ -990,25 +1003,7 @@ export const POS = () => {
 
       setLastPrintedInvoice(newInvoice);
 
-      // 3. MANDATORY WHATSAPP DISPATCH: Clean launch on any mobile or desktop without blank tabs
-      const isTouchOrMobile = typeof navigator !== 'undefined' && (
-        /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-        (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
-        window.innerWidth <= 768
-      );
-
-      if (isTouchOrMobile) {
-        // Direct mobile location navigation: directly launches native WhatsApp, NEVER opens about:blank
-        window.location.href = waUrl;
-      } else {
-        // Desktop browser: open WhatsApp Web
-        const win = window.open(waUrl, '_blank', 'noopener,noreferrer');
-        if (!win) {
-          window.location.href = waUrl;
-        }
-      }
-
-      // 4. Reset cart and checkout form only after success
+      // 3. Reset cart and checkout form so when user returns, POS is immediately clean and ready
       setCart([]);
       setDiscount(0);
       setPaidAmountInput(0);
@@ -1020,7 +1015,11 @@ export const POS = () => {
       setSelectedCustomerId('');
       setIsCustomerFavorite(false);
 
-      toast.success(`تم خصم الكمية وإصدار الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
+      toast.success(`تم خصم الكمية وإصدار الفاتورة #${invoiceNum} بنجاح!`);
+
+      // 4. MANDATORY WHATSAPP DISPATCH IN SAME PAGE (ZERO EXTERNAL TABS / ZERO POPUPS)
+      // Directly opens WhatsApp in the current page so when user presses back, they return right to the POS screen
+      window.location.href = waUrl;
     } catch (err: any) {
       console.error('Error completing sale:', err);
       toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
