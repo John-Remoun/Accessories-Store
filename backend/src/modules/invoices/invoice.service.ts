@@ -48,9 +48,14 @@ export class InvoiceService {
     subtotal: number;
     discount?: number;
     total: number;
-    paymentMethod?: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay';
+    paymentMethod?: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi';
     paymentStatus?: 'paid' | 'partial' | 'deferred';
-    paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay';
+    paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay' | 'multi';
+    splitPayments?: {
+      cash?: number;
+      vodafone_cash?: number;
+      instapay?: number;
+    };
     paidAmount?: number;
     remainingAmount?: number;
   }) {
@@ -218,6 +223,7 @@ export class InvoiceService {
         paymentMethod: data.paymentMethod || 'cash',
         paymentStatus: data.paymentStatus || 'paid',
         paymentSubMethod: data.paymentSubMethod,
+        splitPayments: data.splitPayments,
         paidAmount: data.paidAmount !== undefined ? data.paidAmount : total,
         remainingAmount: data.remainingAmount !== undefined ? data.remainingAmount : 0,
         invoiceItems: invoiceItemEntities,
@@ -426,6 +432,7 @@ export class InvoiceService {
       paymentMethod: invoice.paymentMethod,
       paymentStatus: invoice.paymentStatus,
       paymentSubMethod: invoice.paymentSubMethod,
+      splitPayments: invoice.splitPayments,
       paidAmount: Number(invoice.paidAmount),
       remainingAmount: Number(invoice.remainingAmount),
       isFavorite: !!invoice.isFavorite,

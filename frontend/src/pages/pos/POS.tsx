@@ -859,17 +859,18 @@ export const POS = () => {
       formattedPhone = '20' + formattedPhone;
     }
     
-    // Group invoice items by product
+    // Group invoice items by product safely with composite key
     const itemMap = new Map<string, { name: string; count: number; unitPrice: number; totalPrice: number }>();
-    inv.items.forEach(item => {
+    inv.items.forEach((item, index) => {
       const prod = store.getProduct(item.productId);
       const name = item.productName || prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
-      const existing = itemMap.get(item.productId);
+      const key = `${item.productId || 'p'}_${name}_${item.unitPrice}`;
+      const existing = itemMap.get(key);
       if (existing) {
         existing.count += item.quantity || 1;
         existing.totalPrice += item.unitPrice * (item.quantity || 1);
       } else {
-        itemMap.set(item.productId, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
+        itemMap.set(key, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
       }
     });
 
@@ -905,7 +906,9 @@ export const POS = () => {
         msg += `  • إنستاباي: ${inv.splitPayments.instapay.toFixed(2)} ج.م\n`;
       }
     } else {
-      const pMethodName = inv.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)';
+      const pMethodName = inv.paymentStatus === 'deferred' && (inv.paidAmount === 0 || !inv.paidAmount)
+        ? 'آجل بالكامل (لم يدفع)'
+        : inv.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)';
       msg += `طريقة السداد: ${pMethodName}\n`;
     }
 
@@ -1016,15 +1019,13 @@ export const POS = () => {
         instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
       };
 
-      let calculatedPaymentStatus = paymentStatus;
-      if (isMulti) {
-        if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
-          calculatedPaymentStatus = 'paid';
-        } else if (effectivePaidAmount > 0) {
-          calculatedPaymentStatus = 'partial';
-        } else {
-          calculatedPaymentStatus = 'deferred';
-        }
+      let calculatedPaymentStatus: 'paid' | 'partial' | 'deferred' = 'paid';
+      if (paymentStatus === 'deferred' || effectivePaidAmount <= 0) {
+        calculatedPaymentStatus = 'deferred';
+      } else if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
+        calculatedPaymentStatus = 'paid';
+      } else {
+        calculatedPaymentStatus = 'partial';
       }
 
       const newInvoice: Invoice = {
@@ -1102,11 +1103,15 @@ export const POS = () => {
 
       toast.success(`تم حفظ الفاتورة #${invoiceNum} بنجاح! جارٍ التحويل للواتساب...`);
 
-      // 5. DIRECT MANDATORY WHATSAPP NAVIGATION (No setTimeout to preserve direct user activation)
+      // 5. OPEN WHATSAPP LINK SEAMLESSLY (Supports both new tab and fallback)
+      let waWin: Window | null = null;
       try {
+        waWin = window.open(waUrl, '_blank');
+      } catch (e) {
+        waWin = null;
+      }
+      if (!waWin || waWin.closed || typeof waWin.closed === 'undefined') {
         window.location.href = waUrl;
-      } catch {
-        window.location.assign(waUrl);
       }
     } catch (err: any) {
       console.error('Error completing sale:', err);

@@ -24,9 +24,14 @@ export const createInvoiceSchema = z.object({
   discount: z.number().optional().default(0),
   total: z.number(),
   totalCost: z.number().optional().default(0),
-  paymentMethod: z.enum(['cash', 'card', 'transfer', 'vodafone_cash', 'instapay']).optional().default('cash'),
+  paymentMethod: z.enum(['cash', 'card', 'transfer', 'vodafone_cash', 'instapay', 'multi']).optional().default('cash'),
   paymentStatus: z.enum(['paid', 'partial', 'deferred']).optional().default('paid'),
-  paymentSubMethod: z.enum(['cash', 'vodafone_cash', 'instapay']).optional().nullable(),
+  paymentSubMethod: z.enum(['cash', 'vodafone_cash', 'instapay', 'multi']).optional().nullable(),
+  splitPayments: z.object({
+    cash: z.number().optional().nullable().default(0),
+    vodafone_cash: z.number().optional().nullable().default(0),
+    instapay: z.number().optional().nullable().default(0),
+  }).optional().nullable(),
   paidAmount: z.number().optional().default(0),
   remainingAmount: z.number().optional().default(0),
 });

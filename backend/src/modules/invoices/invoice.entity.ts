@@ -56,13 +56,20 @@ export class InvoiceEntity {
   netProfit!: number;
 
   @Column({ type: 'varchar', length: 50, default: 'cash' })
-  paymentMethod!: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay';
+  paymentMethod!: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi';
 
   @Column({ type: 'varchar', length: 50, default: 'paid' })
   paymentStatus!: 'paid' | 'partial' | 'deferred';
 
   @Column({ type: 'varchar', length: 50, nullable: true })
-  paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay';
+  paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay' | 'multi';
+
+  @Column({ type: 'jsonb', nullable: true })
+  splitPayments?: {
+    cash?: number;
+    vodafone_cash?: number;
+    instapay?: number;
+  };
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   paidAmount!: number;

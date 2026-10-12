@@ -1352,15 +1352,16 @@ Salla Bola & Mina`;
                   <tbody>
                     {(() => {
                       const itemMap = new Map<string, { name: string; count: number; unitPrice: number; totalPrice: number }>();
-                      selectedInvoice.items.forEach(item => {
+                      selectedInvoice.items.forEach((item, idx) => {
                         const prod = store.getProduct(item.productId);
                         const name = item.productName || prod?.nameAr || prod?.nameEn || 'منتج إكسسوارات';
-                        const existing = itemMap.get(item.productId);
+                        const key = `${item.productId || 'p'}_${name}_${item.unitPrice}`;
+                        const existing = itemMap.get(key);
                         if (existing) {
                           existing.count += item.quantity || 1;
                           existing.totalPrice += item.unitPrice * (item.quantity || 1);
                         } else {
-                          itemMap.set(item.productId, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
+                          itemMap.set(key, { name, count: item.quantity || 1, unitPrice: item.unitPrice, totalPrice: item.unitPrice * (item.quantity || 1) });
                         }
                       });
                       const rows = Array.from(itemMap.values());
@@ -1377,8 +1378,15 @@ Salla Bola & Mina`;
                             </tr>
                           ))}
 
-                          <tr className="font-bold text-gray-900 bg-gray-50 border-t-2 border-gray-400">
-                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">الإجمالي</td>
+                          {selectedInvoice.discount > 0 && (
+                            <tr className="text-gray-700 bg-gray-50 border-t border-gray-300">
+                              <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">الخصم</td>
+                              <td className="py-1.5 px-1 text-left font-mono font-bold text-rose-600">-{selectedInvoice.discount.toFixed(2)}</td>
+                            </tr>
+                          )}
+
+                          <tr className="font-bold text-gray-900 bg-gray-100 border-t-2 border-gray-400">
+                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">المجموع الإجمالي</td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center font-mono text-sm">{totalQty}</td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center"></td>
                             <td className="py-2 px-1 text-left font-mono text-sm">{selectedInvoice.total.toFixed(2)}</td>
@@ -1392,8 +1400,15 @@ Salla Bola & Mina`;
 
               {/* Payment Method & Split Details */}
               <div className="text-[11px] py-2 border-b border-dashed border-gray-300 text-gray-800 space-y-1">
+                {selectedInvoice.paidAmount !== undefined && (
+                  <div className="flex justify-between font-bold text-emerald-700">
+                    <span>المدفوع:</span>
+                    <span className="font-mono">{selectedInvoice.paidAmount.toFixed(2)} ج.م</span>
+                  </div>
+                )}
+
                 {selectedInvoice.splitPayments && (selectedInvoice.paymentSubMethod === 'multi' || selectedInvoice.paymentMethod === 'multi') ? (
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 pt-1 border-t border-gray-100">
                     <div className="flex justify-between font-bold text-gray-900">
                       <span>طريقة السداد:</span>
                       <span>دفع مقسّم (متعدد)</span>
@@ -1418,10 +1433,16 @@ Salla Bola & Mina`;
                     )}
                   </div>
                 ) : (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between pt-1 border-t border-gray-100">
                     <span className="text-gray-600">طريقة السداد:</span>
                     <span className="font-bold text-gray-900">
-                      {selectedInvoice.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : selectedInvoice.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)'}
+                      {selectedInvoice.paymentStatus === 'deferred' && (selectedInvoice.paidAmount === 0 || !selectedInvoice.paidAmount)
+                        ? 'آجل بالكامل (لم يدفع)'
+                        : selectedInvoice.paymentSubMethod === 'vodafone_cash' 
+                        ? 'فودافون كاش' 
+                        : selectedInvoice.paymentSubMethod === 'instapay' 
+                        ? 'إنستاباي' 
+                        : 'نقداً (في اليد)'}
                     </span>
                   </div>
                 )}

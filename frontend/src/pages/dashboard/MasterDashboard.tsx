@@ -120,7 +120,14 @@ export const MasterDashboard = () => {
     dayInvoices.forEach(inv => {
       const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       if (amt <= 0) return;
-      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+      const hasSplit = inv.splitPayments && (
+        inv.paymentSubMethod === 'multi' ||
+        inv.paymentMethod === 'multi' ||
+        (Number(inv.splitPayments.cash || 0) > 0 && (Number(inv.splitPayments.vodafone_cash || 0) > 0 || Number(inv.splitPayments.instapay || 0) > 0)) ||
+        (Number(inv.splitPayments.vodafone_cash || 0) > 0 && Number(inv.splitPayments.instapay || 0) > 0)
+      );
+
+      if (hasSplit && inv.splitPayments) {
         dayCash += Number(inv.splitPayments.cash || 0);
         dayVodafone += Number(inv.splitPayments.vodafone_cash || 0);
         dayInstapay += Number(inv.splitPayments.instapay || 0);
@@ -181,7 +188,14 @@ export const MasterDashboard = () => {
     monthInvoices.forEach(inv => {
       const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       if (amt <= 0) return;
-      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+      const hasSplit = inv.splitPayments && (
+        inv.paymentSubMethod === 'multi' ||
+        inv.paymentMethod === 'multi' ||
+        (Number(inv.splitPayments.cash || 0) > 0 && (Number(inv.splitPayments.vodafone_cash || 0) > 0 || Number(inv.splitPayments.instapay || 0) > 0)) ||
+        (Number(inv.splitPayments.vodafone_cash || 0) > 0 && Number(inv.splitPayments.instapay || 0) > 0)
+      );
+
+      if (hasSplit && inv.splitPayments) {
         monthCash += Number(inv.splitPayments.cash || 0);
         monthVodafone += Number(inv.splitPayments.vodafone_cash || 0);
         monthInstapay += Number(inv.splitPayments.instapay || 0);
