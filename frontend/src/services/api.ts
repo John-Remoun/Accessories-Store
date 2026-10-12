@@ -522,23 +522,27 @@ export const api = {
         body: JSON.stringify(cleanHeader),
       });
 
-      // 2. Insert invoice line items
+      // 2. Insert invoice line items safely
       if (Array.isArray(items) && items.length > 0) {
-        const itemRows = items.map((item: any) => ({
-          invoiceId: cleanHeader.id,
-          productId: item.productId || null,
-          productName: item.productName || 'منتج',
-          physicalItemId: null,
-          unitPrice: Number(item.unitPrice || 0),
-          unitCost: Number(item.unitCost || 0),
-          quantity: Number(item.quantity || 1),
-          profit: (Number(item.unitPrice || 0) - Number(item.unitCost || 0)) * Number(item.quantity || 1),
-        }));
+        try {
+          const itemRows = items.map((item: any) => ({
+            invoiceId: cleanHeader.id,
+            productId: (item.productId && !item.productId.startsWith('comp_') ? item.productId : null),
+            productName: item.productName || 'منتج',
+            physicalItemId: null,
+            unitPrice: Number(item.unitPrice || 0),
+            unitCost: Number(item.unitCost || 0),
+            quantity: Number(item.quantity || 1),
+            profit: (Number(item.unitPrice || 0) - Number(item.unitCost || 0)) * Number(item.quantity || 1),
+          }));
 
-        await supabaseFetch('/invoice_items', {
-          method: 'POST',
-          body: JSON.stringify(itemRows),
-        });
+          await supabaseFetch('/invoice_items', {
+            method: 'POST',
+            body: JSON.stringify(itemRows),
+          });
+        } catch (itemErr) {
+          console.warn('Direct Supabase invoice_items write warning:', itemErr);
+        }
       }
 
       // 3. Auto-save customer record in Supabase

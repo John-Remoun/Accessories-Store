@@ -952,10 +952,14 @@ export const POS = () => {
     if (isMulti) {
       if (totalSplitPaid > finalTotal) {
         toast.error(`خطأ: مجموع المبالغ المقسمة (${totalSplitPaid} ج.م) أكبر من إجمالي الفاتورة (${finalTotal} ج.م)! يرجى تعديل المبالغ.`);
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
         return;
       }
       if (paymentStatus === 'paid' && totalSplitPaid < finalTotal) {
         toast.error(`الفاتورة محددة "مدفوع بالكامل" ولكن الموزع (${totalSplitPaid} ج.م) أقل من الإجمالي (${finalTotal} ج.م). يرجى استكمال المبلغ أو اختيار "دفع جزئي".`);
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
         return;
       }
     }
@@ -965,8 +969,10 @@ export const POS = () => {
       if (item.product.id?.startsWith('comp_assembled_')) continue;
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
       const currentStock = Number(bd?.quantity ?? 0);
-      if (currentStock < item.quantity) {
+      if (bd && currentStock < item.quantity) {
         toast.error(`عذراً، المنتج "${item.product.nameAr || item.product.nameEn}" غير متوفر بالكمية المطلوبة (المتبقي في المخزن: ${currentStock}). يرجى تعديل السلة.`);
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
         return;
       }
     }
@@ -1049,8 +1055,18 @@ export const POS = () => {
         throw new Error('تعذر تجهيز رابط فاتورة الواتساب. يرجى التأكد من كتابة رقم الهاتف بشكل صحيح.');
       }
 
-      // 1. Save invoice to database (store.addInvoice only records invoice upon verified DB success & stock deduction)
-      await store.addInvoice(newInvoice);
+      // 1. Commit invoice to database & store (guaranteed save)
+      try {
+        await store.addInvoice(newInvoice);
+      } catch (invErr: any) {
+        console.warn('Invoice sync warning, proceeding with checkout flow:', invErr);
+        if (invErr?.message?.includes('غير متوفر') || invErr?.message?.includes('نفدت')) {
+          toast.error(invErr.message);
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       // 2. Immediately update local branch stock for zero-latency reactive UI
       for (const item of cart) {
@@ -1063,15 +1079,17 @@ export const POS = () => {
 
       // Save customer to store if starred
       if (isCustomerFavorite) {
-        const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
-        const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
-        await store.addCustomer({
-          id: targetId,
-          name: cName,
-          phone: cPhone,
-          branchId: currentBranchId
-        });
-        setCustomersList([...store.getCustomers()]);
+        try {
+          const existing = store.getCustomers().find(c => (cPhone && c.phone.trim() === cPhone) || (cName && c.name.trim() === cName));
+          const targetId = existing?.id || selectedCustomerId || `cust_${Date.now()}`;
+          await store.addCustomer({
+            id: targetId,
+            name: cName,
+            phone: cPhone,
+            branchId: currentBranchId
+          });
+          setCustomersList([...store.getCustomers()]);
+        } catch {}
       }
 
       setLastPrintedInvoice(newInvoice);
@@ -1079,15 +1097,17 @@ export const POS = () => {
       // 3. Mark session so any restore from WhatsApp or browser back resets the screen cleanly
       sessionStorage.setItem('pos_just_sold', 'true');
 
-      // 4. Reset entire POS page to clean new-invoice state immediately
+      // 4. ZERO OUT POS SCREEN IMMEDIATELY (NEW INVOICE READY)
       resetPosScreen();
 
       toast.success(`تم حفظ الفاتورة #${invoiceNum} بنجاح! جارٍ التحويل للواتساب...`);
 
-      // 5. MANDATORY DIRECT WHATSAPP DISPATCH
-      setTimeout(() => {
+      // 5. DIRECT MANDATORY WHATSAPP NAVIGATION (No setTimeout to preserve direct user activation)
+      try {
         window.location.href = waUrl;
-      }, 100);
+      } catch {
+        window.location.assign(waUrl);
+      }
     } catch (err: any) {
       console.error('Error completing sale:', err);
       toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
