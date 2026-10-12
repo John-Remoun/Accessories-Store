@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useStoreSync } from '../../hooks/useStoreSync';
@@ -279,9 +279,62 @@ export const POS = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
   const [checkoutSuccess, setCheckoutSuccess] = useState<boolean>(false);
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string>('');
   const [lastPrintedInvoice, setLastPrintedInvoice] = useState<Invoice | null>(null);
+
+  // Dedicated function to reset entire POS page to clean new-invoice state
+  const resetPosScreen = useCallback(() => {
+    setCart([]);
+    setDiscount(0);
+    setPaidAmountInput(0);
+    setSplitCash('');
+    setSplitVodafone('');
+    setSplitInstapay('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setSelectedCustomerId('');
+    setCustomerError('');
+    setIsCustomerFavorite(false);
+    setSelectedProductId('');
+    setProductSearchTerm('');
+    setSelectedCategoryId('');
+    setInputQuantity(1);
+    setSelectedPriceTier('price1');
+    setPaymentStatus('paid');
+    setPaymentSubMethod('cash');
+    setIsDropdownOpen(false);
+  }, []);
+
+  // Listen for browser navigation back from WhatsApp (bfcache or page visibility)
+  useEffect(() => {
+    const handleRestoreCleanState = () => {
+      if (sessionStorage.getItem('pos_just_sold') === 'true') {
+        sessionStorage.removeItem('pos_just_sold');
+        resetPosScreen();
+      }
+    };
+
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted || sessionStorage.getItem('pos_just_sold') === 'true') {
+        handleRestoreCleanState();
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleRestoreCleanState);
+
+    // Initial check on mount
+    if (sessionStorage.getItem('pos_just_sold') === 'true') {
+      handleRestoreCleanState();
+    }
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleRestoreCleanState);
+    };
+  }, [resetPosScreen]);
 
   // Add Composition Dialog State
   const [isCompositionModalOpen, setIsCompositionModalOpen] = useState<boolean>(false);
@@ -796,8 +849,15 @@ export const POS = () => {
   // Helper to generate structured WhatsApp text message receipt URL
   const getWhatsAppInvoiceUrl = (inv: Invoice, custName: string, custPhone: string, cashierName: string): string => {
     if (!custPhone.trim()) return '';
-    const cleanPhone = custPhone.replace(/\D/g, '');
-    const formattedPhone = cleanPhone.startsWith('2') ? cleanPhone : `20${cleanPhone.replace(/^0/, '')}`;
+    let cleanPhone = custPhone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('002')) cleanPhone = cleanPhone.slice(2);
+    if (cleanPhone.startsWith('200')) cleanPhone = '20' + cleanPhone.slice(3);
+    let formattedPhone = cleanPhone;
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '20' + formattedPhone.slice(1);
+    } else if (!formattedPhone.startsWith('20')) {
+      formattedPhone = '20' + formattedPhone;
+    }
     
     // Group invoice items by product
     const itemMap = new Map<string, { name: string; count: number; unitPrice: number; totalPrice: number }>();
@@ -813,21 +873,21 @@ export const POS = () => {
       }
     });
 
-    let msg = `*Salla Bola & Mina*\n`;
+    let msg = `*متجر Salla Bola & Mina للإكسسوارات*\n`;
     msg += `فاتورة مبيعات مسلسل: #${inv.invoiceNumber}\n`;
     msg += `التاريخ والوقت: ${new Date(inv.date).toLocaleDateString('ar-EG')} - ${new Date(inv.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}\n`;
     msg += `اسم العميل: ${custName}\n`;
     msg += `رقم التليفون: ${custPhone}\n`;
     msg += `الموظف البائع: ${cashierName}\n`;
     msg += `-----------------------------------\n`;
-    msg += `تفاصيل المنتجات والمشتريات:\n`;
+    msg += `تفاصيل المشتريات:\n`;
     itemMap.forEach(item => {
       msg += `- ${item.name} (عدد ${item.count}) : ${item.totalPrice.toFixed(2)} ج.م\n`;
     });
     msg += `-----------------------------------\n`;
     msg += `المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م\n`;
     if (inv.paidAmount !== undefined) {
-      msg += `المدفوع الآن: ${inv.paidAmount.toFixed(2)} ج.م\n`;
+      msg += `المدفوع: ${inv.paidAmount.toFixed(2)} ج.م\n`;
     }
     if (inv.remainingAmount !== undefined && inv.remainingAmount > 0) {
       msg += `المتبقي (آجل): ${inv.remainingAmount.toFixed(2)} ج.م\n`;
@@ -850,25 +910,36 @@ export const POS = () => {
     }
 
     msg += `-----------------------------------\n`;
-    msg += `\nهدفنا ارضاء العميل وليس الربح\n`;
+    msg += `\nهدفنا إرضاء العميل وليس الربح ❤️\n`;
     msg += `متجر Salla Bola & Mina للإكسسوارات`;
 
-    return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`;
+    return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(msg)}`;
   };
 
   // Complete Invoice Sale
   const handleCompleteSale = async () => {
-    if (isSubmitting || cart.length === 0) return;
+    // 1. Double-click concurrency guard (Atomic Ref Check)
+    if (isSubmittingRef.current || isSubmitting || cart.length === 0) return;
 
-    // MANDATORY CUSTOMER & WHATSAPP CHECK
+    // 2. Mandatory Customer Name & Phone check
     if (!customerName.trim() || !customerPhone.trim()) {
-      setCustomerError('اسم العميل ورقم التليفون إجباري لإتمام الفاتورة وإرسالها بالواتساب!');
+      const msg = 'اسم العميل ورقم التليفون إجباري لإتمام الفاتورة وإرسالها بالواتساب!';
+      setCustomerError(msg);
+      toast.error(msg);
+      const nameEl = document.getElementById('pos-customer-name');
+      const phoneEl = document.getElementById('pos-customer-phone');
+      if (!customerName.trim() && nameEl) nameEl.focus();
+      else if (phoneEl) phoneEl.focus();
       return;
     }
 
     const rawPhoneDigits = customerPhone.replace(/\D/g, '');
     if (rawPhoneDigits.length < 10) {
-      setCustomerError('رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لفتح محادثة الواتساب)!');
+      const msg = 'رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لفتح محادثة الواتساب)!';
+      setCustomerError(msg);
+      toast.error(msg);
+      const phoneEl = document.getElementById('pos-customer-phone');
+      if (phoneEl) phoneEl.focus();
       return;
     }
     setCustomerError('');
@@ -891,6 +962,7 @@ export const POS = () => {
 
     // CHECK INVENTORY FOR ALL CART ITEMS BEFORE SUBMITTING (Concurrency check)
     for (const item of cart) {
+      if (item.product.id?.startsWith('comp_assembled_')) continue;
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
       const currentStock = Number(bd?.quantity ?? 0);
       if (currentStock < item.quantity) {
@@ -900,6 +972,7 @@ export const POS = () => {
     }
 
     // Lock immediately to prevent double-clicks / repeated submissions
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -1003,27 +1076,23 @@ export const POS = () => {
 
       setLastPrintedInvoice(newInvoice);
 
-      // 3. Reset cart and checkout form so when user returns, POS is immediately clean and ready
-      setCart([]);
-      setDiscount(0);
-      setPaidAmountInput(0);
-      setSplitCash('');
-      setSplitVodafone('');
-      setSplitInstapay('');
-      setCustomerName('');
-      setCustomerPhone('');
-      setSelectedCustomerId('');
-      setIsCustomerFavorite(false);
+      // 3. Mark session so any restore from WhatsApp or browser back resets the screen cleanly
+      sessionStorage.setItem('pos_just_sold', 'true');
 
-      toast.success(`تم خصم الكمية وإصدار الفاتورة #${invoiceNum} بنجاح!`);
+      // 4. Reset entire POS page to clean new-invoice state immediately
+      resetPosScreen();
 
-      // 4. MANDATORY WHATSAPP DISPATCH IN SAME PAGE (ZERO EXTERNAL TABS / ZERO POPUPS)
-      // Directly opens WhatsApp in the current page so when user presses back, they return right to the POS screen
-      window.location.href = waUrl;
+      toast.success(`تم حفظ الفاتورة #${invoiceNum} بنجاح! جارٍ التحويل للواتساب...`);
+
+      // 5. MANDATORY DIRECT WHATSAPP DISPATCH
+      setTimeout(() => {
+        window.location.href = waUrl;
+      }, 100);
     } catch (err: any) {
       console.error('Error completing sale:', err);
       toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1482,6 +1551,7 @@ export const POS = () => {
                 <div className="relative">
                   <User className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                   <Input 
+                    id="pos-customer-name"
                     placeholder="اكتب اسم العميل..."
                     value={customerName}
                     onChange={(e) => {
@@ -1500,6 +1570,7 @@ export const POS = () => {
                 <div className="relative">
                   <Phone className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                   <Input 
+                    id="pos-customer-phone"
                     placeholder="رقم التليفون..."
                     value={customerPhone}
                     onChange={(e) => {
