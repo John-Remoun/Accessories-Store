@@ -3,9 +3,16 @@ import path from 'path';
 import fs from 'fs';
 import { AppError } from '../exceptions/app-error';
 
-const uploadDir = path.join(__dirname, '../../../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+  ? path.join('/tmp', 'uploads')
+  : path.join(__dirname, '../../../uploads');
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Upload directory creation warning (safe in serverless):', e);
 }
 
 const storage = multer.diskStorage({
