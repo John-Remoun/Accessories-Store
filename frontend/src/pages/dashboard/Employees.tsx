@@ -242,6 +242,19 @@ export const Employees = () => {
           </DialogHeader>
 
           <div className="p-4 sm:p-6 space-y-4 text-xs flex-1 overflow-y-auto">
+            {/* Role & Branch Scope Alert */}
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-2xl flex items-start gap-2.5">
+              <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-500 shrink-0">
+                <UserPlus size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-amber-500">صلاحية موظف فرع ({activeBranchName})</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  هذا الحساب هو موظف له صلاحية فقط على {activeBranchName} (نقطة البيع والمنتجات)، ولن يتمكن من رؤية الإعدادات أو الفروع الأخرى.
+                </p>
+              </div>
+            </div>
+
             {addError && (
               <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl">
                 {addError}

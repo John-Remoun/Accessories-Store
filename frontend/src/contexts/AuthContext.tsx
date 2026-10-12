@@ -34,11 +34,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (storedUserId) {
       const foundUser = store.getUsers().find(u => u.id === storedUserId);
       if (foundUser) {
-        setUser(foundUser);
-        if (foundUser.branchId) {
-          localStorage.setItem('last_active_branch', foundUser.branchId);
+        const isSuper = ['bola', 'mina', 'test'].includes(foundUser.username.toLowerCase()) ||
+                        (foundUser.id.startsWith('admin_') && !foundUser.branchId) ||
+                        (foundUser.role === 'admin' && !foundUser.branchId);
+        const fixedUser: User = {
+          ...foundUser,
+          role: isSuper ? 'admin' : 'employee',
+          branchId: isSuper ? undefined : (foundUser.branchId || 'b4'),
+        };
+        setUser(fixedUser);
+        if (fixedUser.branchId) {
+          localStorage.setItem('last_active_branch', fixedUser.branchId);
         }
-        obtainBackendToken(foundUser.username, foundUser.password || '00000000').then(() => {
+        obtainBackendToken(fixedUser.username, fixedUser.password || '00000000').then(() => {
           store.syncWithBackend();
         });
       }
@@ -66,18 +74,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const existing = store.getUserByUsername(cleanUsername);
+        
+        // Strict Role Determination:
+        // A user is ONLY admin if:
+        // 1) Username is default super admin ('bola', 'mina', 'test')
+        // 2) Or id starts with 'admin_' AND has no branchId
+        // 3) Or existing user in store has role === 'admin' and NO branchId
+        const isSuperAdmin = (
+          ['bola', 'mina', 'test'].includes(cleanUsername.toLowerCase()) ||
+          (existing?.id?.startsWith('admin_') && !existing?.branchId) ||
+          (existing?.role === 'admin' && !existing?.branchId)
+        );
+
+        const assignedRole: 'admin' | 'employee' = isSuperAdmin ? 'admin' : 'employee';
+        const assignedBranchId = isSuperAdmin ? undefined : (existing?.branchId || res.user.branchId || 'b4');
+
         const loggedUser: User = existing
           ? {
               ...existing,
-              ...res.user,
+              role: assignedRole,
+              branchId: assignedBranchId,
               password: password || existing.password || '00000000',
             }
           : {
               id: res.user.id,
               username: res.user.username,
               name: res.user.name,
-              role: res.user.role,
-              branchId: res.user.branchId,
+              role: assignedRole,
+              branchId: assignedBranchId,
               password: password || '00000000',
             };
 
@@ -100,10 +124,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (password && password !== expectedPassword) {
         return false;
       }
-      setUser(foundUser);
-      localStorage.setItem('mock_auth_id', foundUser.id);
-      if (foundUser.branchId) {
-        localStorage.setItem('last_active_branch', foundUser.branchId);
+      const isSuper = ['bola', 'mina', 'test'].includes(foundUser.username.toLowerCase()) ||
+                      (foundUser.id.startsWith('admin_') && !foundUser.branchId) ||
+                      (foundUser.role === 'admin' && !foundUser.branchId);
+      const safeUser: User = {
+        ...foundUser,
+        role: isSuper ? 'admin' : 'employee',
+        branchId: isSuper ? undefined : (foundUser.branchId || 'b4'),
+      };
+      setUser(safeUser);
+      localStorage.setItem('mock_auth_id', safeUser.id);
+      if (safeUser.branchId) {
+        localStorage.setItem('last_active_branch', safeUser.branchId);
       }
       await obtainBackendToken(cleanUsername, password || '00000000');
       await store.syncWithBackend();

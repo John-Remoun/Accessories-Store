@@ -94,8 +94,13 @@ class StoreService {
           const existing = currentUsers.find(
             u => u && (u.id === bUser.id || (u.username || '').trim().toLowerCase() === (bUser.username || '').trim().toLowerCase())
           );
+          const isSuper = ['bola', 'mina', 'test'].includes((bUser.username || '').trim().toLowerCase()) ||
+                          (bUser.id && bUser.id.startsWith('admin_') && !bUser.branchId && !bUser.branch_id);
+          const resolvedBranchId = isSuper ? undefined : (bUser.branch_id || bUser.branchId || existing?.branchId);
           return {
             ...bUser,
+            role: isSuper ? ('admin' as const) : ('employee' as const),
+            branchId: resolvedBranchId,
             password: bUser.password || existing?.password || '00000000',
           };
         });
@@ -166,10 +171,22 @@ class StoreService {
             state.users[idx] = {
               ...defaultUser,
               ...state.users[idx],
+              role: 'admin',
               password: state.users[idx].password || defaultUser.password,
             };
           }
         }
+
+        // Auto-heal any branch employee who was accidentally marked as admin
+        state.users = state.users.map(u => {
+          if (!u) return u;
+          const isSuper = ['bola', 'mina', 'test'].includes((u.username || '').trim().toLowerCase()) ||
+                          (u.id && u.id.startsWith('admin_') && !u.branchId);
+          if (!isSuper && (u.branchId || u.id.startsWith('u_'))) {
+            return { ...u, role: 'employee' as const };
+          }
+          return u;
+        });
 
         return state;
       } catch (e) {
@@ -214,10 +231,17 @@ class StoreService {
   }
   public async addUser(user: User) {
     if (!this.state.users) this.state.users = [];
-    this.state.users.push(user);
+    const isSuper = (user.role === 'admin' && !user.branchId) ||
+                    ['bola', 'mina', 'test'].includes(user.username.trim().toLowerCase());
+    const sanitizedUser: User = {
+      ...user,
+      role: isSuper ? ('admin' as const) : ('employee' as const),
+      branchId: isSuper ? undefined : user.branchId,
+    };
+    this.state.users.push(sanitizedUser);
     this.saveState();
     try {
-      await api.createUser(user);
+      await api.createUser(sanitizedUser);
       await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createUser):', err);

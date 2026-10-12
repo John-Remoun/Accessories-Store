@@ -64,8 +64,40 @@ export const api = {
         body: JSON.stringify({ username, password }),
       });
     } catch {
+      // 1. Try checking Supabase users table
+      try {
+        const cleanName = username.trim();
+        const users = await supabaseFetch<any[]>(`/users?username=eq.${encodeURIComponent(cleanName)}&select=*`);
+        if (users && users.length > 0) {
+          const u = users[0];
+          const isSuper = u.role === 'admin' && !u.branch_id && !u.branchId;
+          return {
+            user: {
+              id: u.id,
+              username: u.username,
+              name: u.name || u.username,
+              role: isSuper ? 'admin' : (u.role || 'employee'),
+              branchId: u.branch_id || u.branchId,
+            },
+            accessToken: 'mock_access_token',
+            refreshToken: 'mock_refresh_token',
+          };
+        }
+      } catch {
+        // ignore Supabase fetch error and proceed to local determination
+      }
+
+      // 2. Fallback check: only default super admins are granted 'admin'
+      const cleanUser = username.trim().toLowerCase();
+      const isDefaultSuper = ['bola', 'mina', 'test'].includes(cleanUser);
+
       return {
-        user: { id: `u_${username}`, username, name: username, role: 'admin' },
+        user: {
+          id: `u_${username.trim()}`,
+          username: username.trim(),
+          name: username.trim(),
+          role: isDefaultSuper ? 'admin' : 'employee',
+        },
         accessToken: 'mock_access_token',
         refreshToken: 'mock_refresh_token',
       };

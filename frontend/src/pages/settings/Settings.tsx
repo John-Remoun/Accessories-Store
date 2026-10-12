@@ -233,6 +233,19 @@ export const Settings = () => {
           </div>
         )}
 
+        {/* Informative Guidance Banner */}
+        <div className="p-3.5 bg-amber-500/10 border border-amber-500/25 rounded-2xl flex items-start gap-2.5">
+          <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-500 shrink-0">
+            <ShieldCheck size={16} />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-amber-500">حساب سوبر أدمن (مدير عام للنظام)</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+              الحساب المنشأ هنا سيكون سوبر أدمن بصلاحية كاملة على كل الفروع والإعدادات والموردين. (إذا كنت تريد إضافة موظف عادي لفرع معين، يمكنك إضافته من صفحة الموظفين والطاقم التابعة للفرع).
+            </p>
+          </div>
+        </div>
+
         {/* FORM FIELDS FOR NEW SUPER ADMIN */}
         <div className="space-y-4">
           
