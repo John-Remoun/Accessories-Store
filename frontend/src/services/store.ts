@@ -28,7 +28,7 @@ class StoreService {
 
     if (typeof window !== 'undefined') {
       window.addEventListener('focus', () => this.syncWithBackend());
-      setInterval(() => this.syncWithBackend(), 2500);
+      setInterval(() => this.syncWithBackend(), 1500);
     }
   }
 
@@ -117,6 +117,23 @@ class StoreService {
       }
 
       if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
+        const previousData = this.state.productBranchData || [];
+        const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
+
+        branchDataList.value.forEach(newBd => {
+          const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
+          if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
+            const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
+            const nQty = Number(newBd.quantity || 0);
+            changedItems.push({
+              productId: newBd.productId,
+              productName: prod?.nameAr || prod?.nameEn || 'منتج',
+              newQuantity: nQty,
+              isOutOfStock: nQty <= 0
+            });
+          }
+        });
+
         this.state.productBranchData = branchDataList.value.map(bd => ({
           ...bd,
           cost: Number(bd.cost || 0),
@@ -127,6 +144,16 @@ class StoreService {
           minStock: Number(bd.minStock ?? 10),
           quantity: Number(bd.quantity || 0)
         }));
+
+        if (changedItems.length > 0 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
+            detail: {
+              branchId: branchDataList.value[0]?.branchId || 'b4',
+              items: changedItems,
+              timestamp: new Date().toISOString()
+            }
+          }));
+        }
       }
 
       // Sync Physical Items

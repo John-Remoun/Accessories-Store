@@ -870,21 +870,18 @@ export const POS = () => {
       }
     }
 
-    // Lock immediately to prevent double-clicks / repeated submissions
-    setIsSubmitting(true);
-
-    // Detect mobile devices to open WhatsApp directly without blank tab artifacts
-    const isMobileDevice = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // Pre-open window synchronously ONLY on desktop to bypass browser popup blockers
-    let waWindow: Window | null = null;
-    if (cPhone && !isMobileDevice) {
-      try {
-        waWindow = window.open('about:blank', '_blank');
-      } catch {
-        // Popups might be completely blocked by browser policy
+    // CHECK INVENTORY FOR ALL CART ITEMS BEFORE SUBMITTING (Concurrency check)
+    for (const item of cart) {
+      const bd = store.getProductBranchData(item.product.id, currentBranchId);
+      const currentStock = Number(bd?.quantity ?? 0);
+      if (currentStock < item.quantity) {
+        toast.error(`عذراً، المنتج "${item.product.nameAr || item.product.nameEn}" غير متوفر بالكمية المطلوبة (المتبقي في المخزن: ${currentStock}). يرجى تعديل السلة.`);
+        return;
       }
     }
+
+    // Lock immediately to prevent double-clicks / repeated submissions
+    setIsSubmitting(true);
 
     try {
       const generateUniqueInvoiceNumber = (): string => {
@@ -981,19 +978,25 @@ export const POS = () => {
 
       setLastPrintedInvoice(newInvoice);
 
-      // 3. Open WhatsApp Web or mobile app with text receipt
+      // 3. Open WhatsApp cleanly on ANY device without ever opening a blank tab
       const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
       if (waUrl) {
-        if (isMobileDevice) {
-          // Direct mobile navigation to WhatsApp without creating blank tabs
+        const isTouchOrMobile = typeof navigator !== 'undefined' && (
+          /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+          (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
+          window.innerWidth <= 768
+        );
+
+        if (isTouchOrMobile) {
+          // On mobile or tablet: direct navigate to WhatsApp URL (launches WhatsApp app directly, ZERO blank tab)
           window.location.href = waUrl;
-        } else if (waWindow && !waWindow.closed) {
-          waWindow.location.href = waUrl;
         } else {
-          window.open(waUrl, '_blank');
+          // On desktop PC/Mac: open WhatsApp Web
+          const win = window.open(waUrl, '_blank', 'noopener,noreferrer');
+          if (!win) {
+            window.location.href = waUrl;
+          }
         }
-      } else if (waWindow && !waWindow.closed) {
-        waWindow.close();
       }
 
       // 4. Reset cart and customer form fields immediately
@@ -1010,9 +1013,6 @@ export const POS = () => {
 
       toast.success(`تم حفظ الفاتورة #${invoiceNum} وإرسال إشعار الواتساب بنجاح!`);
     } catch (err: any) {
-      if (waWindow && !waWindow.closed) {
-        waWindow.close();
-      }
       console.error('Error completing sale:', err);
       toast.error(err?.message || 'حدث خطأ أثناء إتمام الفاتورة، يرجى المحاولة مرة أخرى.');
     } finally {
