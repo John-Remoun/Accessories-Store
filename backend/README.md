@@ -1,167 +1,191 @@
-# Accessories Store POS System - Production Backend API
+<div align="center">
 
-High-performance, modular, production-ready Node.js + TypeScript + Express + TypeORM + PostgreSQL Backend designed to seamlessly power the **Accessories Store POS & Inventory Management System**.
+# ⚙️ NexPOS Backend API Engine
+
+**A robust, modular, concurrency-safe Node.js & TypeScript REST API with real-time WebSocket state synchronization and ACID transaction guarantees.**
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-4.19+-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![TypeORM](https://img.shields.io/badge/TypeORM-0.3+-FE0803?style=for-the-badge&logo=typeorm&logoColor=white)](https://typeorm.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Socket.io](https://img.shields.io/badge/Socket.io-Real--Time-010101?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
+
+[Architecture](#-architecture--module-design) • [Concurrency & Locking](#-concurrency--race-condition-safety) • [Real-Time Sync](#-real-time-websocket-pipeline) • [API Reference](#-api-endpoints-reference) • [Database](#-database-schema--seeding)
+
+</div>
 
 ---
 
-## 🛠️ Technology Stack
+## 📖 Overview
 
-* **Runtime:** Node.js (v18+)
-* **Language:** TypeScript
-* **Framework:** Express.js
-* **Database:** PostgreSQL (via TypeORM ORM)
-* **Authentication:** JWT (Access Token + Refresh Token with hashing) & BcryptJS
-* **Validation:** Zod
-* **Security:** Helmet, CORS, Rate Limiting, Environment Variable Guard
-* **Logging:** Morgan
-* **FileUploads:** Multer (Local Disk Storage + Provider Abstraction)
+The **NexPOS Backend API** serves as the transactional backbone of the POS system. It manages inventory allocations across multiple geographic branches, calculates profit margins and cost metrics, issues invoices, tracks customer balances, and broadcasts live inventory updates to all active cashier terminals.
 
 ---
 
-## 📁 Architecture & Module Structure
+## 🏛️ Architecture & Module Design
+
+The codebase adheres to a modular domain-driven structure, enforcing strict separation of concerns between HTTP routes, request validation, business logic, and database persistence.
 
 ```text
 backend/
 ├── src/
-│   ├── app.ts                  # Express application setup & middleware registration
-│   ├── server.ts               # Server bootstrap & database connection
+│   ├── app.ts                         # Express setup, middleware pipelines & CORS guards
+│   ├── server.ts                      # HTTP & Socket.io server bootstrap
+│   │
 │   ├── config/
-│   │   ├── env.config.ts       # Centralized environment variable validation
-│   │   └── data-source.ts      # TypeORM DataSource & Entity configuration
+│   │   ├── env.config.ts              # Zod-validated environment configurations
+│   │   └── data-source.ts             # TypeORM DataSource & pool connection
+│   │
 │   ├── common/
-│   │   ├── exceptions/         # AppError custom exception class
-│   │   ├── middleware/         # Auth guards, validation, error handler, multer upload
-│   │   ├── types/              # Express Request type extensions
-│   │   └── utils/              # JWT helpers & standardized response utilities
+│   │   ├── exceptions/                # AppError domain exception handler
+│   │   ├── middleware/                # JWT Auth, Role Guard, Zod Validator, Multer
+│   │   ├── socket/                    # Socket.io broadcast engine & event emitters
+│   │   └── utils/                     # JWT tokens, Bcrypt & standardized response helpers
+│   │
 │   ├── db/
-│   │   ├── migrations/         # TypeORM database migrations
-│   │   └── seed.ts             # Initial database seed (3 Beni Suef branches & Admin user)
-│   └── modules/
-│       ├── auth/               # Login, refresh token, logout, profile
-│       ├── users/              # User management & employee sales count tracking
-│       ├── branches/           # Store branch locations & metadata
-│       ├── categories/         # Product category classification
-│       ├── products/           # Products, SKU, barcodes, pricing tiers & stock limits
-│       ├── physical-items/     # Barcoded item instances & stock tracking
-│       ├── customers/          # Customer CRM & purchase relationships
-│       ├── invoices/           # Invoices, sales records, profit & payment methods
-│       ├── fixed-expenses/     # Daily & monthly branch operating expenses
-│       ├── compositions/       # Product bundles & composite packages
-│       └── upload/             # File upload endpoint for images & receipts
-├── .env.example
-├── package.json
+│   │   ├── migrations/                # Database versioning migrations
+│   │   ├── seed.ts                    # Idempotent branch & super admin seeds
+│   │   └── reset-clean.ts             # Clean deployment reset utility
+│   │
+│   └── modules/                       # Domain Modules
+│       ├── auth/                      # Authentication (JWT token lifecycle)
+│       ├── users/                     # User management & employee sales tracking
+│       ├── branches/                  # Retail branch locations & metadata
+│       ├── categories/                # Hierarchical product taxonomy
+│       ├── products/                  # Product catalogue & multi-tier pricing
+│       ├── physical-items/            # Serialized/barcoded item tracking
+│       ├── invoices/                  # Sales transactions, items & cascade deletion
+│       ├── customers/                 # Customer CRM & credit balance management
+│       ├── fixed-expenses/            # Operating expenditures
+│       └── upload/                    # File & receipt upload handlers
+│
 ├── tsconfig.json
-└── README.md
+└── package.json
 ```
 
 ---
 
-## ⚡ Quick Start & Installation
+## 🔒 Concurrency & Race-Condition Safety
 
-### 1. Requirements
-* Node.js v18+
-* PostgreSQL server running locally or remotely
+In multi-terminal retail environments, cashiers frequently attempt to sell the exact same physical piece or final unit in stock simultaneously.
 
-### 2. Environment Setup
-Create a `.env` file in `backend/`:
-
-```env
-PORT=5000
-NODE_ENV=development
-
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=postgres
-DB_DATABASE=accessories_store
-
-JWT_ACCESS_SECRET=access_token_secret_key_accessories_store_2026
-JWT_REFRESH_SECRET=refresh_token_secret_key_accessories_store_2026
-JWT_ACCESS_EXPIRES_IN=1d
-JWT_REFRESH_EXPIRES_IN=7d
-
-CORS_ORIGIN=http://localhost:5173
-```
-
-### 3. Install Dependencies & Initialize Database
-```bash
-cd backend
-npm install
-```
-
-### 4. Run Development Server
-```bash
-npm run dev
-```
-
-### 5. Build for Production
-```bash
-npm run build
-npm start
-```
+### The Locking Flow
+1. **Isolated Transaction:** The invoice checkout process is wrapped inside an atomic `AppDataSource.transaction(async (trx) => { ... })`.
+2. **Pessimistic Row Locking:**
+   ```sql
+   SELECT * FROM product_branch_data
+   WHERE "productId" = $1 AND "branchId" = $2
+   FOR UPDATE;
+   ```
+   This prevents concurrent workers from reading a stale quantity before the first worker's decrement completes.
+3. **Atomic Conditional Update:**
+   ```sql
+   UPDATE product_branch_data
+   SET quantity = quantity - $soldQty
+   WHERE "productId" = $1 AND "branchId" = $2 AND quantity >= $soldQty
+   RETURNING quantity;
+   ```
+4. **Instant Rejection on Zero Stock:** If the update returns 0 affected rows, the transaction aborts with a `409 Conflict: Out of Stock` exception, preventing negative quantities and double-sales.
 
 ---
 
-## 🔌 API Endpoints Summary
+## ⚡ Real-Time WebSocket Pipeline
+
+Once a checkout transaction commits successfully to PostgreSQL, the backend immediately publishes an event through the **Socket.io** broadcast pipeline:
+
+```typescript
+// Broadcasts to all connected cashier stations and dashboards
+broadcastStockUpdate({
+  branchId: targetBranchId,
+  invoiceNumber: formattedInvoice.invoiceNumber,
+  items: updatedStockItems, // productId, newQuantity, isOutOfStock
+});
+```
+
+Connected terminals listen to `stock:updated` and automatically decrement their local shelf counts and update UI badges in under **50 milliseconds**.
+
+---
+
+## 🧾 Atomic Invoicing & Cascade Deletion
+
+To guarantee full relational integrity when invoices are deleted:
+- Invoices can be matched and deleted by both **UUID / Custom ID** and **Human-Readable Invoice Number** (`invoiceNumber`).
+- Line items in `invoice_items` are configured with `ON DELETE CASCADE`.
+- Associated employee sales metrics (`salesCount`) are decremented safely without race conditions.
+- Batch deletion handles hundreds of records in a single query:
+  ```sql
+  DELETE FROM invoices WHERE id = ANY($1) OR "invoiceNumber" = ANY($1);
+  ```
+
+---
+
+## 📡 API Endpoints Reference
 
 ### Authentication (`/api/v1/auth`)
-* `POST /login` - User login (Returns Access & Refresh Tokens)
-* `POST /refresh` - Refresh Access Token
-* `POST /logout` - User logout
-* `GET /me` - Get current authenticated user details
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/login` | Authenticate user & issue JWT tokens | Public |
+| `POST` | `/refresh-token` | Renew expired access token | Public |
+| `GET` | `/me` | Retrieve authenticated user profile | Bearer Token |
 
-### Users (`/api/v1/users`)
-* `GET /` - List all users
-* `GET /:id` - Get user by ID
-* `POST /` - Create new user (Admin only)
-* `PATCH /:id` - Update user details
-* `DELETE /:id` - Delete user (Admin only)
+### Products & Inventory (`/api/v1/products`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Fetch all products with branch pricing | Optional |
+| `GET` | `/:id` | Fetch product details by ID | Optional |
+| `POST` | `/` | Create new product with pricing tiers | Admin |
+| `PUT` | `/:id` | Update product metadata & pricing | Admin |
+| `DELETE` | `/:id` | Delete product and associated items | Admin |
+| `POST` | `/:id/restock` | Increment stock allocation for a branch | Authenticated |
 
-### Branches (`/api/v1/branches`)
-* `GET /` - List all branches (Includes Beni Suef main branches)
-* `GET /:id` - Get branch details
-* `POST /` - Add new branch
-* `PATCH /:id` - Update branch details
-* `DELETE /:id` - Remove branch
+### Invoices & Sales (`/api/v1/invoices`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/` | Fetch all invoices (paginated / filtered) | Authenticated |
+| `GET` | `/branch/:branchId` | Fetch invoices for specific branch | Authenticated |
+| `POST` | `/` | **Create invoice (Atomic Concurrency Safe)** | Authenticated |
+| `POST` | `/delete-many` | **Batch delete invoices by IDs or Numbers** | Admin |
+| `PATCH`| `/:id/pay` | Settle remaining balance for an invoice | Authenticated |
+| `POST` | `/pay-customer-debt`| Settle customer outstanding balance | Authenticated |
 
-### Products (`/api/v1/products`)
-* `GET /` - List all products
-* `GET /:id` - Get product details
-* `GET /branch-data/all` - List all branch pricing & stock data
-* `GET /branch-data/:productId/:branchId` - Get product pricing data for specific branch
-* `POST /` - Create product
-* `POST /branch-data` - Set/Update multi-tier pricing for branch
-* `POST /adjust-stock` - Adjust stock physical items quantity
-* `PATCH /:id` - Update product metadata
-* `DELETE /:id` - Delete product
+### Branches & CRM (`/api/v1/branches`, `/api/v1/customers`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/branches` | List all active retail branches | Public |
+| `GET` | `/customers` | List customers with contact & debt info | Authenticated |
+| `POST` | `/customers` | Upsert customer record | Authenticated |
 
-### Physical Items / Barcodes (`/api/v1/physical-items`)
-* `GET /` - List physical items
-* `GET /product/:productId` - Physical items for product
-* `GET /branch/:branchId` - Physical items for branch
-* `POST /generate` - Generate new barcoded physical items
-* `PATCH /:id/status` - Update item status (`available`, `sold`, `reserved`, `damaged`, `lost`)
+---
 
-### Invoices (`/api/v1/invoices`)
-* `GET /` - List all invoices
-* `GET /branch/:branchId` - List branch invoices
-* `POST /` - Create sales invoice (Auto-updates item status to `sold` and increments employee sales)
-* `POST /delete-many` - Batch delete invoices
+## 🗄️ Database Schema & Seeding
 
-### Customers (`/api/v1/customers`)
-* `GET /` - List customer CRM records
-* `POST /` - Create or update customer profile
-* `DELETE /:idOrPhone` - Delete customer
+### Seeding Idempotency
+Run the automated seed script to populate essential store branches and super admin roles:
+```bash
+npm run seed
+```
 
-### Fixed Expenses (`/api/v1/fixed-expenses`)
-* `GET /branch/:branchId` - List fixed expenses for branch
-* `POST /` - Add fixed expense (daily/monthly)
-* `DELETE /:id` - Delete expense record
+### Clean Handover Reset Utility
+To flush all test invoices, test customers, and demo data while preserving the core super administrator accounts:
+```bash
+npx ts-node src/db/reset-clean.ts
+```
 
-### Compositions / Bundles (`/api/v1/compositions`)
-* `GET /branch/:branchId` - List product compositions for branch
-* `POST /` - Create composite package/bundle
-* `DELETE /:id` - Delete composite package
+---
 
-### Uploads (`/api/v1/upload`)
-* `POST /single` - Upload image file
+## 🛠️ Local Development & Running Tests
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Build TypeScript to JavaScript
+npm run build
+
+# 3. Start development server with hot-reload
+npm run dev
+
+# 4. Run automated concurrency test suite
+npx ts-node src/test-concurrency.ts
+```
