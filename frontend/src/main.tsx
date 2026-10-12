@@ -5,6 +5,10 @@ import App from './App.tsx'
 import './i18n'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { AuthProvider } from './contexts/AuthContext'
+import { initSocketClient } from './services/socket'
+
+// Initialize real-time Socket.io listener for instantaneous inventory updates
+initSocketClient();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -432,6 +432,23 @@ class StoreService {
     }
   }
 
+  public applyRealtimeStockUpdate(branchId: string, items: Array<{ productId: string; newQuantity: number }>) {
+    if (!this.state.productBranchData) this.state.productBranchData = [];
+    for (const item of items) {
+      const idx = this.state.productBranchData.findIndex(
+        bd => bd && bd.productId === item.productId && (bd.branchId === branchId || !branchId)
+      );
+      if (idx !== -1) {
+        this.state.productBranchData[idx] = {
+          ...this.state.productBranchData[idx],
+          quantity: item.newQuantity,
+        };
+      }
+    }
+    this.saveState();
+    this.notifyListeners();
+  }
+
   public async deleteProduct(id: string) {
     this.state.products = (this.state.products || []).filter(p => p?.id !== id);
     this.state.productBranchData = (this.state.productBranchData || []).filter(d => d?.productId !== id);

@@ -141,6 +141,53 @@ export const POS = () => {
 
   // Master State
   const [cart, setCart] = useState<CartLineItem[]>([]);
+
+  // Real-time Stock Sync & Race-Condition Eviction via Socket.io
+  useEffect(() => {
+    const handleStockUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        branchId: string;
+        invoiceNumber?: string;
+        items: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }>;
+      }>;
+      const { branchId, items } = customEvent.detail;
+      if (branchId !== currentBranchId) return;
+
+      setCart(currentCart => {
+        let cartModified = false;
+        const newCart: CartLineItem[] = [];
+
+        for (const line of currentCart) {
+          const match = items.find(i => i.productId === line.product.id);
+          if (match) {
+            if (match.newQuantity <= 0) {
+              cartModified = true;
+              toast.error(`تنبيه عاجل: تم بيع آخر قطعة من "${line.product.nameAr}" بواسطة كاشير آخر! تم إزالته من السلة.`);
+              continue;
+            } else if (line.quantity > match.newQuantity) {
+              cartModified = true;
+              toast.warning(`تم تحديث الكمية: المتبقي من "${line.product.nameAr}" هو ${match.newQuantity} فقط.`);
+              newCart.push({
+                ...line,
+                quantity: match.newQuantity,
+                branchData: {
+                  ...line.branchData,
+                  quantity: match.newQuantity,
+                },
+              });
+              continue;
+            }
+          }
+          newCart.push(line);
+        }
+
+        return cartModified ? newCart : currentCart;
+      });
+    };
+
+    window.addEventListener('inventory:stock-updated', handleStockUpdate);
+    return () => window.removeEventListener('inventory:stock-updated', handleStockUpdate);
+  }, [currentBranchId]);
   
   // Product & Category Selection Form State
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');

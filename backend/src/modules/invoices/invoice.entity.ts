@@ -2,7 +2,7 @@ import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, OneT
 import { InvoiceItemEntity } from './invoice-item.entity';
 
 export interface InvoiceItemPayload {
-  physicalItemId: string;
+  physicalItemId?: string;
   productId: string;
   productName?: string;
   unitPrice: number;

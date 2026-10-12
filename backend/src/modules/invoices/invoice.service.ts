@@ -7,6 +7,7 @@ import { ProductBranchDataEntity } from '../products/product-branch-data.entity'
 import { CustomerEntity } from '../customers/customer.entity';
 import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
+import { broadcastStockUpdate, StockUpdateItem } from '../../common/socket/socket.service';
 
 export class InvoiceService {
   private invoiceRepo = AppDataSource.getRepository(InvoiceEntity);
@@ -57,9 +58,12 @@ export class InvoiceService {
       throw new AppError('Invoice must contain at least one item', 400);
     }
 
-    return await AppDataSource.transaction(async (transactionalEntityManager) => {
-      const id = data.id || `inv_${Date.now()}`;
-      const invoiceNumber = data.invoiceNumber || Math.floor(10000000 + Math.random() * 90000000).toString();
+    const updatedStockItems: StockUpdateItem[] = [];
+    const targetBranchId = data.branchId || 'b1';
+
+    const formattedInvoice = await AppDataSource.transaction(async (transactionalEntityManager) => {
+      const id = data.id || `inv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const invoiceNumber = data.invoiceNumber || `${Date.now()}${Math.floor(100 + Math.random() * 900)}`;
       const date = data.date || new Date().toISOString();
       const discount = data.discount || 0;
       let computedSubtotal = 0;
@@ -68,26 +72,32 @@ export class InvoiceService {
 
       const invoiceItemEntities: InvoiceItemEntity[] = [];
 
-      // Process each invoice line item
+      // Process each invoice line item with strict race-condition-safe locking & conditional update
       for (const itemPayload of data.items) {
         let physicalItemId: string | undefined = undefined;
-        let physicalItem = null;
 
+        // 1. If physicalItemId is provided, atomically lock & update physical piece status
         if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
-          physicalItem = await transactionalEntityManager.findOne(PhysicalItemEntity, {
-            where: { id: itemPayload.physicalItemId.trim() }
-          });
-        }
-        if (!physicalItem && itemPayload.productId) {
-          physicalItem = await transactionalEntityManager.findOne(PhysicalItemEntity, {
-            where: { productId: itemPayload.productId, branchId: data.branchId || 'b1' }
-          });
-        }
+          const pId = itemPayload.physicalItemId.trim();
+          const updatePhysResult: any = await transactionalEntityManager.query(
+            `UPDATE physical_items 
+             SET status = 'sold', "updatedAt" = NOW() 
+             WHERE id = $1 AND status != 'sold' 
+             RETURNING id`,
+            [pId]
+          );
 
-        if (physicalItem) {
-          physicalItemId = physicalItem.id;
-          physicalItem.status = 'sold';
-          await transactionalEntityManager.save(physicalItem);
+          const physAffected = Array.isArray(updatePhysResult) && typeof updatePhysResult[1] === 'number'
+            ? updatePhysResult[1]
+            : (Array.isArray(updatePhysResult) ? updatePhysResult.length : 0);
+
+          if (physAffected === 0) {
+            throw new AppError(
+              `القطعة (${pId}) تم بيعها للتو بواسطة مستخدم آخر! تم إلغاء الفاتورة لمنع البيع المزدوج.`,
+              400
+            );
+          }
+          physicalItemId = pId;
         }
 
         // Safely check if productId exists in database to prevent FK constraint failure
@@ -104,7 +114,7 @@ export class InvoiceService {
 
         // Fetch product cost for accurate historical profit tracking
         const branchData = validProductId ? await transactionalEntityManager.findOne(ProductBranchDataEntity, {
-          where: { productId: validProductId, branchId: data.branchId || 'b1' },
+          where: { productId: validProductId, branchId: targetBranchId },
         }) : null;
 
         const unitCost = itemPayload.unitCost !== undefined && itemPayload.unitCost !== null ? Number(itemPayload.unitCost) : Number(branchData?.cost || 0);
@@ -118,12 +128,53 @@ export class InvoiceService {
         computedTotalCost += lineCost;
         computedNetProfit += lineProfit;
 
-        // Auto-deduct stock quantity from branch data if product exists
+        // 2. ATOMIC CONDITIONAL STOCK DEDUCTION (Race-condition protection)
+        // Decrement stock ONLY if current quantity >= requested quantity.
+        // If two cashiers sell simultaneously, one gets affected rows === 0 and transaction aborts!
         if (validProductId) {
-          if (branchData) {
-            branchData.quantity = Math.max(0, Number(branchData.quantity || 0) - quantity);
-            await transactionalEntityManager.save(branchData);
+          const updateResult: any = await transactionalEntityManager.query(
+            `UPDATE product_branch_data 
+             SET quantity = quantity - $1, "updatedAt" = NOW() 
+             WHERE "productId" = $2 AND "branchId" = $3 AND quantity >= $1 
+             RETURNING quantity`,
+            [quantity, validProductId, targetBranchId]
+          );
+
+          // In TypeORM with Postgres driver, query() returns [ rows, affectedCount ]
+          const affectedRows = Array.isArray(updateResult) && typeof updateResult[1] === 'number'
+            ? updateResult[1]
+            : (Array.isArray(updateResult) ? updateResult.length : 0);
+
+          const rows = Array.isArray(updateResult) && Array.isArray(updateResult[0])
+            ? updateResult[0]
+            : (Array.isArray(updateResult) ? updateResult : []);
+
+          if (affectedRows === 0 || rows.length === 0) {
+            // Find current stock for crystal-clear error message
+            const currentStockRow: any = await transactionalEntityManager.query(
+              `SELECT quantity FROM product_branch_data WHERE "productId" = $1 AND "branchId" = $2`,
+              [validProductId, targetBranchId]
+            );
+            const stockRows = Array.isArray(currentStockRow) && Array.isArray(currentStockRow[0])
+              ? currentStockRow[0]
+              : (Array.isArray(currentStockRow) ? currentStockRow : []);
+
+            const available = stockRows.length > 0 ? Number(stockRows[0].quantity) : 0;
+            const prodName = itemPayload.productName || validProductId;
+
+            throw new AppError(
+              `نفدت الكمية! المنتج "${prodName}" المتبقي في المخزن منه (${available}) فقط، والمطلوب بيعه (${quantity}). تم إلغاء الفاتورة لمنع البيع المزدوج.`,
+              400
+            );
           }
+
+          const newQty = Number(rows[0].quantity);
+          updatedStockItems.push({
+            productId: validProductId,
+            productName: itemPayload.productName || 'منتج',
+            newQuantity: newQty,
+            isOutOfStock: newQty <= 0,
+          });
         }
 
         // Create relational InvoiceItem Entity
@@ -208,6 +259,21 @@ export class InvoiceService {
 
       return this.formatInvoiceResponse(invoice);
     });
+
+    // Transaction committed successfully! Broadcast real-time stock update to all connected clients
+    if (updatedStockItems.length > 0) {
+      try {
+        broadcastStockUpdate({
+          branchId: targetBranchId,
+          invoiceNumber: formattedInvoice.invoiceNumber,
+          items: updatedStockItems,
+        });
+      } catch (broadcastErr) {
+        console.warn('⚠️ [Socket.io] Broadcast error after invoice commit:', broadcastErr);
+      }
+    }
+
+    return formattedInvoice;
   }
 
   public async deleteInvoicesByIds(ids: string[]) {
