@@ -43,7 +43,7 @@ export async function seedDatabase() {
     if (!existing) {
       const u = userRepo.create(uData);
       await userRepo.save(u);
-    } else if (!existing.password) {
+    } else {
       existing.password = uData.password!;
       existing.role = 'admin';
       await userRepo.save(existing);

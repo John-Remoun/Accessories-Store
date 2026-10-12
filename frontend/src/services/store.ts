@@ -2,7 +2,7 @@ import { mockBranches, mockCategories, mockCustomers, mockPhysicalItems, mockInv
 import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
 import { api } from './api';
 
-const STORE_KEY = 'accessories_store_data_v12';
+const STORE_KEY = 'accessories_store_data_v13';
 
 export interface AppState {
   users: User[];
