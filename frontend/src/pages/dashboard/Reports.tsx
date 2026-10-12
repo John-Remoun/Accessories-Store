@@ -10,8 +10,18 @@ export const Reports = () => {
   const branches = store.getBranches();
   const data = branches.map(b => {
     const invs = store.getInvoicesByBranch(b.id);
-    const revenue = invs.reduce((acc, i) => acc + i.total, 0);
-    const cost = invs.reduce((acc, i) => acc + (i.totalCost || 0), 0);
+    const revenue = invs.reduce((acc, i) => {
+      const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.paymentStatus === 'paid' ? Number(i.total || 0) : 0);
+      return acc + paid;
+    }, 0);
+    const cost = invs.reduce((acc, i) => {
+      const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.paymentStatus === 'paid' ? Number(i.total || 0) : 0);
+      const total = Number(i.total || 0);
+      const totalCost = Number(i.totalCost || 0);
+      if (paid <= 0 || total <= 0 || totalCost <= 0) return acc;
+      if (paid >= total) return acc + totalCost;
+      return acc + (totalCost * (paid / total));
+    }, 0);
     return {
       name: b.nameAr,
       Revenue: revenue,

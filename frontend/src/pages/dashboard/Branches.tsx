@@ -48,6 +48,15 @@ const getInvoiceRemaining = (inv: Invoice): number => {
   return Math.max(0, Number(inv.total || 0) - (inv.paidAmount || 0));
 };
 
+const getInvoiceRecognizedCost = (inv: Invoice): number => {
+  const paid = getInvoicePaid(inv);
+  const total = Number(inv.total || 0);
+  const totalCost = Number(inv.totalCost || 0);
+  if (paid <= 0 || total <= 0 || totalCost <= 0) return 0;
+  if (paid >= total) return totalCost;
+  return totalCost * (paid / total);
+};
+
 export const Branches = () => {
   useStoreSync();
   const { user } = useAuth();
@@ -116,7 +125,7 @@ export const Branches = () => {
   const bInvs = store.getInvoicesByBranch(branch.id);
   const collectedRev = bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
   const totalRemainingDebt = bInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-  const cost = bInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+  const cost = bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
   // Deduct fixed expenses directly from Total Collected Sales Revenue and Net Profit
   const netRevenue = Math.max(0, collectedRev - totalFixedExpenses);
@@ -222,7 +231,7 @@ export const Branches = () => {
     });
     const totalRevenue = monthInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const totalRemaining = monthInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-    const totalCost = monthInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalCost = monthInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     let monthCash = 0;
     let monthInstapay = 0;
@@ -280,7 +289,7 @@ export const Branches = () => {
     });
     const totalRevenue = yearInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const totalRemaining = yearInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-    const totalCost = yearInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalCost = yearInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     const yearExpenses = fixedExpensesList.filter(exp => {
       const d = new Date(exp.date);
@@ -295,7 +304,7 @@ export const Branches = () => {
       const mInvs = yearInvoices.filter(inv => new Date(inv.date).getMonth() === mIdx);
       const mRev = mInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
       const mRem = mInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-      const mCost = mInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+      const mCost = mInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const mExp = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx)
                                .reduce((acc, exp) => acc + (exp.amount || 0), 0);
       const mNet = mRev - mCost - mExp;
@@ -360,7 +369,7 @@ export const Branches = () => {
     const dayInvoices = bInvs.filter(inv => getIsoDate(inv.date) === datePrefix);
     const totalRevenue = dayInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const dayRemaining = dayInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-    const totalCost = dayInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalCost = dayInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     let dayCash = 0;
     let dayInstapay = 0;

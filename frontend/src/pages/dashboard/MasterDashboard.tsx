@@ -32,6 +32,21 @@ const MONTH_NAMES_AR = [
 const WEEKDAY_NAMES_AR = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
 const FULL_WEEKDAY_NAMES_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
+const getInvoicePaid = (inv: Invoice): number => {
+  if (inv.paidAmount !== undefined) return Number(inv.paidAmount);
+  if (inv.paymentStatus === 'paid') return Number(inv.total || 0);
+  return 0;
+};
+
+const getInvoiceRecognizedCost = (inv: Invoice): number => {
+  const paid = getInvoicePaid(inv);
+  const total = Number(inv.total || 0);
+  const totalCost = Number(inv.totalCost || 0);
+  if (paid <= 0 || total <= 0 || totalCost <= 0) return 0;
+  if (paid >= total) return totalCost;
+  return totalCost * (paid / total);
+};
+
 export const MasterDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -90,16 +105,13 @@ export const MasterDashboard = () => {
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === dayNum;
     });
 
-    const totalRevenue = dayInvoices.reduce((acc, inv) => {
-      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
-      return acc + paid;
-    }, 0);
+    const totalRevenue = dayInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const dayRemaining = dayInvoices.reduce((acc, inv) => {
       if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
       if (inv.paymentStatus === 'paid') return acc;
       return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
     }, 0);
-    const totalCost = dayInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalCost = dayInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     let dayCash = 0;
     let dayInstapay = 0;
@@ -154,16 +166,13 @@ export const MasterDashboard = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-    const totalRevenue = monthInvoices.reduce((acc, inv) => {
-      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
-      return acc + paid;
-    }, 0);
+    const totalRevenue = monthInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const totalRemaining = monthInvoices.reduce((acc, inv) => {
       if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
       if (inv.paymentStatus === 'paid') return acc;
       return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
     }, 0);
-    const totalCost = monthInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalCost = monthInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     let monthCash = 0;
     let monthInstapay = 0;
@@ -218,11 +227,8 @@ export const MasterDashboard = () => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear;
     });
-    const totalRevenue = yearInvoices.reduce((acc, inv) => {
-      const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
-      return acc + paid;
-    }, 0);
-    const totalCost = yearInvoices.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+    const totalRevenue = yearInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const totalCost = yearInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
 
     const yearExpenses = allFixedExpenses.filter(exp => {
       const d = new Date(exp.date);
@@ -235,11 +241,8 @@ export const MasterDashboard = () => {
 
     const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
       const mInvs = yearInvoices.filter(inv => new Date(inv.date).getMonth() === mIdx);
-      const rev = mInvs.reduce((acc, inv) => {
-        const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
-        return acc + paid;
-      }, 0);
-      const cst = mInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+      const rev = mInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+      const cst = mInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const mExps = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx);
       const fExp = mExps.reduce((acc, exp) => acc + (exp.amount || 0), 0);
 
@@ -293,8 +296,8 @@ export const MasterDashboard = () => {
 
   // Global Financial Calculations for Super Admin
   const globalMetrics = useMemo(() => {
-    const totalRevenue = allInvoices.reduce((acc, inv) => acc + (Number(inv.total) || 0), 0);
-    const totalCost = allInvoices.reduce((acc, inv) => acc + (Number(inv.totalCost) || 0), 0);
+    const totalRevenue = allInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const totalCost = allInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
     const totalNetProfit = totalRevenue - totalCost;
     const profitMargin = totalRevenue > 0 ? ((totalNetProfit / totalRevenue) * 100).toFixed(1) : '0';
 
@@ -365,16 +368,13 @@ export const MasterDashboard = () => {
   const branchPerformanceData = useMemo(() => {
     return branches.map((b, idx) => {
       const bInvs = store.getInvoicesByBranch(b.id);
-      const bRevenue = bInvs.reduce((acc, inv) => {
-        const paid = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
-        return acc + paid;
-      }, 0);
+      const bRevenue = bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
       const bRemaining = bInvs.reduce((acc, inv) => {
         if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
         if (inv.paymentStatus === 'paid') return acc;
         return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
       }, 0);
-      const bCost = bInvs.reduce((acc, inv) => acc + (inv.totalCost || 0), 0);
+      const bCost = bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const bNetProfit = bRevenue - bCost;
       const bProfitMargin = bRevenue > 0 ? ((bNetProfit / bRevenue) * 100).toFixed(1) : '0';
       
