@@ -116,14 +116,20 @@ export const Branches = () => {
     let vodafoneTotal = 0;
 
     bInvs.forEach(inv => {
-      const method = inv.paymentSubMethod || inv.paymentMethod;
-      const amt = inv.paidAmount || inv.total || 0;
-      if (method === 'instapay') {
-        instapayTotal += amt;
-      } else if (method === 'vodafone_cash') {
-        vodafoneTotal += amt;
+      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+        cashTotal += Number(inv.splitPayments.cash || 0);
+        vodafoneTotal += Number(inv.splitPayments.vodafone_cash || 0);
+        instapayTotal += Number(inv.splitPayments.instapay || 0);
       } else {
-        cashTotal += amt;
+        const method = inv.paymentSubMethod || inv.paymentMethod;
+        if (method === 'instapay') {
+          instapayTotal += amt;
+        } else if (method === 'vodafone_cash') {
+          vodafoneTotal += amt;
+        } else {
+          cashTotal += amt;
+        }
       }
     });
 
@@ -202,14 +208,20 @@ export const Branches = () => {
     let monthVodafone = 0;
 
     monthInvoices.forEach(inv => {
-      const method = inv.paymentSubMethod || inv.paymentMethod;
-      const amt = inv.paidAmount || inv.total || 0;
-      if (method === 'instapay') {
-        monthInstapay += amt;
-      } else if (method === 'vodafone_cash') {
-        monthVodafone += amt;
+      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+        monthCash += Number(inv.splitPayments.cash || 0);
+        monthVodafone += Number(inv.splitPayments.vodafone_cash || 0);
+        monthInstapay += Number(inv.splitPayments.instapay || 0);
       } else {
-        monthCash += amt;
+        const method = inv.paymentSubMethod || inv.paymentMethod;
+        if (method === 'instapay') {
+          monthInstapay += amt;
+        } else if (method === 'vodafone_cash') {
+          monthVodafone += amt;
+        } else {
+          monthCash += amt;
+        }
       }
     });
 
@@ -327,14 +339,20 @@ export const Branches = () => {
     let dayVodafone = 0;
 
     dayInvoices.forEach(inv => {
-      const method = inv.paymentSubMethod || inv.paymentMethod;
-      const amt = inv.paidAmount || inv.total || 0;
-      if (method === 'instapay') {
-        dayInstapay += amt;
-      } else if (method === 'vodafone_cash') {
-        dayVodafone += amt;
+      const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.total || 0);
+      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+        dayCash += Number(inv.splitPayments.cash || 0);
+        dayVodafone += Number(inv.splitPayments.vodafone_cash || 0);
+        dayInstapay += Number(inv.splitPayments.instapay || 0);
       } else {
-        dayCash += amt;
+        const method = inv.paymentSubMethod || inv.paymentMethod;
+        if (method === 'instapay') {
+          dayInstapay += amt;
+        } else if (method === 'vodafone_cash') {
+          dayVodafone += amt;
+        } else {
+          dayCash += amt;
+        }
       }
     });
 

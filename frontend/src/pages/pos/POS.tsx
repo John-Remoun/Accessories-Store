@@ -14,7 +14,7 @@ import {
   ScanLine, Search, X, CheckCircle2, ShoppingCart, User, Phone, 
   Clock, DollarSign, Printer, MessageCircle, QrCode, Plus, Minus, Trash2, 
   Sparkles, CreditCard, Send, Check, AlertCircle, Package, ChevronDown, Star,
-  Filter, Layers
+  Filter, Layers, Coins
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
@@ -215,9 +215,14 @@ export const POS = () => {
   
   // Payment Status: 'paid' | 'partial' | 'deferred'
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'partial' | 'deferred'>('paid');
-  // Payment Sub Method: 'cash' | 'vodafone_cash' | 'instapay'
-  const [paymentSubMethod, setPaymentSubMethod] = useState<'cash' | 'vodafone_cash' | 'instapay'>('cash');
+  // Payment Sub Method: 'cash' | 'vodafone_cash' | 'instapay' | 'multi'
+  const [paymentSubMethod, setPaymentSubMethod] = useState<'cash' | 'vodafone_cash' | 'instapay' | 'multi'>('cash');
   
+  // Split payment amounts state
+  const [splitCash, setSplitCash] = useState<string>('');
+  const [splitVodafone, setSplitVodafone] = useState<string>('');
+  const [splitInstapay, setSplitInstapay] = useState<string>('');
+
   const [paidAmountInput, setPaidAmountInput] = useState<number>(0);
   const [discount, setDiscount] = useState<number>(0);
 
@@ -642,14 +647,36 @@ export const POS = () => {
 
   const finalTotal = Math.max(0, subtotal - discount);
 
+  // Split payment numeric values
+  const numSplitCash = parseFloat(splitCash) || 0;
+  const numSplitVodafone = parseFloat(splitVodafone) || 0;
+  const numSplitInstapay = parseFloat(splitInstapay) || 0;
+  const totalSplitPaid = Number((numSplitCash + numSplitVodafone + numSplitInstapay).toFixed(2));
+
   // Effective Paid & Deferred Amount calculation
   const effectivePaidAmount = useMemo(() => {
-    if (paymentStatus === 'paid') return finalTotal;
     if (paymentStatus === 'deferred') return 0;
+    if (paymentSubMethod === 'multi') {
+      return totalSplitPaid;
+    }
+    if (paymentStatus === 'paid') return finalTotal;
     return Math.min(paidAmountInput, finalTotal);
-  }, [paymentStatus, finalTotal, paidAmountInput]);
+  }, [paymentStatus, paymentSubMethod, totalSplitPaid, finalTotal, paidAmountInput]);
 
-  const remainingDeferredAmount = Math.max(0, finalTotal - effectivePaidAmount);
+  const remainingDeferredAmount = Math.max(0, Number((finalTotal - effectivePaidAmount).toFixed(2)));
+
+  // Helper to fill the remaining needed balance into a specific payment channel
+  const handleFillSplitRemainder = (target: 'cash' | 'vodafone' | 'instapay') => {
+    let otherSum = 0;
+    if (target === 'cash') otherSum = numSplitVodafone + numSplitInstapay;
+    if (target === 'vodafone') otherSum = numSplitCash + numSplitInstapay;
+    if (target === 'instapay') otherSum = numSplitCash + numSplitVodafone;
+    
+    const needed = Math.max(0, Number((finalTotal - otherSum).toFixed(2)));
+    if (target === 'cash') setSplitCash(needed > 0 ? needed.toString() : '');
+    if (target === 'vodafone') setSplitVodafone(needed > 0 ? needed.toString() : '');
+    if (target === 'instapay') setSplitInstapay(needed > 0 ? needed.toString() : '');
+  };
 
   // Helper to send structured WhatsApp text message receipt
   const sendWhatsAppTextInvoice = (inv: Invoice, custName: string, custPhone: string, cashierName: string) => {
@@ -690,6 +717,23 @@ export const POS = () => {
     if (inv.remainingAmount !== undefined && inv.remainingAmount > 0) {
       msg += `المتبقي (آجل): ${inv.remainingAmount.toFixed(2)} ج.م\n`;
     }
+
+    if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+      msg += `طريقة السداد: دفع مقسّم (متعدد):\n`;
+      if (inv.splitPayments.cash && inv.splitPayments.cash > 0) {
+        msg += `  • نقداً (كاش): ${inv.splitPayments.cash.toFixed(2)} ج.م\n`;
+      }
+      if (inv.splitPayments.vodafone_cash && inv.splitPayments.vodafone_cash > 0) {
+        msg += `  • فودافون كاش: ${inv.splitPayments.vodafone_cash.toFixed(2)} ج.م\n`;
+      }
+      if (inv.splitPayments.instapay && inv.splitPayments.instapay > 0) {
+        msg += `  • إنستاباي: ${inv.splitPayments.instapay.toFixed(2)} ج.م\n`;
+      }
+    } else {
+      const pMethodName = inv.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)';
+      msg += `طريقة السداد: ${pMethodName}\n`;
+    }
+
     msg += `-----------------------------------\n`;
     msg += `\nهدفنا ارضاء العميل وليس الربح\n`;
     msg += `متجر Salla Bola & Mina للإكسسوارات`;
@@ -736,6 +780,28 @@ export const POS = () => {
     const cPhone = customerPhone.trim();
     const cashierName = user?.name || 'الكاشير';
 
+    const isMulti = paymentSubMethod === 'multi';
+    const splitPaymentsData = isMulti ? {
+      cash: numSplitCash,
+      vodafone_cash: numSplitVodafone,
+      instapay: numSplitInstapay,
+    } : {
+      cash: paymentSubMethod === 'cash' ? effectivePaidAmount : 0,
+      vodafone_cash: paymentSubMethod === 'vodafone_cash' ? effectivePaidAmount : 0,
+      instapay: paymentSubMethod === 'instapay' ? effectivePaidAmount : 0,
+    };
+
+    let calculatedPaymentStatus = paymentStatus;
+    if (isMulti) {
+      if (effectivePaidAmount >= finalTotal && finalTotal > 0) {
+        calculatedPaymentStatus = 'paid';
+      } else if (effectivePaidAmount > 0) {
+        calculatedPaymentStatus = 'partial';
+      } else {
+        calculatedPaymentStatus = 'deferred';
+      }
+    }
+
     const newInvoice: Invoice = {
       id: `inv_${Date.now()}`,
       invoiceNumber: invoiceNum,
@@ -750,11 +816,12 @@ export const POS = () => {
       discount,
       total: finalTotal,
       totalCost,
-      paymentMethod: paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
-      paymentStatus,
+      paymentMethod: isMulti ? 'multi' : paymentSubMethod === 'vodafone_cash' ? 'vodafone_cash' : paymentSubMethod === 'instapay' ? 'instapay' : 'cash',
+      paymentStatus: calculatedPaymentStatus,
       paymentSubMethod,
       paidAmount: effectivePaidAmount,
-      remainingAmount: remainingDeferredAmount
+      remainingAmount: remainingDeferredAmount,
+      splitPayments: splitPaymentsData,
     };
 
     // 1. Save invoice to system & backend
@@ -793,6 +860,9 @@ export const POS = () => {
     setCart([]);
     setDiscount(0);
     setPaidAmountInput(0);
+    setSplitCash('');
+    setSplitVodafone('');
+    setSplitInstapay('');
     setCustomerName('');
     setCustomerPhone('');
     setSelectedCustomerId('');
@@ -1353,13 +1423,21 @@ export const POS = () => {
               </div>
             </div>
 
-            {/* CASH PAYMENT SUB METHOD (نقداً / فودافون كاش / إنستاباي) */}
+            {/* CASH PAYMENT SUB METHOD (نقداً / فودافون كاش / إنستاباي / دفع مقسّم) */}
             {paymentStatus !== 'deferred' && (
-              <div className="space-y-1.5 bg-muted/20 p-3 rounded-2xl border border-border/50">
-                <Label className="text-xs font-bold text-muted-foreground block">
-                  وسيلة الدفع النقدي
-                </Label>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="space-y-3 bg-muted/20 p-3.5 rounded-2xl border border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-muted-foreground block">
+                    وسيلة الدفع
+                  </Label>
+                  {paymentSubMethod === 'multi' && (
+                    <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                      دفع مجزّأ على أكثر من وسيلة
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   
                   {/* Cash in Hand */}
                   <button
@@ -1407,12 +1485,161 @@ export const POS = () => {
                     <span>إنستاباي</span>
                   </button>
 
+                  {/* Split / Multi Payment */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentSubMethod('multi')}
+                    className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                      paymentSubMethod === 'multi'
+                        ? 'bg-amber-500 text-black border-amber-500 font-extrabold shadow-sm ring-1 ring-amber-400'
+                        : 'bg-background text-muted-foreground border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <Coins size={15} className="shrink-0" />
+                    <span>دفع مقسّم (متعدد)</span>
+                  </button>
+
                 </div>
+
+                {/* SPLIT PAYMENT BREAKDOWN CONTAINER */}
+                {paymentSubMethod === 'multi' && (
+                  <div className="space-y-3 pt-2.5 border-t border-border/50 animate-in fade-in-50">
+                    <p className="text-[11px] text-muted-foreground">
+                      أدخل المبالغ المدفوعة بكل وسيلة (يمكنك الضغط على <strong>+ الباقي</strong> لملء المتبقي تلقائياً):
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      
+                      {/* 1. Cash Split Input */}
+                      <div className="p-2.5 rounded-xl bg-background border border-border space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                            <span>💵</span> نقداً (كاش)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleFillSplitRemainder('cash')}
+                            className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
+                            title="ملء باقي الحساب هنا"
+                          >
+                            + الباقي
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={splitCash}
+                            onChange={(e) => setSplitCash(e.target.value)}
+                            placeholder="0.00"
+                            className="h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg"
+                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                            ج.م
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 2. Vodafone Cash Split Input */}
+                      <div className="p-2.5 rounded-xl bg-background border border-border space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                            <img src={vodafoneLogo} alt="فودافون" className="w-3.5 h-3.5 object-contain rounded-full" />
+                            فودافون كاش
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleFillSplitRemainder('vodafone')}
+                            className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
+                            title="ملء باقي الحساب هنا"
+                          >
+                            + الباقي
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={splitVodafone}
+                            onChange={(e) => setSplitVodafone(e.target.value)}
+                            placeholder="0.00"
+                            className="h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg"
+                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                            ج.م
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3. InstaPay Split Input */}
+                      <div className="p-2.5 rounded-xl bg-background border border-border space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                            <img src={instapayLogo} alt="إنستاباي" className="w-3.5 h-3.5 object-contain rounded-xs" />
+                            إنستاباي
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleFillSplitRemainder('instapay')}
+                            className="text-[10px] text-amber-500 hover:underline font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20"
+                            title="ملء باقي الحساب هنا"
+                          >
+                            + الباقي
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={splitInstapay}
+                            onChange={(e) => setSplitInstapay(e.target.value)}
+                            placeholder="0.00"
+                            className="h-9 text-xs font-mono font-bold text-left pl-8 rounded-lg"
+                          />
+                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+                            ج.م
+                          </span>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Live Split Distribution Balance Status */}
+                    <div className="p-2.5 rounded-xl bg-background/80 border border-border/80 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">إجمالي الموزع الآن:</span>
+                        <span className="font-mono font-black text-foreground">{totalSplitPaid.toFixed(2)} ج.م</span>
+                        <span className="text-muted-foreground/60 text-[11px]">من أصل {finalTotal.toFixed(2)} ج.م</span>
+                      </div>
+
+                      {totalSplitPaid === finalTotal && finalTotal > 0 ? (
+                        <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1">
+                          <CheckCircle2 size={13} />
+                          تم تغطية الفاتورة بالكامل
+                        </span>
+                      ) : totalSplitPaid < finalTotal ? (
+                        <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1">
+                          <Clock size={13} />
+                          باقي {(finalTotal - totalSplitPaid).toFixed(2)} ج.م (آجل أو قم بتوزيعه)
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-bold text-rose-500 flex items-center gap-1">
+                          <AlertCircle size={13} />
+                          الموزع زائد بـ {(totalSplitPaid - finalTotal).toFixed(2)} ج.م
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
 
-            {/* PARTIAL PAYMENT AMOUNT INPUT (If Partial Selected) */}
-            {paymentStatus === 'partial' && (
+            {/* PARTIAL PAYMENT AMOUNT INPUT (If Partial Selected and not multi-split) */}
+            {paymentStatus === 'partial' && paymentSubMethod !== 'multi' && (
               <div className="space-y-1.5 bg-amber-500/10 p-3.5 rounded-2xl border border-amber-500/30">
                 <Label className="text-xs font-bold text-amber-500">المبلغ المدفوع الآن (ج.م)</Label>
                 <Input 
@@ -1638,6 +1865,50 @@ export const POS = () => {
                   })()}
                 </tbody>
               </table>
+            </div>
+
+            {/* Payment Method / Split Payments details */}
+            <div className="text-[11px] py-2 border-b border-dashed border-gray-300 text-gray-800 space-y-1">
+              {lastPrintedInvoice.splitPayments && (lastPrintedInvoice.paymentSubMethod === 'multi' || lastPrintedInvoice.paymentMethod === 'multi') ? (
+                <div className="space-y-0.5">
+                  <div className="flex justify-between font-bold text-gray-900">
+                    <span>طريقة السداد:</span>
+                    <span>دفع مقسّم (متعدد)</span>
+                  </div>
+                  {Number(lastPrintedInvoice.splitPayments.cash || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700 pr-2">
+                      <span>• نقداً (كاش):</span>
+                      <span className="font-mono font-bold">{Number(lastPrintedInvoice.splitPayments.cash).toFixed(2)} ج.م</span>
+                    </div>
+                  )}
+                  {Number(lastPrintedInvoice.splitPayments.vodafone_cash || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700 pr-2">
+                      <span>• فودافون كاش:</span>
+                      <span className="font-mono font-bold">{Number(lastPrintedInvoice.splitPayments.vodafone_cash).toFixed(2)} ج.م</span>
+                    </div>
+                  )}
+                  {Number(lastPrintedInvoice.splitPayments.instapay || 0) > 0 && (
+                    <div className="flex justify-between text-gray-700 pr-2">
+                      <span>• إنستاباي:</span>
+                      <span className="font-mono font-bold">{Number(lastPrintedInvoice.splitPayments.instapay).toFixed(2)} ج.م</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">طريقة السداد:</span>
+                  <span className="font-bold text-gray-900">
+                    {lastPrintedInvoice.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : lastPrintedInvoice.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)'}
+                  </span>
+                </div>
+              )}
+
+              {lastPrintedInvoice.remainingAmount !== undefined && lastPrintedInvoice.remainingAmount > 0 && (
+                <div className="flex justify-between font-bold text-red-600 pt-1 border-t border-gray-200">
+                  <span>المتبقي (آجل):</span>
+                  <span className="font-mono">{lastPrintedInvoice.remainingAmount.toFixed(2)} ج.م</span>
+                </div>
+              )}
             </div>
 
             {/* Footer Section matching image */}

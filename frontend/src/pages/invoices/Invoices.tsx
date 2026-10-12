@@ -1386,6 +1386,50 @@ Salla Bola & Mina`;
                 </table>
               </div>
 
+              {/* Payment Method & Split Details */}
+              <div className="text-[11px] py-2 border-b border-dashed border-gray-300 text-gray-800 space-y-1">
+                {selectedInvoice.splitPayments && (selectedInvoice.paymentSubMethod === 'multi' || selectedInvoice.paymentMethod === 'multi') ? (
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between font-bold text-gray-900">
+                      <span>طريقة السداد:</span>
+                      <span>دفع مقسّم (متعدد)</span>
+                    </div>
+                    {Number(selectedInvoice.splitPayments.cash || 0) > 0 && (
+                      <div className="flex justify-between text-gray-700 pr-2">
+                        <span>• نقداً (كاش):</span>
+                        <span className="font-mono font-bold">{Number(selectedInvoice.splitPayments.cash).toFixed(2)} ج.م</span>
+                      </div>
+                    )}
+                    {Number(selectedInvoice.splitPayments.vodafone_cash || 0) > 0 && (
+                      <div className="flex justify-between text-gray-700 pr-2">
+                        <span>• فودافون كاش:</span>
+                        <span className="font-mono font-bold">{Number(selectedInvoice.splitPayments.vodafone_cash).toFixed(2)} ج.م</span>
+                      </div>
+                    )}
+                    {Number(selectedInvoice.splitPayments.instapay || 0) > 0 && (
+                      <div className="flex justify-between text-gray-700 pr-2">
+                        <span>• إنستاباي:</span>
+                        <span className="font-mono font-bold">{Number(selectedInvoice.splitPayments.instapay).toFixed(2)} ج.م</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">طريقة السداد:</span>
+                    <span className="font-bold text-gray-900">
+                      {selectedInvoice.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : selectedInvoice.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)'}
+                    </span>
+                  </div>
+                )}
+
+                {selectedInvoice.remainingAmount !== undefined && selectedInvoice.remainingAmount > 0 && (
+                  <div className="flex justify-between font-bold text-red-600 pt-1 border-t border-gray-200">
+                    <span>المتبقي (آجل):</span>
+                    <span className="font-mono">{selectedInvoice.remainingAmount.toFixed(2)} ج.م</span>
+                  </div>
+                )}
+              </div>
+
               <div className="text-center text-[11px] text-gray-600 pt-3 space-y-1 border-t border-dashed border-gray-300">
                 <p className="font-mono font-semibold text-gray-800 dir-ltr">Tel : 01271994777 - 01210866936</p>
                 <p className="text-gray-900 font-bold">{activeBranchName}</p>

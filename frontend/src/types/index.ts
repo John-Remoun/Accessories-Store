@@ -92,11 +92,16 @@ export interface Invoice {
   discount: number;
   total: number;
   totalCost: number; // For profit calculation
-  paymentMethod: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay';
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi';
   paymentStatus?: 'paid' | 'partial' | 'deferred';
-  paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay';
+  paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay' | 'multi';
   paidAmount?: number;
   remainingAmount?: number;
+  splitPayments?: {
+    cash?: number;
+    vodafone_cash?: number;
+    instapay?: number;
+  };
   isFavorite?: boolean;
   createdAt?: string;
 }

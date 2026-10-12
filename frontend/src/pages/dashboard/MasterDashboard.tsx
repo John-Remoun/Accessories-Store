@@ -100,15 +100,21 @@ export const MasterDashboard = () => {
     let dayVodafone = 0;
 
     dayInvoices.forEach(inv => {
-      const method = inv.paymentSubMethod || inv.paymentMethod;
       const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       if (amt <= 0) return;
-      if (method === 'instapay') {
-        dayInstapay += amt;
-      } else if (method === 'vodafone_cash') {
-        dayVodafone += amt;
+      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+        dayCash += Number(inv.splitPayments.cash || 0);
+        dayVodafone += Number(inv.splitPayments.vodafone_cash || 0);
+        dayInstapay += Number(inv.splitPayments.instapay || 0);
       } else {
-        dayCash += amt;
+        const method = inv.paymentSubMethod || inv.paymentMethod;
+        if (method === 'instapay') {
+          dayInstapay += amt;
+        } else if (method === 'vodafone_cash') {
+          dayVodafone += amt;
+        } else {
+          dayCash += amt;
+        }
       }
     });
 
@@ -152,15 +158,21 @@ export const MasterDashboard = () => {
     let monthVodafone = 0;
 
     monthInvoices.forEach(inv => {
-      const method = inv.paymentSubMethod || inv.paymentMethod;
       const amt = inv.paidAmount !== undefined ? inv.paidAmount : (inv.paymentStatus === 'paid' ? (inv.total || 0) : 0);
       if (amt <= 0) return;
-      if (method === 'instapay') {
-        monthInstapay += amt;
-      } else if (method === 'vodafone_cash') {
-        monthVodafone += amt;
+      if (inv.splitPayments && (inv.paymentSubMethod === 'multi' || inv.paymentMethod === 'multi')) {
+        monthCash += Number(inv.splitPayments.cash || 0);
+        monthVodafone += Number(inv.splitPayments.vodafone_cash || 0);
+        monthInstapay += Number(inv.splitPayments.instapay || 0);
       } else {
-        monthCash += amt;
+        const method = inv.paymentSubMethod || inv.paymentMethod;
+        if (method === 'instapay') {
+          monthInstapay += amt;
+        } else if (method === 'vodafone_cash') {
+          monthVodafone += amt;
+        } else {
+          monthCash += amt;
+        }
       }
     });
 
