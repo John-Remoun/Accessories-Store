@@ -7,6 +7,7 @@ import {
   ShieldCheck, LayoutDashboard, BarChart3, TrendingUp, Store, Truck
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
+import { Footer } from '../../components/Footer';
 
 export const Dashboard = () => {
   const { user } = useAuth();
@@ -24,15 +25,17 @@ export const Dashboard = () => {
   const branchList = branches.map((b, idx) => ({ number: idx + 1, ...b }));
 
   return (
-    <div className="min-h-full flex flex-col justify-center items-center space-y-4 sm:space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-36 sm:pb-20 pt-1 sm:pt-4" dir="rtl">
+    <div className="min-h-full flex flex-col justify-between items-center animate-in fade-in zoom-in-95 duration-500 pt-1 sm:pt-4 w-full" dir="rtl">
+      
+      <div className="w-full flex flex-col justify-center items-center space-y-4 sm:space-y-8 flex-1 pb-8 sm:pb-12">
       
       {/* 1. Header Banner */}
       <div className="text-center space-y-1 sm:space-y-2 max-w-2xl px-2">
         <h1 className="text-xl sm:text-4xl font-serif font-bold text-foreground">
           المعارض والفروع الرئيسية
         </h1>
-        <p className="text-[11px] sm:text-sm text-muted-foreground">
-          اختر الفرع للوصول لوحته الخاصة، أو ادخل على لوحة التحكم الكلية للسوبر أدمن بالأسفل
+        <p className="text-[12px] sm:text-base text-muted-foreground font-medium" dir="ltr">
+          Welcome Back, <span className="font-bold text-primary">{user?.name || user?.username || 'Admin'}</span>
         </p>
       </div>
 
@@ -119,7 +122,13 @@ export const Dashboard = () => {
           </div>
         </div>
       </div>
-
     </div>
-  );
+
+    {/* STACK Footer - Applied exclusively to this Dashboard page */}
+    <div className="w-full mt-auto pt-6 sm:pt-10">
+      <Footer />
+    </div>
+
+  </div>
+);
 };
