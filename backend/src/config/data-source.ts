@@ -12,6 +12,8 @@ import { InvoiceItemEntity } from '../modules/invoices/invoice-item.entity';
 import { FixedExpenseEntity } from '../modules/fixed-expenses/fixed-expense.entity';
 import { ProductCompositionEntity } from '../modules/compositions/composition.entity';
 import { SupplierEntity } from '../modules/suppliers/supplier.entity';
+import { InitialMigration1700000000000 } from '../db/migrations/1700000000000-InitialMigration';
+import { EnableRLSAndHardenPermissions1700000000001 } from '../db/migrations/1700000000001-EnableRLSAndHardenPermissions';
 
 const dbUrl = env.db.url;
 
@@ -34,6 +36,11 @@ const entities = [
   SupplierEntity,
 ];
 
+const migrations = [
+  InitialMigration1700000000000,
+  EnableRLSAndHardenPermissions1700000000001,
+];
+
 export const AppDataSource = new DataSource(
   dbUrl
     ? {
@@ -43,7 +50,7 @@ export const AppDataSource = new DataSource(
         synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true' || env.nodeEnv === 'development',
         logging: env.nodeEnv === 'development',
         entities,
-        migrations: [],
+        migrations,
         subscribers: [],
       }
     : {
@@ -57,7 +64,7 @@ export const AppDataSource = new DataSource(
         synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true' || env.nodeEnv === 'development',
         logging: env.nodeEnv === 'development',
         entities,
-        migrations: [],
+        migrations,
         subscribers: [],
       }
 );

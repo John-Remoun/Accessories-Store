@@ -4,6 +4,7 @@ import app from './app';
 import { env } from './config/env.config';
 import { AppDataSource } from './config/data-source';
 import { seedDatabase } from './db/seed';
+import { applySecurityHardening } from './db/security-init';
 import { initSocketServer } from './common/socket/socket.service';
 
 async function bootstrap() {
@@ -12,7 +13,10 @@ async function bootstrap() {
     await AppDataSource.initialize();
     console.log('✅ PostgreSQL Database connected successfully!');
 
-    // Run seed data (branches & admin user)
+    // Enforce Supabase Row Level Security (RLS) & Column Protections
+    await applySecurityHardening(AppDataSource);
+
+    // Run seed data (branches & initial admin users if not present)
     await seedDatabase();
 
     const server = http.createServer(app);
