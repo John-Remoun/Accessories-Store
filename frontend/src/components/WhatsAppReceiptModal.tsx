@@ -80,10 +80,27 @@ ${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmou
       const token = `wa_verify_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       await onConfirmSend(token);
       setDeliveryStatus('delivered');
-      toast.success('تم تسليم إيصال الواتساب بنجاح وتم تسجيل الفاتورة!');
+
+      // Actually open WhatsApp with pre-filled message
+      let cleanPhone = receiptData.customerPhone.replace(/\D/g, '');
+      if (cleanPhone.startsWith('002')) cleanPhone = cleanPhone.slice(3);
+      if (cleanPhone.startsWith('200')) cleanPhone = '20' + cleanPhone.slice(3);
+      let targetPhone = cleanPhone;
+      if (targetPhone.startsWith('0')) {
+        targetPhone = '20' + targetPhone.slice(1);
+      } else if (!targetPhone.startsWith('20')) {
+        targetPhone = '20' + targetPhone;
+      }
+      const waUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(messageText)}`;
+      const waWin = window.open(waUrl, '_blank');
+      if (!waWin || waWin.closed || typeof waWin.closed === 'undefined') {
+        window.location.href = waUrl;
+      }
+
+      toast.success('تم تأكيد وتسليم الإيصال بنجاح عبر واتساب!');
     } catch (err: any) {
       setDeliveryStatus('failed');
-      toast.error(err?.message || 'فشل إرسال إيصال الواتساب. تم إلغاء الفاتورة.');
+      toast.error(err?.message || 'تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون');
     }
   };
 

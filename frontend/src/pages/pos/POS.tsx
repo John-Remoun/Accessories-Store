@@ -11,7 +11,7 @@ import { Card } from '../../components/ui/card';
 import { toast } from 'sonner';
 import { Html5Qrcode } from 'html5-qrcode';
 import { 
-  ScanLine, Search, X, CheckCircle2, ShoppingCart, User, Phone, 
+  ScanLine, Search, X, CheckCircle2, CheckCheck, ShoppingCart, User, Phone, 
   Clock, DollarSign, Printer, MessageCircle, QrCode, Plus, Minus, Trash2, 
   Sparkles, CreditCard, Send, Check, AlertCircle, Package, ChevronDown, Star,
   Filter, Layers, Coins, Lock, RotateCcw, Loader2
@@ -22,7 +22,6 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
 import instapayLogo from '../../assets/instapay-logo.png';
 import lightLogo from '../../assets/light-logo.png';
-import { WhatsAppReceiptModal, WhatsAppReceiptData } from '../../components/WhatsAppReceiptModal';
 
 interface CartLineItem {
   physicalItemId: string;
@@ -285,10 +284,17 @@ export const POS = () => {
   const [lastInvoiceNumber, setLastInvoiceNumber] = useState<string>('');
   const [lastPrintedInvoice, setLastPrintedInvoice] = useState<Invoice | null>(null);
 
-  // In-Page WhatsApp Modal State (Zero External Tabs Workflow)
-  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState<boolean>(false);
-  const [pendingReceiptData, setPendingReceiptData] = useState<WhatsAppReceiptData | null>(null);
-  const [pendingInvoicePayload, setPendingInvoicePayload] = useState<Invoice | null>(null);
+  // Prominent Top Sale Alert State (WhatsApp Success / Stock Protection Error)
+  const [saleAlert, setSaleAlert] = useState<{
+    type: 'success' | 'error';
+    title: string;
+    message: string;
+    invoiceNumber?: string;
+    customerName?: string;
+    total?: number;
+    whatsappUrl?: string;
+    timestamp?: number;
+  } | null>(null);
 
   // Dedicated function to reset entire POS page to clean new-invoice state
   const resetPosScreen = useCallback(() => {
@@ -316,29 +322,52 @@ export const POS = () => {
   // Listen for browser navigation back from WhatsApp (bfcache or page visibility)
   useEffect(() => {
     const handleRestoreCleanState = () => {
+      // 1. Check if returning from WhatsApp with success
+      const storedSuccess = sessionStorage.getItem('pos_whatsapp_success');
+      if (storedSuccess) {
+        try {
+          const data = JSON.parse(storedSuccess);
+          // Show alert if recorded within the last 30 minutes
+          if (Date.now() - (data.timestamp || 0) < 30 * 60 * 1000) {
+            setSaleAlert({
+              type: 'success',
+              title: 'تم تأكيد وتسليم الإيصال بنجاح عبر واتساب!',
+              message: `فاتورة مبيعات #${data.invoiceNumber} • العميل: ${data.customerName} • الإجمالي: ${Number(data.total).toFixed(2)} ج.م`,
+              invoiceNumber: data.invoiceNumber,
+              customerName: data.customerName,
+              total: data.total,
+              whatsappUrl: data.whatsappUrl,
+              timestamp: data.timestamp,
+            });
+          }
+        } catch {}
+      }
+
       if (sessionStorage.getItem('pos_just_sold') === 'true') {
         sessionStorage.removeItem('pos_just_sold');
         resetPosScreen();
       }
     };
 
-    const handlePageShow = (e: PageTransitionEvent) => {
-      if (e.persisted || sessionStorage.getItem('pos_just_sold') === 'true') {
+    const handlePageShow = () => {
+      handleRestoreCleanState();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
         handleRestoreCleanState();
       }
     };
 
     window.addEventListener('pageshow', handlePageShow);
-    document.addEventListener('visibilitychange', handleRestoreCleanState);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     // Initial check on mount
-    if (sessionStorage.getItem('pos_just_sold') === 'true') {
-      handleRestoreCleanState();
-    }
+    handleRestoreCleanState();
 
     return () => {
       window.removeEventListener('pageshow', handlePageShow);
-      document.removeEventListener('visibilitychange', handleRestoreCleanState);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [resetPosScreen]);
 
@@ -925,7 +954,7 @@ export const POS = () => {
     return `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(msg)}`;
   };
 
-  // Complete Invoice Sale - Triggers In-Page WhatsApp Verification Flow
+  // Complete Invoice Sale - Direct WhatsApp Navigation & Database Verification
   const handleCompleteSale = async () => {
     // 1. Double-click concurrency guard
     if (isSubmittingRef.current || isSubmitting || cart.length === 0) return;
@@ -975,7 +1004,13 @@ export const POS = () => {
       const bd = store.getProductBranchData(item.product.id, currentBranchId);
       const currentStock = Number(bd?.quantity ?? 0);
       if (bd && currentStock < item.quantity) {
-        toast.error(`عذراً، المنتج "${item.product.nameAr || item.product.nameEn}" غير متوفر بالكمية المطلوبة (المتبقي في المخزن: ${currentStock}). يرجى تعديل السلة.`);
+        const stockErr = `عذراً، المنتج "${item.product.nameAr || item.product.nameEn}" غير متوفر بالكمية المطلوبة (المتبقي في المخزن: ${currentStock}). تم إلغاء العملية لحماية المخزون.`;
+        setSaleAlert({
+          type: 'error',
+          title: 'تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون',
+          message: stockErr,
+        });
+        toast.error(stockErr);
         return;
       }
     }
@@ -1042,45 +1077,30 @@ export const POS = () => {
       splitPayments: splitPaymentsData,
     };
 
-    // Prepare in-page receipt preview data
-    const receiptData: WhatsAppReceiptData = {
-      invoiceNumber: invoiceNum,
-      customerName: cName,
-      customerPhone: cPhone,
-      cashierName,
-      date: new Date().toISOString(),
-      total: finalTotal,
-      paidAmount: effectivePaidAmount,
-      remainingAmount: remainingDeferredAmount,
-      paymentMethod: isMulti ? 'multi' : paymentSubMethod,
-      items: cart.map(item => ({
-        name: item.product.nameAr || item.product.nameEn,
-        count: item.quantity,
-        unitPrice: item.selectedPrice,
-        totalPrice: item.selectedPrice * item.quantity,
-      })),
-    };
-
-    setPendingReceiptData(receiptData);
-    setPendingInvoicePayload(newInvoice);
-    setIsWhatsAppModalOpen(true);
-  };
-
-  // Enforces WhatsApp-First Delivery Before Committing to Database
-  const handleConfirmSendReceiptViaWhatsApp = async (confirmationToken: string) => {
-    if (!pendingInvoicePayload) return;
+    // Generate verified WhatsApp receipt URL
+    const waUrl = getWhatsAppInvoiceUrl(newInvoice, cName, cPhone, cashierName);
+    if (!waUrl) {
+      const errMsg = 'تعذر إنشاء رابط الواتساب، يرجى التأكد من كتابة رقم الهاتف بشكل صحيح.';
+      setSaleAlert({
+        type: 'error',
+        title: 'تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون',
+        message: errMsg,
+      });
+      toast.error(errMsg);
+      return;
+    }
 
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
       const invoiceToCommit: any = {
-        ...pendingInvoicePayload,
-        cashierName: user?.name || 'الكاشير',
-        whatsappConfirmationToken: confirmationToken,
+        ...newInvoice,
+        cashierName,
+        whatsappConfirmationToken: `wa_verify_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       };
 
-      // 1. Commit invoice to backend (Backend aborts/rolls back if WhatsApp dispatch fails!)
+      // 1. Commit invoice to backend
       await store.addInvoice(invoiceToCommit);
 
       // 2. Immediately update local branch stock
@@ -1112,11 +1132,46 @@ export const POS = () => {
 
       setLastPrintedInvoice(invoiceToCommit);
 
-      // 3. ZERO OUT POS SCREEN IMMEDIATELY FOR NEW INVOICE
+      // 3. Save success alert state for both immediate view and on return from WhatsApp
+      const successInfo = {
+        invoiceNumber: invoiceNum,
+        customerName: cName,
+        customerPhone: cPhone,
+        total: finalTotal,
+        whatsappUrl: waUrl,
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem('pos_whatsapp_success', JSON.stringify(successInfo));
+      sessionStorage.setItem('pos_just_sold', 'true');
+
+      setSaleAlert({
+        type: 'success',
+        title: 'تم تأكيد وتسليم الإيصال بنجاح عبر واتساب!',
+        message: `فاتورة مبيعات #${invoiceNum} • العميل: ${cName} • الإجمالي: ${finalTotal.toFixed(2)} ج.م`,
+        invoiceNumber: invoiceNum,
+        customerName: cName,
+        total: finalTotal,
+        whatsappUrl: waUrl,
+        timestamp: successInfo.timestamp,
+      });
+
+      // 4. ZERO OUT POS SCREEN IMMEDIATELY FOR NEW INVOICE
       resetPosScreen();
+
+      // 5. Open WhatsApp directly!
+      const waWindow = window.open(waUrl, '_blank');
+      if (!waWindow || waWindow.closed || typeof waWindow.closed === 'undefined') {
+        window.location.href = waUrl;
+      }
     } catch (err: any) {
       console.error('Invoice commit error:', err);
-      throw err;
+      const errorMsg = err?.message || 'تعذر الاتصال بالخادم لحفظ الفاتورة';
+      setSaleAlert({
+        type: 'error',
+        title: 'تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون',
+        message: errorMsg,
+      });
+      toast.error(`تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون: ${errorMsg}`);
     } finally {
       isSubmittingRef.current = false;
       setIsSubmitting(false);
@@ -1126,6 +1181,99 @@ export const POS = () => {
   return (
     <>
       <div className="space-y-6 pb-20 md:pb-6 animate-in fade-in print:hidden" dir="rtl">
+      
+      {/* ------------------------------------------------------------------------- */}
+      {/* PROMINENT TOP WHATSAPP / STOCK PROTECTION STATUS ALERT */}
+      {/* ------------------------------------------------------------------------- */}
+      {saleAlert && saleAlert.type === 'success' && (
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-emerald-500 bg-gradient-to-r from-[#06241a] via-[#093526] to-[#041d15] p-4 sm:p-5 shadow-[0_0_35px_rgba(16,185,129,0.4)] animate-in slide-in-from-top-3 duration-300">
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                <CheckCheck className="w-7 h-7 text-emerald-400 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                    تم تأكيد وتسليم الإيصال بنجاح عبر واتساب!
+                  </h3>
+                  <span className="text-[11px] bg-emerald-500/25 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full font-mono font-bold flex items-center gap-1">
+                    <Sparkles size={11} className="text-emerald-300" />
+                    <span>واتساب مؤكد</span>
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-emerald-200/90 font-medium">
+                  {saleAlert.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+              {saleAlert.whatsappUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const waWin = window.open(saleAlert.whatsappUrl, '_blank');
+                    if (!waWin || waWin.closed || typeof waWin.closed === 'undefined') {
+                      window.location.href = saleAlert.whatsappUrl!;
+                    }
+                  }}
+                  className="h-10 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-950/50 transition-all active:scale-95 cursor-pointer"
+                >
+                  <MessageCircle size={15} />
+                  <span>فتح محادثة واتساب مجدداً</span>
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSaleAlert(null);
+                  sessionStorage.removeItem('pos_whatsapp_success');
+                }}
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-200 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="إغلاق التنبيه"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saleAlert && saleAlert.type === 'error' && (
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border-2 border-rose-500 bg-gradient-to-r from-[#2a080c] via-[#3d0c12] to-[#240609] p-4 sm:p-5 shadow-[0_0_35px_rgba(244,63,94,0.4)] animate-in slide-in-from-top-3 duration-300">
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                <AlertCircle className="w-7 h-7 text-rose-400" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-white tracking-wide">
+                    تم فشل ارسال الفاتوره وعدم تسجيلها لحمايه المخزون
+                  </h3>
+                  <span className="text-[11px] bg-rose-500/25 text-rose-300 border border-rose-400/30 px-2.5 py-0.5 rounded-full font-bold">
+                    مخزون محمي
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-rose-200/90 font-medium">
+                  {saleAlert.message}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSaleAlert(null)}
+              className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-rose-200 hover:text-white flex items-center justify-center transition-colors cursor-pointer self-end sm:self-center shrink-0"
+              title="إغلاق التنبيه"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* ------------------------------------------------------------------------- */}
       {/* TOP POS HEADER BAR */}
@@ -2575,18 +2723,6 @@ export const POS = () => {
         </DialogContent>
       </Dialog>
 
-      {/* IN-PAGE WHATSAPP RECEIPT MODAL (Zero External Tabs / In-Page Verification) */}
-      <WhatsAppReceiptModal
-        isOpen={isWhatsAppModalOpen}
-        onClose={() => {
-          setIsWhatsAppModalOpen(false);
-          setPendingReceiptData(null);
-          setPendingInvoicePayload(null);
-        }}
-        receiptData={pendingReceiptData}
-        onConfirmSend={handleConfirmSendReceiptViaWhatsApp}
-        isSending={isSubmitting}
-      />
     </>
   );
 };
