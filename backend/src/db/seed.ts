@@ -4,7 +4,7 @@ import { UserEntity } from '../modules/users/user.entity';
 import { BranchEntity } from '../modules/branches/branch.entity';
 
 export async function seedDatabase() {
-  console.log('🌱 Seeding essential branches & super admin users...');
+  console.log('🌱 Checking essential branches & initial admin accounts...');
 
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
@@ -13,7 +13,7 @@ export async function seedDatabase() {
   const branchRepo = AppDataSource.getRepository(BranchEntity);
   const userRepo = AppDataSource.getRepository(UserEntity);
 
-  // 1. Seed Branches
+  // 1. Seed Branches if not exist
   const initialBranches = [
     { id: 'b4', nameEn: 'El Maktab Branch', nameAr: 'فرع المكتب', location: 'بني سويف - المكتب الرئيسي' },
     { id: 'b1', nameEn: 'Ahmed Orabi Branch', nameAr: 'فرع أحمد عرابي', location: 'بني سويف - ش/ أحمد عرابي أمام مول النصر' },
@@ -29,28 +29,29 @@ export async function seedDatabase() {
     }
   }
 
-  // 2. Seed Super Admin Users (Bola, Mina & Test)
-  const hashedPasswordDefault = await bcrypt.hash('00000000', 10);
-  const hashedPasswordTest = await bcrypt.hash('12344321', 10);
+  // 2. Seed Initial Admin Users ONLY if they do not already exist
+  // We NEVER overwrite existing passwords on server startup!
   const initialUsers: Partial<UserEntity>[] = [
-    { id: 'admin-bola', username: 'bola', name: 'Bola', role: 'admin', password: hashedPasswordDefault, joinDate: '2026-01-01' },
-    { id: 'admin-mina', username: 'mina', name: 'Mina', role: 'admin', password: hashedPasswordDefault, joinDate: '2026-01-01' },
-    { id: 'admin-test', username: 'test', name: 'Test', role: 'admin', password: hashedPasswordTest, joinDate: '2026-01-01' },
+    { id: 'admin-bola', username: 'bola', name: 'Bola', role: 'admin', joinDate: '2026-01-01' },
+    { id: 'admin-mina', username: 'mina', name: 'Mina', role: 'admin', joinDate: '2026-01-01' },
+    { id: 'admin-test', username: 'test', name: 'Test', role: 'admin', joinDate: '2026-01-01' },
   ];
 
   for (const uData of initialUsers) {
     const existing = await userRepo.findOne({ where: { username: uData.username } });
     if (!existing) {
-      const u = userRepo.create(uData);
+      const defaultPassword = uData.username === 'test' ? '12344321' : '00000000';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      const u = userRepo.create({
+        ...uData,
+        password: hashedPassword,
+      });
       await userRepo.save(u);
-    } else {
-      existing.password = uData.password!;
-      existing.role = 'admin';
-      await userRepo.save(existing);
+      console.log(`Initialized initial admin account: ${uData.username}`);
     }
   }
 
-  console.log('✅ Essential Seeding completed successfully (Branches & Super Admins ready)!');
+  console.log('✅ Initial database verification complete.');
 }
 
 if (require.main === module) {

@@ -82,32 +82,42 @@ export class InvoiceService {
       for (const itemPayload of data.items) {
         let physicalItemId: string | undefined = undefined;
 
-        // 1. If physicalItemId is provided, check if it exists in physical_items before updating
+        // 1. If physicalItemId is provided, atomically claim it with conditional update to prevent double-sale
         if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
           const pId = itemPayload.physicalItemId.trim();
-          const existingPhys: any = await transactionalEntityManager.query(
-            `SELECT id, status FROM physical_items WHERE id = $1`,
+          const updatePhysResult: any = await transactionalEntityManager.query(
+            `UPDATE physical_items 
+             SET status = 'sold', "updatedAt" = NOW() 
+             WHERE id = $1 AND status != 'sold' 
+             RETURNING id`,
             [pId]
           );
 
-          const physList = Array.isArray(existingPhys) && Array.isArray(existingPhys[0])
-            ? existingPhys[0]
-            : (Array.isArray(existingPhys) ? existingPhys : []);
+          const affectedPhys = Array.isArray(updatePhysResult) && typeof updatePhysResult[1] === 'number'
+            ? updatePhysResult[1]
+            : (Array.isArray(updatePhysResult) ? updatePhysResult.length : 0);
 
-          if (physList.length > 0) {
-            if (physList[0].status === 'sold') {
+          const physRows = Array.isArray(updatePhysResult) && Array.isArray(updatePhysResult[0])
+            ? updatePhysResult[0]
+            : (Array.isArray(updatePhysResult) ? updatePhysResult : []);
+
+          if (affectedPhys === 0 || physRows.length === 0) {
+            // Check if item exists in physical_items (item might already be sold or not exist)
+            const checkPhys: any = await transactionalEntityManager.query(
+              `SELECT id, status FROM physical_items WHERE id = $1`,
+              [pId]
+            );
+            const pRows = Array.isArray(checkPhys) && Array.isArray(checkPhys[0])
+              ? checkPhys[0]
+              : (Array.isArray(checkPhys) ? checkPhys : []);
+
+            if (pRows.length > 0) {
               throw new AppError(
                 `القطعة (${pId}) تم بيعها للتو بواسطة مستخدم آخر! تم إلغاء الفاتورة لمنع البيع المزدوج.`,
                 400
               );
             }
-
-            await transactionalEntityManager.query(
-              `UPDATE physical_items 
-               SET status = 'sold', "updatedAt" = NOW() 
-               WHERE id = $1`,
-              [pId]
-            );
+          } else {
             physicalItemId = pId;
           }
         }
