@@ -1,24 +1,25 @@
 -- ==============================================================================
--- SUPABASE POSTGRESQL SECURITY REMEDIATION: RESTORE RLS & SECURE SUPPLIERS
+-- SUPABASE POSTGRESQL SECURITY REMEDIATION: RESTORE RLS & SECURE ALL TABLES
 -- Date: 2026-10-13
 -- Description:
 --   1. Re-enables Row Level Security (RLS) on all public tables after unauthorized
---      disabling in fix-rls-and-suppliers.ts.
---   2. Revokes dangerous blanket grants (GRANT ALL) from the public/anon role.
---   3. Secures the 'suppliers' table with RLS and restricts access to 'service_role'.
---   4. Enforces least-privilege access for PostgREST public clients.
+--      disabling in legacy scripts.
+--   2. Revokes blanket grants (GRANT ALL) from public roles: anon, authenticated, PUBLIC.
+--   3. Secures 'suppliers' and all core business tables.
+--   4. Eliminates PostgREST direct access to sensitive columns and tables.
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
--- 1. REVOKE UNRESTRICTED PERMISSIONS ACCIDENTALLY GRANTED TO ANON & PUBLIC
+-- 1. REVOKE UNRESTRICTED PERMISSIONS FROM ANON, AUTHENTICATED & PUBLIC
 -- ------------------------------------------------------------------------------
-REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon;
-REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM anon;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, PUBLIC;
+REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM anon, authenticated, PUBLIC;
 
--- Reset default privileges so newly created tables are not automatically granted to anon
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon;
+-- Reset default privileges so future tables are not granted to public roles
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated, PUBLIC;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON ROUTINES FROM anon, authenticated, PUBLIC;
 
 -- Ensure service_role (backend application connection) retains required operational permissions
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
@@ -64,38 +65,49 @@ ALTER TABLE IF EXISTS public.product_compositions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.suppliers ENABLE ROW LEVEL SECURITY;
 
 -- ------------------------------------------------------------------------------
--- 4. HARDEN 'suppliers' RLS POLICIES
+-- 4. HARDEN RLS POLICIES FOR ALL TABLES (SERVICE_ROLE ONLY)
 -- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "service_role_manage_all_users" ON public.users;
+CREATE POLICY "service_role_manage_all_users" ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_branches" ON public.branches;
+CREATE POLICY "service_role_manage_all_branches" ON public.branches FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_categories" ON public.categories;
+CREATE POLICY "service_role_manage_all_categories" ON public.categories FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_products" ON public.products;
+CREATE POLICY "service_role_manage_all_products" ON public.products FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_pbd" ON public.product_branch_data;
+CREATE POLICY "service_role_manage_all_pbd" ON public.product_branch_data FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_pi" ON public.physical_items;
+CREATE POLICY "service_role_manage_all_pi" ON public.physical_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_customers" ON public.customers;
+CREATE POLICY "service_role_manage_all_customers" ON public.customers FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_invoices" ON public.invoices;
+CREATE POLICY "service_role_manage_all_invoices" ON public.invoices FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_invoice_items" ON public.invoice_items;
+CREATE POLICY "service_role_manage_all_invoice_items" ON public.invoice_items FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_expenses" ON public.fixed_expenses;
+CREATE POLICY "service_role_manage_all_expenses" ON public.fixed_expenses FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "service_role_manage_all_compositions" ON public.product_compositions;
+CREATE POLICY "service_role_manage_all_compositions" ON public.product_compositions FOR ALL TO service_role USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "service_role_manage_all_suppliers" ON public.suppliers;
-CREATE POLICY "service_role_manage_all_suppliers"
-    ON public.suppliers
-    FOR ALL
-    TO service_role
-    USING (true)
-    WITH CHECK (true);
-
--- Explicitly ensure anon role CANNOT read or write suppliers
-REVOKE ALL ON TABLE public.suppliers FROM anon, public;
+CREATE POLICY "service_role_manage_all_suppliers" ON public.suppliers FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- ------------------------------------------------------------------------------
--- 5. ENSURE CRITICAL CREDENTIAL COLUMNS IN public.users REMAIN UNREADABLE VIA ANON
+-- 5. CONFIRMATION VERIFICATION
 -- ------------------------------------------------------------------------------
-REVOKE ALL ON TABLE public.users FROM anon, public;
-
--- Grant selective safe profile columns ONLY if anon profile lookup is needed
-GRANT SELECT (
-    id,
-    username,
-    name,
-    role,
-    "branchId",
-    "profileImage",
-    "joinDate",
-    phone,
-    email,
-    "createdAt"
-) ON TABLE public.users TO anon, authenticated;
-
--- Ensure password and refreshToken columns are NEVER readable by anon/authenticated
--- (They can only be accessed by service_role via backend TypeORM)
-GRANT ALL ON TABLE public.users TO service_role;
+-- Ensure no public policy permits unrestricted read or write
+DROP POLICY IF EXISTS "allow_read_safe_user_profiles" ON public.users;
+DROP POLICY IF EXISTS "allow_all_branches" ON public.branches;
+DROP POLICY IF EXISTS "allow_all_categories" ON public.categories;
+DROP POLICY IF EXISTS "allow_all_products" ON public.products;

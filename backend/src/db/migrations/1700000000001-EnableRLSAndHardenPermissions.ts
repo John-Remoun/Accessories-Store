@@ -24,32 +24,40 @@ export class EnableRLSAndHardenPermissions1700000000001 implements MigrationInte
             await queryRunner.query(`ALTER TABLE IF EXISTS public."${table}" ENABLE ROW LEVEL SECURITY;`);
         }
 
-        // 2. Harden sensitive columns on public.users and restrict PostgREST public roles
+        // 2. Comprehensive Revocation: Strip all table, sequence, and routine privileges
+        // from public PostgREST roles (anon, authenticated, PUBLIC) across all schema public tables.
         await queryRunner.query(`
             DO $$
             BEGIN
-                -- Revoke blanket table access from anon and authenticated roles
+                -- Revoke from anon
                 IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-                    REVOKE ALL ON TABLE public.users FROM anon;
-                    -- Allow safe profile reading only (password and refreshToken remain unreadable)
-                    GRANT SELECT (
-                        id, username, name, role, "branchId", "profileImage", 
-                        "joinDate", "salesCount", phone, email, "createdAt", "updatedAt"
-                    ) ON TABLE public.users TO anon;
+                    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+                    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon;
+                    REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM anon;
                 END IF;
 
+                -- Revoke from authenticated
                 IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-                    REVOKE ALL ON TABLE public.users FROM authenticated;
-                    GRANT SELECT (
-                        id, username, name, role, "branchId", "profileImage", 
-                        "joinDate", "salesCount", phone, email, "createdAt", "updatedAt"
-                    ) ON TABLE public.users TO authenticated;
+                    REVOKE ALL ON ALL TABLES IN SCHEMA public FROM authenticated;
+                    REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM authenticated;
+                    REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM authenticated;
                 END IF;
 
-                -- Ensure service_role (backend) retains required operational permissions
+                -- Revoke from PUBLIC
+                REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+                REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
+                REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM PUBLIC;
+
+                -- Reset default privileges for future tables
+                ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon, authenticated, PUBLIC;
+                ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, authenticated, PUBLIC;
+
+                -- Ensure backend service_role retains operational access
                 IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
                     GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
                     GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+                    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+                    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
                 END IF;
             END $$;
         `);
