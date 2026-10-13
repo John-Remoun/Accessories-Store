@@ -3,11 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import path from 'path';
-
 import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env.config';
 import { errorHandler } from './common/middleware/error.middleware';
+import { ensureDbConnected } from './common/middleware/db.middleware';
 
 import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/users/user.routes';
@@ -20,6 +20,7 @@ import invoiceRoutes from './modules/invoices/invoice.routes';
 import fixedExpenseRoutes from './modules/fixed-expenses/fixed-expense.routes';
 import compositionRoutes from './modules/compositions/composition.routes';
 import uploadRoutes from './modules/upload/upload.routes';
+import supplierRoutes from './modules/suppliers/supplier.routes';
 
 const app: Application = express();
 
@@ -32,20 +33,47 @@ const apiLimiter = rateLimit({
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' },
 });
 
-app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({
+// Configure CORS securely
+const configuredOrigins = env.corsOrigin
+  ? env.corsOrigin.split(',').map((o) => o.trim()).filter(Boolean)
+  : [];
+
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
+    // Allow server-to-server, mobile app, or same-origin requests without Origin header
     if (!origin) return callback(null, true);
-    if (origin.includes('vercel.app') || origin.includes('localhost') || origin === env.corsOrigin) {
+
+    // Explicitly allowed origin in config
+    if (configuredOrigins.length > 0 && configuredOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(null, true);
+
+    // Allow local development origins
+    if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+      return callback(null, true);
+    }
+
+    // Allow verified project domain on Vercel
+    const isTrustedVercelApp = /^https:\/\/accessories-store[a-zA-Z0-9-]*\.vercel\.app$/.test(origin);
+    if (isTrustedVercelApp) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS request blocked by security policy'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+};
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // Managed by frontend hosting
 }));
+app.use(cors(corsOptions));
 app.use(apiLimiter);
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 if (env.nodeEnv === 'development') {
   app.use(morgan('dev'));
@@ -53,8 +81,6 @@ if (env.nodeEnv === 'development') {
 
 // Serve Static Uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-import { ensureDbConnected } from './common/middleware/db.middleware';
 
 // Health Check Endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -77,6 +103,7 @@ apiRouter.use('/invoices', invoiceRoutes);
 apiRouter.use('/fixed-expenses', fixedExpenseRoutes);
 apiRouter.use('/compositions', compositionRoutes);
 apiRouter.use('/upload', uploadRoutes);
+apiRouter.use('/suppliers', supplierRoutes);
 
 // Support all possible Vercel / Express request path variations:
 app.use('/api/v1', apiRouter);
