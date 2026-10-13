@@ -20,6 +20,28 @@ export async function applySecurityHardening(dataSource: DataSource): Promise<vo
       'suppliers',
     ];
 
+    // 0. Ensure suppliers table exists if not already present in the active database
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS public.suppliers (
+        id character varying(100) NOT NULL,
+        "supplierName" character varying(150) NOT NULL,
+        "supplierPhone" character varying(50),
+        "invoiceNumber" character varying(100),
+        "itemsDescription" text,
+        "branchId" character varying(100),
+        "totalAmount" numeric(12, 2) NOT NULL DEFAULT 0,
+        "paidAmount" numeric(12, 2) NOT NULL DEFAULT 0,
+        "remainingAmount" numeric(12, 2) NOT NULL DEFAULT 0,
+        "paymentStatus" character varying(50) NOT NULL DEFAULT 'unpaid',
+        "purchaseDate" TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        notes text,
+        "paymentHistory" jsonb DEFAULT '[]'::jsonb,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        CONSTRAINT "PK_suppliers_id" PRIMARY KEY ("id")
+      );
+    `);
+
     // 1. Enable Row Level Security (RLS) on all eleven audited tables plus suppliers
     for (const table of tables) {
       await queryRunner.query(`ALTER TABLE IF EXISTS public."${table}" ENABLE ROW LEVEL SECURITY;`);

@@ -24,12 +24,16 @@ import supplierRoutes from './modules/suppliers/supplier.routes';
 
 const app: Application = express();
 
-// Security & Rate Limiting Middlewares
+// Trust reverse proxy (Render, Vercel, Cloudflare) for accurate IP resolution
+app.set('trust proxy', 1);
+
+// Security & High-Capacity Rate Limiting Middlewares
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per 15 minutes
+  max: 10000, // High capacity to support multi-user POS traffic and multiple employees
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { success: false, message: 'Too many requests from this IP, please try again after 15 minutes' },
 });
 

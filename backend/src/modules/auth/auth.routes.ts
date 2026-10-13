@@ -8,12 +8,13 @@ import { authenticate } from '../../common/middleware/auth.middleware';
 const router = Router();
 const controller = new AuthController();
 
-// Strict login rate limiter to protect against brute-force & credential stuffing
+// High-capacity login rate limiter to support multiple staff members on the same network
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 attempts per IP per 15 mins
+  max: 1000, // Generous capacity allowing many employees to log in simultaneously from the same IP/router
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { success: false, message: 'Too many login attempts, please try again after 15 minutes' },
 });
 
