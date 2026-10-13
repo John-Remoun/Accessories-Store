@@ -98,7 +98,7 @@ export async function executeFullReset() {
         joinDate: '2026-01-01',
       });
       await userRepo.save(user);
-      console.log(`   + Created account: ${target.username} (Password: ${target.expectedPass})`);
+      console.log(`   + Created account: ${target.username} (Password configured)`);
     } else {
       user.name = target.name;
       user.role = target.role;
@@ -106,7 +106,7 @@ export async function executeFullReset() {
       user.salesCount = 0;
       user.branchId = undefined;
       await userRepo.save(user);
-      console.log(`   ✓ Updated account: ${target.username} (Password updated to: ${target.expectedPass})`);
+      console.log(`   ✓ Updated account: ${target.username} (Password configured)`);
     }
   }
 
@@ -169,13 +169,10 @@ export async function executeFullReset() {
     console.log(`- ${key}: ${val} rows`);
   }
 
-  const finalUsers = await AppDataSource.query(`SELECT id, username, name, role, password FROM "users" ORDER BY username ASC`);
+  const finalUsers = await AppDataSource.query(`SELECT id, username, name, role FROM "users" ORDER BY username ASC`);
   console.log('\nVerified Active Users in DB:');
   for (const u of finalUsers) {
-    const isBolaMinaPass = await bcrypt.compare('00000000', u.password || '');
-    const isTestPass = await bcrypt.compare('12344321', u.password || '');
-    const verifiedPass = isBolaMinaPass ? '00000000 (VALID)' : isTestPass ? '12344321 (VALID)' : 'INVALID';
-    console.log(`- Username: "${u.username}", Role: "${u.role}", Name: "${u.name}", Password Match: ${verifiedPass}`);
+    console.log(`- Username: "${u.username}", Role: "${u.role}", Name: "${u.name}"`);
   }
 
   console.log('====================================================');

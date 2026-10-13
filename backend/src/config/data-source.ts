@@ -11,29 +11,53 @@ import { InvoiceEntity } from '../modules/invoices/invoice.entity';
 import { InvoiceItemEntity } from '../modules/invoices/invoice-item.entity';
 import { FixedExpenseEntity } from '../modules/fixed-expenses/fixed-expense.entity';
 import { ProductCompositionEntity } from '../modules/compositions/composition.entity';
+import { SupplierEntity } from '../modules/suppliers/supplier.entity';
 
-const defaultSupabaseUrl = 'postgresql://postgres.cybtacestgpbsluqmclr:Zni39zBUN7x0rfD7@aws-0-eu-west-1.pooler.supabase.com:5432/postgres';
-const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL || defaultSupabaseUrl;
+const dbUrl = env.db.url;
 
-export const AppDataSource = new DataSource({
-  type: 'postgres',
-  url: dbUrl,
-  ssl: (env.db.ssl || Boolean(dbUrl)) ? { rejectUnauthorized: false } : false,
-  synchronize: true,
-  logging: env.nodeEnv === 'development',
-  entities: [
-    UserEntity,
-    BranchEntity,
-    CategoryEntity,
-    ProductEntity,
-    ProductBranchDataEntity,
-    PhysicalItemEntity,
-    CustomerEntity,
-    InvoiceEntity,
-    InvoiceItemEntity,
-    FixedExpenseEntity,
-    ProductCompositionEntity,
-  ],
-  migrations: [],
-  subscribers: [],
-});
+const sslConfig = env.db.ssl
+  ? { rejectUnauthorized: env.db.sslRejectUnauthorized }
+  : false;
+
+const entities = [
+  UserEntity,
+  BranchEntity,
+  CategoryEntity,
+  ProductEntity,
+  ProductBranchDataEntity,
+  PhysicalItemEntity,
+  CustomerEntity,
+  InvoiceEntity,
+  InvoiceItemEntity,
+  FixedExpenseEntity,
+  ProductCompositionEntity,
+  SupplierEntity,
+];
+
+export const AppDataSource = new DataSource(
+  dbUrl
+    ? {
+        type: 'postgres',
+        url: dbUrl,
+        ssl: sslConfig,
+        synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true' || env.nodeEnv === 'development',
+        logging: env.nodeEnv === 'development',
+        entities,
+        migrations: [],
+        subscribers: [],
+      }
+    : {
+        type: 'postgres',
+        host: env.db.host,
+        port: env.db.port,
+        username: env.db.username,
+        password: env.db.password,
+        database: env.db.database,
+        ssl: sslConfig,
+        synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true' || env.nodeEnv === 'development',
+        logging: env.nodeEnv === 'development',
+        entities,
+        migrations: [],
+        subscribers: [],
+      }
+);

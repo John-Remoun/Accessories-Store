@@ -1,13 +1,26 @@
 import { Client } from 'pg';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment configuration
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+dotenv.config();
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+if (!connectionString) {
+  console.error('[ERROR] DATABASE_URL (or POSTGRES_URL) environment variable is required to run this script.');
+  process.exit(1);
+}
 
 const client = new Client({
-  connectionString: 'postgresql://postgres.cybtacestgpbsluqmclr:Zni39zBUN7x0rfD7@aws-0-eu-west-1.pooler.supabase.com:5432/postgres',
-  ssl: { rejectUnauthorized: false }
+  connectionString,
+  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true' },
 });
 
 async function run() {
   await client.connect();
-  console.log('Connected to Supabase PostgreSQL');
+  console.log('Connected to PostgreSQL database');
 
   // 1. Create suppliers table if not exists
   await client.query(`
@@ -31,31 +44,24 @@ async function run() {
   `);
   console.log('Created/verified suppliers table');
 
-  // 2. Grant permissions on all tables to anon, authenticated, service_role
+  // 2. Enable Row Level Security (RLS) on suppliers table
   await client.query(`
-    GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+    ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
   `);
-  console.log('Granted all permissions to anon, authenticated, service_role');
+  console.log('Enabled RLS on public.suppliers');
 
-  // 3. For each table, disable RLS so PostgREST allows unrestricted reads/writes from app
-  const tables = [
-    'users', 'branches', 'categories', 'products', 'product_branch_data', 
-    'physical_items', 'customers', 'invoices', 'invoice_items', 
-    'fixed_expenses', 'product_compositions', 'suppliers'
-  ];
-
-  for (const tbl of tables) {
-    await client.query(`ALTER TABLE public.${tbl} DISABLE ROW LEVEL SECURITY;`);
-    console.log(`Disabled RLS on ${tbl}`);
-  }
+  // 3. Grant table permissions exclusively to service_role (backend application)
+  // Revoke public/anon unrestricted access
+  await client.query(`
+    REVOKE ALL ON TABLE public.suppliers FROM anon, public;
+    GRANT ALL ON TABLE public.suppliers TO service_role;
+  `);
 
   await client.end();
-  console.log('Finished successfully!');
+  console.log('Database script completed successfully.');
 }
 
-run().catch(err => {
-  console.error('Migration error:', err);
+run().catch((err) => {
+  console.error('Migration error:', err.message);
   process.exit(1);
 });

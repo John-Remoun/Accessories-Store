@@ -54,8 +54,10 @@ async function resetCleanDatabase() {
       existing.role = 'admin';
       existing.salesCount = 0;
       existing.branchId = undefined;
-      // ensure clean password hash
-      existing.password = admin.password;
+      // preserve existing password
+      if (!existing.password) {
+        existing.password = admin.password;
+      }
       await userRepo.save(existing);
       console.log(`  ✓ Updated admin user: ${admin.username}`);
     }
