@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/dialog';
 import { Users, Search, Download, Star, MessageCircle, Send, Megaphone, Check, Copy, Sparkles, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
 export interface CustomerRecord {
   id: string;
@@ -212,11 +213,11 @@ export const Customers = () => {
   // Send broadcast / open WhatsApp links for reachable customers
   const handleSendAllWhatsApp = () => {
     if (reachableCustomers.length === 0) {
-      alert('لا يوجد عملاء لديهم أرقام هواتف مسجلة بالفرع!');
+      toast.error('لا يوجد عملاء لديهم أرقام هواتف مسجلة بالفرع!');
       return;
     }
     if (!offerMessage.trim()) {
-      alert('يرجى كتابة نص رسالة العرض أولاً!');
+      toast.error('يرجى كتابة نص رسالة العرض أولاً!');
       return;
     }
 
@@ -258,7 +259,7 @@ export const Customers = () => {
   const handleDownloadPDF = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('يرجى السماح بالنوافذ المنبثقة لتحميل التقرير كـ PDF!');
+      toast.error('يرجى السماح بالنوافذ المنبثقة في المتصفح لتحميل التقرير كـ PDF!');
       return;
     }
 

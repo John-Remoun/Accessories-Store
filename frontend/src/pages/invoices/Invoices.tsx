@@ -15,6 +15,7 @@ import {
   User, DollarSign, ArrowLeftRight, MessageSquareText
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
 import lightLogo from '../../assets/light-logo.png';
 
 const MONTH_NAMES_AR = [
@@ -291,7 +292,7 @@ export const Invoices = () => {
   // Open Statement Modal ("كشف الحساب")
   const handleOpenCustomerStatement = (customerName?: string, customerPhone?: string) => {
     if (!customerPhone && !customerName) {
-      alert('لا يتوفر رقم هاتف أو اسم لهذا العميل لعرض كشف الحساب.');
+      toast.error('لا يتوفر رقم هاتف أو اسم لهذا العميل لعرض كشف الحساب.');
       return;
     }
     setStatementCustomerPhone(customerPhone || null);
@@ -320,7 +321,7 @@ export const Invoices = () => {
   const handleConfirmSubmitPayment = () => {
     const amt = parseFloat(paymentAmountInput);
     if (isNaN(amt) || amt <= 0) {
-      alert('يرجى إدخال مبلغ صحيح أكبر من الصفر.');
+      toast.error('يرجى إدخال مبلغ صحيح أكبر من الصفر.');
       return;
     }
 
@@ -332,6 +333,7 @@ export const Invoices = () => {
       setPaymentModalCustomerPhone(null);
     }
 
+    toast.success('تم تسجيل سداد المبلغ بنجاح');
     setRefreshKey(prev => prev + 1);
   };
 

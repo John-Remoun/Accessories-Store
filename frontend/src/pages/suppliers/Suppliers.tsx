@@ -16,6 +16,7 @@ import {
   ArrowDownLeft, Phone, FileText, Check, AlertTriangle, Printer,
   Building2, Layers, Users, ChevronDown
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 
 const getLocalNowIso = () => {
@@ -459,13 +460,13 @@ export const Suppliers = () => {
   const handleSavePurchase = async () => {
     const name = formData.supplierName.trim();
     if (!name) {
-      alert('يرجى إدخال اسم المورد');
+      toast.error('يرجى إدخال اسم المورد');
       return;
     }
 
     const total = parseFloat(formData.totalAmount);
     if (isNaN(total) || total <= 0) {
-      alert('يرجى إدخال إجمالي ثمن البضاعة بشكل صحيح');
+      toast.error('يرجى إدخال إجمالي ثمن البضاعة بشكل صحيح');
       return;
     }
 
@@ -531,6 +532,7 @@ export const Suppliers = () => {
         }] : [],
       };
       await store.addSupplierPurchase(newPurchase);
+      toast.success(editingPurchase ? 'تم تعديل فاتورة المورد بنجاح' : 'تمت إضافة فاتورة المورد بنجاح');
     }
 
     setIsAddEditOpen(false);
@@ -550,12 +552,14 @@ export const Suppliers = () => {
     if (!selectedPurchaseForPayment) return;
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح للدفعة');
+      toast.error('يرجى إدخال مبلغ صحيح للدفعة');
       return;
     }
 
     if (amount > selectedPurchaseForPayment.remainingAmount) {
-      alert(`المبلغ المدخل (${amount} ج.م) أكبر من المبلغ المتبقي (${selectedPurchaseForPayment.remainingAmount} ج.م)`);
+      toast.error(`المبلغ المدخل (${amount} ج.م) أكبر من المبلغ المتبقي (${selectedPurchaseForPayment.remainingAmount} ج.م)!`, {
+        description: 'يرجى إدخال مبلغ مساوٍ أو أقل من المتبقي حالياً للسداد.'
+      });
       return;
     }
 
@@ -565,6 +569,7 @@ export const Suppliers = () => {
       paymentNotes.trim() || undefined
     );
 
+    toast.success('تم تسجيل سداد الدفعة للمورد بنجاح');
     setIsPaymentModalOpen(false);
     setSelectedPurchaseForPayment(null);
   };

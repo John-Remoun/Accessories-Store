@@ -794,4 +794,43 @@ export const api = {
       return await supabaseFetch(`/product_compositions?id=eq.${id}`, { method: 'DELETE' });
     }
   },
+
+  // Suppliers & Purchases
+  getSuppliers: async () => {
+    try {
+      return await request<any[]>('/suppliers');
+    } catch {
+      return await supabaseFetch<any[]>('/suppliers?select=*&order=purchaseDate.desc');
+    }
+  },
+  saveSupplierPurchase: async (purchase: any) => {
+    try {
+      return await request<any>('/suppliers', { method: 'POST', body: JSON.stringify(purchase) });
+    } catch {
+      const res = await supabaseFetch<any[]>('/suppliers', {
+        method: 'POST',
+        headers: { 'Prefer': 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(purchase),
+      });
+      return Array.isArray(res) ? res[0] : res;
+    }
+  },
+  updateSupplierPurchase: async (id: string, updates: any) => {
+    try {
+      return await request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+    } catch {
+      const res = await supabaseFetch<any[]>(`/suppliers?id=eq.${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
+      return Array.isArray(res) ? res[0] : res;
+    }
+  },
+  deleteSupplierPurchase: async (id: string) => {
+    try {
+      return await request<any>(`/suppliers/${id}`, { method: 'DELETE' });
+    } catch {
+      return await supabaseFetch(`/suppliers?id=eq.${id}`, { method: 'DELETE' });
+    }
+  },
 };

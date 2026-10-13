@@ -175,7 +175,8 @@ class StoreService {
         physItems,
         branchList,
         customerList,
-        userList
+        userList,
+        supplierList
       ] = await Promise.allSettled([
         api.getFixedExpenses(),
         api.getInvoices(),
@@ -186,6 +187,7 @@ class StoreService {
         api.getBranches(),
         api.getCustomers(),
         api.getUsers(),
+        api.getSuppliers(),
       ]);
 
       if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
@@ -280,6 +282,17 @@ class StoreService {
       // Sync Physical Items
       if (physItems.status === 'fulfilled' && Array.isArray(physItems.value)) {
         this.state.physicalItems = physItems.value;
+      }
+
+      // Sync Suppliers
+      if (supplierList.status === 'fulfilled' && Array.isArray(supplierList.value)) {
+        this.state.suppliers = supplierList.value.map(s => ({
+          ...s,
+          totalAmount: Number(s.totalAmount || 0),
+          paidAmount: Number(s.paidAmount || 0),
+          remainingAmount: Number(s.remainingAmount || 0),
+          paymentHistory: Array.isArray(s.paymentHistory) ? s.paymentHistory : [],
+        }));
       }
 
       this.saveState(false);
@@ -957,6 +970,12 @@ class StoreService {
     if (!this.state.suppliers) this.state.suppliers = [];
     this.state.suppliers.unshift(purchase);
     this.saveState();
+    try {
+      await api.saveSupplierPurchase(purchase);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (addSupplierPurchase):', err);
+    }
   }
 
   public async updateSupplierPurchase(id: string, updates: Partial<SupplierPurchase>) {
@@ -969,6 +988,12 @@ class StoreService {
         updatedAt: new Date().toISOString(),
       };
       this.saveState();
+      try {
+        await api.updateSupplierPurchase(id, updates);
+        await this.syncWithBackend();
+      } catch (err) {
+        console.warn('DB sync warning (updateSupplierPurchase):', err);
+      }
     }
   }
 
@@ -976,6 +1001,12 @@ class StoreService {
     if (!this.state.suppliers) return;
     this.state.suppliers = this.state.suppliers.filter(s => s.id !== id);
     this.saveState();
+    try {
+      await api.deleteSupplierPurchase(id);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (deleteSupplierPurchase):', err);
+    }
   }
 
   public async recordSupplierPayment(id: string, amount: number, notes?: string) {
@@ -1003,8 +1034,7 @@ class StoreService {
 
     const updatedHistory = [...(current.paymentHistory || []), newPaymentRecord];
 
-    this.state.suppliers[idx] = {
-      ...current,
+    const updates = {
       paidAmount: newPaidAmount,
       remainingAmount: newRemainingAmount,
       paymentStatus: newStatus,
@@ -1012,7 +1042,19 @@ class StoreService {
       updatedAt: new Date().toISOString(),
     };
 
+    this.state.suppliers[idx] = {
+      ...current,
+      ...updates,
+    };
+
     this.saveState();
+
+    try {
+      await api.updateSupplierPurchase(id, updates);
+      await this.syncWithBackend();
+    } catch (err) {
+      console.warn('DB sync warning (recordSupplierPayment):', err);
+    }
   }
 }
 
