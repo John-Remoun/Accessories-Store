@@ -50,9 +50,9 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, []);
 
   const sizeClasses = {
-    sm: 'h-9 text-xs px-2.5 rounded-xl',
-    md: 'h-11 text-xs px-3.5 rounded-xl',
-    lg: 'h-12 text-sm px-4 rounded-2xl',
+    sm: 'h-9 text-xs px-2 rounded-xl',
+    md: 'h-11 text-xs px-2.5 rounded-xl',
+    lg: 'h-12 text-sm px-3.5 rounded-2xl',
   }[size];
 
   return (

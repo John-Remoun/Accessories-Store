@@ -114,11 +114,8 @@ const ProductSearchCombobox = ({
                   >
                     <span className="font-bold truncate flex-1 min-w-0 text-right">{p.nameAr}</span>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] font-bold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
-                        {p1.toFixed(2)} ج.م
-                      </span>
-                      <span className="text-[11px] font-extrabold font-mono text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border shrink-0" title="الكمية المتاحة">
-                        {stockCount} ق
+                      <span className="text-[11px] font-extrabold font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full shrink-0" title="الكمية المتاحة">
+                        المتاح: {stockCount} ق
                       </span>
                     </div>
                   </button>
@@ -1450,186 +1447,185 @@ export const POS = () => {
             </div>
 
             {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end bg-muted/20 p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
-              
-              {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (Span: md:col-span-6 lg:col-span-5 xl:col-span-6) */}
-              <div className="sm:col-span-2 md:col-span-6 lg:col-span-5 xl:col-span-6 space-y-1 relative">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
-                  {currentSelectedProduct && (
-                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono flex items-center gap-1 border ${
-                      (currentProductBranchData?.quantity || 0) > 0
-                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                    }`}>
-                      <span className="opacity-80">المتاح بالفرع:</span>
-                      <strong className="text-xs">{currentProductBranchData?.quantity || 0}</strong>
-                      <span className="opacity-80">ق</span>
-                    </span>
-                  )}
-                </div>
-                <div className="relative">
-                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
-                    <Package size={18} />
-                  </div>
-                  <Input
-                    placeholder="اختر أو ابحث عن المنتج بالاسم أو الكود..."
-                    value={isDropdownOpen ? productSearchTerm : (currentSelectedProduct ? currentSelectedProduct.nameAr : productSearchTerm)}
-                    onFocus={() => setIsDropdownOpen(true)}
-                    onChange={(e) => {
-                      setProductSearchTerm(e.target.value);
-                      setIsDropdownOpen(true);
-                    }}
-                    className="pr-10 pl-14 h-11 text-xs font-bold rounded-xl bg-background border-border"
-                  />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {selectedProductId && (
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setSelectedProductId('');
-                          setProductSearchTerm('');
-                        }}
-                        className="text-muted-foreground hover:text-foreground p-0.5"
-                        title="إلغاء التحديد"
-                      >
-                        <X size={14} />
-                      </button>
+            {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
+            <div className="bg-muted/20 p-3.5 sm:p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
+              <div className="flex flex-wrap sm:flex-nowrap items-end gap-2.5 sm:gap-3">
+                
+                {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (flex-1 min-w-[200px]) */}
+                <div className="w-full sm:flex-1 min-w-[220px] space-y-1 relative">
+                  <div className="flex items-center gap-2 h-5">
+                    <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
+                    {currentSelectedProduct && (
+                      <span className="text-[11px] font-mono text-emerald-500 font-bold">
+                        (المتاح: {currentProductBranchData?.quantity || 0} ق)
+                      </span>
                     )}
-                    <button 
-                      type="button" 
-                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                      className="text-muted-foreground hover:text-foreground p-0.5"
-                    >
-                      <ChevronDown size={16} />
-                    </button>
                   </div>
+                  <div className="relative">
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
+                      <Package size={18} />
+                    </div>
+                    <Input
+                      placeholder="اختر أو ابحث عن منتج..."
+                      value={isDropdownOpen ? productSearchTerm : (currentSelectedProduct ? currentSelectedProduct.nameAr : productSearchTerm)}
+                      onFocus={() => setIsDropdownOpen(true)}
+                      onChange={(e) => {
+                        setProductSearchTerm(e.target.value);
+                        setIsDropdownOpen(true);
+                      }}
+                      className="pr-10 pl-14 h-11 text-xs font-bold rounded-xl bg-background border-border"
+                    />
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                      {selectedProductId && (
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSelectedProductId('');
+                            setProductSearchTerm('');
+                            setInputQuantity(1);
+                          }}
+                          className="text-muted-foreground hover:text-foreground p-0.5"
+                          title="إلغاء التحديد"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                      <button 
+                        type="button" 
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className="text-muted-foreground hover:text-foreground p-0.5"
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    </div>
 
-                  {/* Floating Dropdown List - Significantly wider and comfortable layout */}
-                  {isDropdownOpen && (
-                    <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-[130%] sm:w-[150%] md:w-[170%] min-w-[340px] sm:min-w-[460px] md:min-w-[540px] max-w-[90vw] p-1.5 space-y-1">
-                      {filteredProducts.length === 0 ? (
-                        <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
-                      ) : (
-                        filteredProducts.map(p => {
-                          const bd = store.getProductBranchData(p.id, currentBranchId);
-                          const stockCount = Number(bd?.quantity || 0);
-                          const p1 = Number(bd?.price1 || 0);
-                          return (
-                            <div
-                              key={p.id}
-                              onClick={() => {
-                                setSelectedProductId(p.id);
-                                setProductSearchTerm('');
-                                setIsDropdownOpen(false);
-                              }}
-                              className={`p-2.5 rounded-xl text-xs font-bold hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer flex justify-between items-center gap-3 transition-colors ${
-                                p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : 'text-foreground'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-                                  <Package size={15} />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-foreground text-xs truncate block max-w-[220px] sm:max-w-[320px]" title={p.nameAr}>
-                                      {p.nameAr}
-                                    </span>
-                                    {categoriesList.find(c => c.id === p.categoryId) && (
-                                      <span className="text-[10px] font-normal px-2 py-0.5 bg-muted text-muted-foreground rounded-md shrink-0">
-                                        {categoriesList.find(c => c.id === p.categoryId)?.nameAr}
+                    {/* Floating Dropdown List - NO PRICE BADGE, ONLY AVAILABLE QUANTITY */}
+                    {isDropdownOpen && (
+                      <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full min-w-[320px] sm:min-w-[440px] max-w-[90vw] p-1.5 space-y-1">
+                        {filteredProducts.length === 0 ? (
+                          <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
+                        ) : (
+                          filteredProducts.map(p => {
+                            const bd = store.getProductBranchData(p.id, currentBranchId);
+                            const stockCount = Number(bd?.quantity || 0);
+                            return (
+                              <div
+                                key={p.id}
+                                onClick={() => {
+                                  setSelectedProductId(p.id);
+                                  setProductSearchTerm('');
+                                  setIsDropdownOpen(false);
+                                  setInputQuantity(1);
+                                }}
+                                className={`p-2.5 rounded-xl text-xs font-bold hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer flex justify-between items-center gap-3 transition-colors ${
+                                  p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : 'text-foreground'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                                    <Package size={15} />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-foreground text-xs truncate block max-w-[220px] sm:max-w-[320px]" title={p.nameAr}>
+                                        {p.nameAr}
+                                      </span>
+                                      {categoriesList.find(c => c.id === p.categoryId) && (
+                                        <span className="text-[10px] font-normal px-2 py-0.5 bg-muted text-muted-foreground rounded-md shrink-0">
+                                          {categoriesList.find(c => c.id === p.categoryId)?.nameAr}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {p.sku && (
+                                      <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">
+                                        كود: {p.sku}
                                       </span>
                                     )}
                                   </div>
-                                  {p.sku && (
-                                    <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">
-                                      كود: {p.sku}
-                                    </span>
-                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className={`text-[11px] font-extrabold font-mono px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
+                                    stockCount > 0 
+                                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                      : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                  }`} title="الكمية المتاحة في الفرع">
+                                    <span className="text-[10px] font-normal opacity-80">المتاح:</span>
+                                    <span>{stockCount}</span>
+                                    <span className="text-[10px] font-normal opacity-80">ق</span>
+                                  </span>
                                 </div>
                               </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs font-bold font-mono text-amber-500 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
-                                  {p1.toFixed(2)} ج.م
-                                </span>
-                                <span className={`text-[11px] font-extrabold font-mono px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
-                                  stockCount > 0 
-                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                                    : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                                }`} title="الكمية المتاحة في الفرع">
-                                  <span className="text-[10px] font-normal opacity-80">المتاح:</span>
-                                  <span>{stockCount}</span>
-                                  <span className="text-[10px] font-normal opacity-80">ق</span>
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* 2. SELECT PRICE TIER (Span: md:col-span-3 lg:col-span-3 xl:col-span-3) */}
-              <div className="sm:col-span-1 md:col-span-3 lg:col-span-3 xl:col-span-3 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground block">السعر</Label>
-                <CustomSelect
-                  disabled={!selectedProductId}
-                  value={selectedPriceTier}
-                  onChange={(val: any) => setSelectedPriceTier(val)}
-                  placeholder={selectedProductId ? 'اختر السعر' : 'اختر المنتج أولاً'}
-                  options={
-                    currentProductBranchData
-                      ? [
-                          { value: 'price1', label: `سعر 1: ${currentProductBranchData.price1.toFixed(2)} ج.م` },
-                          { value: 'price2', label: `سعر 2: ${currentProductBranchData.price2.toFixed(2)} ج.م` },
-                          { value: 'price3', label: `سعر 3: ${currentProductBranchData.price3.toFixed(2)} ج.م` },
-                          { value: 'price4', label: `سعر 4: ${(currentProductBranchData.price4 || currentProductBranchData.price1).toFixed(2)} ج.م` },
-                        ]
-                      : []
-                  }
-                />
-              </div>
-
-              {/* 3. QUANTITY (Span: md:col-span-3 lg:col-span-2 xl:col-span-1) */}
-              <div className="sm:col-span-1 md:col-span-3 lg:col-span-2 xl:col-span-1 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground block text-center">الكمية</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={selectedProductId ? maxAllowedForInput : 999}
-                  value={inputQuantity}
-                  onChange={(e) => {
-                    const rawVal = parseInt(e.target.value, 10);
-                    if (isNaN(rawVal) || rawVal < 1) {
-                      setInputQuantity(1);
-                      return;
+                {/* 2. SELECT PRICE TIER (Ample fixed width so price is NEVER truncated!) */}
+                <div className="w-[calc(50%-5px)] sm:w-48 lg:w-52 shrink-0 space-y-1">
+                  <div className="h-5 flex items-center">
+                    <Label className="text-xs font-bold text-muted-foreground block">السعر</Label>
+                  </div>
+                  <CustomSelect
+                    disabled={!selectedProductId}
+                    value={selectedPriceTier}
+                    onChange={(val: any) => setSelectedPriceTier(val)}
+                    placeholder={selectedProductId ? 'اختر السعر' : 'اختر المنتج أولاً'}
+                    options={
+                      currentProductBranchData
+                        ? [
+                            { value: 'price1', label: `${currentProductBranchData.price1Label || 'سعر 1'}: ${currentProductBranchData.price1.toFixed(2)} ج.م` },
+                            { value: 'price2', label: `${currentProductBranchData.price2Label || 'سعر 2'}: ${currentProductBranchData.price2.toFixed(2)} ج.م` },
+                            { value: 'price3', label: `${currentProductBranchData.price3Label || 'سعر 3'}: ${currentProductBranchData.price3.toFixed(2)} ج.م` },
+                            { value: 'price4', label: `${currentProductBranchData.price4Label || 'سعر 4'}: ${(currentProductBranchData.price4 || currentProductBranchData.price1).toFixed(2)} ج.م` },
+                          ]
+                        : []
                     }
-                    if (selectedProductId) {
-                      setInputQuantity(Math.min(maxAllowedForInput, rawVal));
-                    } else {
-                      setInputQuantity(rawVal);
-                    }
-                  }}
-                  className="h-11 text-center font-mono font-bold text-xs rounded-xl bg-background"
-                />
-              </div>
+                  />
+                </div>
 
-              {/* 4. ADD BUTTON (Span: md:col-span-12 lg:col-span-2 xl:col-span-2) */}
-              <div className="sm:col-span-2 md:col-span-12 lg:col-span-2 xl:col-span-2">
-                <Button
-                  type="button"
-                  onClick={handleAddProductToCart}
-                  disabled={!selectedProductId}
-                  className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-sm"
-                >
-                  إضافة
-                </Button>
-              </div>
+                {/* 3. QUANTITY (Fixed width with centered 1) */}
+                <div className="w-[calc(25%-5px)] sm:w-20 lg:w-24 shrink-0 space-y-1">
+                  <div className="h-5 flex items-center justify-center">
+                    <Label className="text-xs font-bold text-muted-foreground block text-center">الكمية</Label>
+                  </div>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={selectedProductId ? maxAllowedForInput : 999}
+                    value={inputQuantity}
+                    onChange={(e) => {
+                      const rawVal = parseInt(e.target.value, 10);
+                      if (isNaN(rawVal) || rawVal < 1) {
+                        setInputQuantity(1);
+                        return;
+                      }
+                      if (selectedProductId) {
+                        setInputQuantity(Math.min(maxAllowedForInput, rawVal));
+                      } else {
+                        setInputQuantity(rawVal);
+                      }
+                    }}
+                    className="h-11 text-center font-mono font-bold text-xs rounded-xl bg-background"
+                  />
+                </div>
 
+                {/* 4. ADD BUTTON */}
+                <div className="w-[calc(25%-5px)] sm:w-20 lg:w-24 shrink-0">
+                  <Button
+                    type="button"
+                    onClick={handleAddProductToCart}
+                    disabled={!selectedProductId}
+                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-sm"
+                  >
+                    إضافة
+                  </Button>
+                </div>
+
+              </div>
             </div>
 
             {/* Current Cart Items Header */}
