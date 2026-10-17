@@ -286,8 +286,10 @@ export const Products = () => {
 
     const widthMm = labelSize === '50x25' ? 50 : labelSize === '38x25' ? 38 : 40;
     const heightMm = 25;
-    const qrWidthMm = labelSize === '50x25' ? 20 : 17.5;
-    const infoWidthMm = labelSize === '50x25' ? 26 : labelSize === '38x25' ? 17.5 : 19;
+    const safeWidthMm = labelSize === '50x25' ? 44 : labelSize === '38x25' ? 33.5 : 35;
+    const safeHeightMm = 20.5;
+    const qrWidthMm = labelSize === '50x25' ? 17.5 : labelSize === '38x25' ? 14 : 15;
+    const infoWidthMm = labelSize === '50x25' ? 25 : labelSize === '38x25' ? 18 : 19;
 
     // Retrieve Price 4 for this product in active branch
     const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
@@ -303,17 +305,19 @@ export const Products = () => {
     const labelPagesHtml = Array.from({ length: copies })
       .map(
         (_, i) => `
-        <div class="ticket-label" key="${i}">
-          <!-- 1. الـ QR Code على اليسار -->
-          <div class="qr-section">
-            ${qrSvgString}
-          </div>
+        <div class="ticket-page" key="${i}">
+          <div class="ticket-content">
+            <!-- 1. الـ QR Code على اليسار -->
+            <div class="qr-section">
+              ${qrSvgString}
+            </div>
 
-          <!-- 2. التفاصيل على اليمين -->
-          <div class="info-section">
-            <div class="serial-no">${printModalProduct.sku}</div>
-            <div class="item-title">${printModalProduct.nameAr}</div>
-            <div class="price-tag">${price4Display || '—'} <span class="currency">ج.م</span></div>
+            <!-- 2. التفاصيل على اليمين -->
+            <div class="info-section">
+              <div class="serial-no">${printModalProduct.sku}</div>
+              <div class="item-title">${printModalProduct.nameAr}</div>
+              <div class="price-tag">${price4Display || '—'} <span class="currency">ج.م</span></div>
+            </div>
           </div>
         </div>
       `
@@ -348,43 +352,49 @@ export const Products = () => {
           }
 
           html, body {
-            width: ${widthMm}mm !important;
-            height: ${heightMm}mm !important;
-            max-width: ${widthMm}mm !important;
-            max-height: ${heightMm}mm !important;
             margin: 0 !important;
             padding: 0 !important;
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
-            overflow: hidden !important;
           }
 
-          /* 2. حاوية التيكت الواحد */
-          .ticket-label {
+          /* 2. صفحة التيكت بالحجم الفعلي للورقة */
+          .ticket-page {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
-            padding: 1mm 1.5mm !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            background-color: #ffffff !important;
+          }
+
+          .ticket-page:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          /* 3. الحاوية الآمنة للمحتوى (بها هوامش أمان من جميع الأطراف حتى لا يتآكل أي جزء) */
+          .ticket-content {
+            width: ${safeWidthMm}mm !important;
+            height: ${safeHeightMm}mm !important;
             display: flex !important;
             flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
             justify-content: space-between !important;
             overflow: hidden !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            background-color: #ffffff !important;
             box-sizing: border-box !important;
+            padding: 0 !important;
           }
 
-          .ticket-label:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-          }
-
-          /* 3. حاوية الـ QR كود على الشمال */
+          /* 4. الكيو آر كود */
           .qr-section {
             width: ${qrWidthMm}mm !important;
             height: ${qrWidthMm}mm !important;
@@ -402,7 +412,7 @@ export const Products = () => {
             display: block !important;
           }
 
-          /* 4. حاوية البيانات على اليمين */
+          /* 5. التفاصيل على اليمين */
           .info-section {
             width: ${infoWidthMm}mm !important;
             height: 100% !important;
@@ -412,38 +422,39 @@ export const Products = () => {
             direction: rtl !important;
             text-align: right !important;
             overflow: hidden !important;
-            padding-right: 0.5mm !important;
+            padding-right: 0.8mm !important;
           }
 
-          /* السيريال نمبر */
           .serial-no {
-            font-size: 7.5pt !important;
+            font-size: 7pt !important;
             font-weight: 700 !important;
             color: #000 !important;
             direction: ltr !important;
             text-align: right !important;
+            font-family: monospace !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            margin-bottom: 0.8mm !important;
-            line-height: 1.2 !important;
+            margin-bottom: 0.5mm !important;
+            line-height: 1.1 !important;
           }
 
-          /* اسم الصنف */
           .item-title {
-            font-size: 7pt !important;
-            font-weight: normal !important;
+            font-size: 6.5pt !important;
+            font-weight: 600 !important;
             color: #000 !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
+            margin-bottom: 0.7mm !important;
+            max-height: 6.5mm !important;
             overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            line-height: 1.2 !important;
-            margin-bottom: 1mm !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            word-break: break-word !important;
           }
 
-          /* السعر */
           .price-tag {
-            font-size: 9.5pt !important;
+            font-size: 9pt !important;
             font-weight: 900 !important;
             color: #000 !important;
             line-height: 1 !important;
@@ -451,7 +462,7 @@ export const Products = () => {
           }
 
           .price-tag .currency {
-            font-size: 6pt !important;
+            font-size: 5.5pt !important;
             font-weight: normal !important;
           }
         </style>
@@ -969,7 +980,7 @@ export const Products = () => {
                     className="flex-1 h-10 text-xs font-bold rounded-2xl gap-1.5 transition-all shadow-xs bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500 hover:text-black"
                     onClick={() => {
                       setPrintModalProduct(product);
-                      setPrintCopies(availableCount > 0 ? availableCount : 15);
+                      setPrintCopies(1);
                       setPrintFeedback(null);
                       setShowConfigSettings(false);
                     }}
@@ -1448,10 +1459,16 @@ export const Products = () => {
               </div>
 
               {/* Quantity Controls */}
-              <div className="space-y-1.5" dir="rtl">
-                <Label className="text-xs font-bold text-foreground block text-right">
-                  عدد الملصقات (الكمية):
-                </Label>
+              <div className="space-y-2" dir="rtl">
+                <div className="flex justify-between items-center">
+                  <Label className="text-xs font-bold text-foreground">
+                    عدد الملصقات (الكمية):
+                  </Label>
+                  <span className="text-xs font-mono font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+                    سيتم طباعة: {printCopies} ملصق
+                  </span>
+                </div>
+
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
@@ -1477,6 +1494,41 @@ export const Products = () => {
                   >
                     +
                   </Button>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setPrintCopies(1)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                      printCopies === 1
+                        ? 'bg-amber-500 text-black border-amber-500'
+                        : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border/60'
+                    }`}
+                  >
+                    1 ملصق فقط
+                  </button>
+                  {(() => {
+                    const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
+                    const stock = Number(bd?.quantity || 0);
+                    if (stock > 1) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => setPrintCopies(stock)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold border transition-colors ${
+                            printCopies === stock
+                              ? 'bg-amber-500 text-black border-amber-500'
+                              : 'bg-muted/40 hover:bg-muted text-muted-foreground border-border/60'
+                          }`}
+                        >
+                          كل المتاح في الفرع ({stock})
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
 

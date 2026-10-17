@@ -51,17 +51,19 @@ export const QRCodes = () => {
       const qrSvgString = svgEl ? svgEl.outerHTML : '';
 
       return `
-        <div class="ticket-label">
-          <!-- 1. الـ QR Code على اليسار -->
-          <div class="qr-section">
-            ${qrSvgString}
-          </div>
+        <div class="ticket-page">
+          <div class="ticket-content">
+            <!-- 1. الـ QR Code على اليسار -->
+            <div class="qr-section">
+              ${qrSvgString}
+            </div>
 
-          <!-- 2. التفاصيل على اليمين -->
-          <div class="info-section">
-            <div class="serial-no">${item.id}</div>
-            <div class="item-title">${product?.nameAr || 'منتج'}</div>
-            <div class="price-tag">${price4Val || '—'} <span class="currency">ج.م</span></div>
+            <!-- 2. التفاصيل على اليمين -->
+            <div class="info-section">
+              <div class="serial-no">${item.id}</div>
+              <div class="item-title">${product?.nameAr || 'منتج'}</div>
+              <div class="price-tag">${price4Val || '—'} <span class="currency">ج.م</span></div>
+            </div>
           </div>
         </div>
       `;
@@ -95,46 +97,52 @@ export const QRCodes = () => {
           }
 
           html, body {
-            width: 40mm !important;
-            height: 25mm !important;
-            max-width: 40mm !important;
-            max-height: 25mm !important;
             margin: 0 !important;
             padding: 0 !important;
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
-            overflow: hidden !important;
           }
 
-          /* 2. حاوية التيكت الواحد */
-          .ticket-label {
+          /* 2. صفحة التيكت بالحجم الفعلي للورقة */
+          .ticket-page {
             width: 40mm !important;
             height: 25mm !important;
             max-width: 40mm !important;
             max-height: 25mm !important;
-            padding: 1mm 1.5mm !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            background-color: #ffffff !important;
+          }
+
+          .ticket-page:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          /* 3. الحاوية الآمنة للمحتوى (بها هوامش أمان من جميع الأطراف لمنع تآكل أي جزء) */
+          .ticket-content {
+            width: 35.5mm !important;
+            height: 20.5mm !important;
             display: flex !important;
             flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
             justify-content: space-between !important;
             overflow: hidden !important;
-            page-break-after: always !important;
-            break-after: page !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-            background-color: #ffffff !important;
             box-sizing: border-box !important;
+            padding: 0 !important;
           }
 
-          .ticket-label:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-          }
-
-          /* 3. حاوية الـ QR كود على الشمال */
+          /* 4. حاوية الـ QR كود على الشمال */
           .qr-section {
-            width: 17.5mm !important;
-            height: 17.5mm !important;
+            width: 15mm !important;
+            height: 15mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -149,9 +157,9 @@ export const QRCodes = () => {
             display: block !important;
           }
 
-          /* 4. حاوية البيانات على اليمين */
+          /* 5. حاوية البيانات على اليمين */
           .info-section {
-            width: 18mm !important;
+            width: 19.5mm !important;
             height: 100% !important;
             display: flex !important;
             flex-direction: column !important;
@@ -159,38 +167,42 @@ export const QRCodes = () => {
             direction: rtl !important;
             text-align: right !important;
             overflow: hidden !important;
-            padding-right: 0.5mm !important;
+            padding-right: 0.8mm !important;
           }
 
           /* السيريال نمبر */
           .serial-no {
-            font-size: 7.5pt !important;
+            font-size: 7pt !important;
             font-weight: 700 !important;
             color: #000 !important;
             direction: ltr !important;
             text-align: right !important;
+            font-family: monospace !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            margin-bottom: 0.8mm !important;
-            line-height: 1.2 !important;
+            margin-bottom: 0.5mm !important;
+            line-height: 1.1 !important;
           }
 
           /* اسم الصنف */
           .item-title {
-            font-size: 7pt !important;
-            font-weight: normal !important;
+            font-size: 6.5pt !important;
+            font-weight: 600 !important;
             color: #000 !important;
-            white-space: nowrap !important;
+            line-height: 1.15 !important;
+            margin-bottom: 0.7mm !important;
+            max-height: 6.5mm !important;
             overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            line-height: 1.2 !important;
-            margin-bottom: 1mm !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            word-break: break-word !important;
           }
 
           /* السعر */
           .price-tag {
-            font-size: 9.5pt !important;
+            font-size: 9pt !important;
             font-weight: 900 !important;
             color: #000 !important;
             line-height: 1 !important;
@@ -198,7 +210,7 @@ export const QRCodes = () => {
           }
 
           .price-tag .currency {
-            font-size: 6pt !important;
+            font-size: 5.5pt !important;
             font-weight: normal !important;
           }
         </style>
