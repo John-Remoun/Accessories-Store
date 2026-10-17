@@ -77,7 +77,7 @@ const ProductSearchCombobox = ({
 
       {/* Popover Dropdown */}
       {isOpen && (
-        <div className="absolute z-50 top-full mt-1.5 right-0 left-0 bg-card border border-border/90 rounded-2xl shadow-2xl p-2 space-y-2 animate-in fade-in zoom-in-95 min-w-[280px]">
+        <div className="absolute z-50 top-full mt-1.5 right-0 bg-card border border-border/90 rounded-2xl shadow-2xl p-2 space-y-2 animate-in fade-in zoom-in-95 min-w-[340px] sm:min-w-[460px] max-w-[90vw]">
           <div className="relative">
             <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -90,7 +90,7 @@ const ProductSearchCombobox = ({
             />
           </div>
 
-          <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-none pr-1">
+          <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-none pr-1">
             {filteredProducts.length === 0 ? (
               <p className="text-[11px] text-muted-foreground text-center py-3">لا توجد منتجات مطابقة للبحث.</p>
             ) : (
@@ -108,11 +108,11 @@ const ProductSearchCombobox = ({
                       setIsOpen(false);
                       setQuery('');
                     }}
-                    className={`w-full text-right p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors ${
+                    className={`w-full text-right p-2.5 rounded-xl text-xs flex items-center justify-between gap-3 transition-colors ${
                       isSel ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30' : 'hover:bg-muted/60 text-foreground'
                     }`}
                   >
-                    <span className="font-bold truncate">{p.nameAr}</span>
+                    <span className="font-bold truncate flex-1 min-w-0 text-right">{p.nameAr}</span>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[11px] font-bold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
                         {p1.toFixed(2)} ج.م
@@ -1450,17 +1450,30 @@ export const POS = () => {
             </div>
 
             {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-muted/20 p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end bg-muted/20 p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
               
-              {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (Span 4) */}
-              <div className="md:col-span-4 space-y-1 relative">
-                <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
+              {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (Span: md:col-span-6 lg:col-span-5 xl:col-span-6) */}
+              <div className="sm:col-span-2 md:col-span-6 lg:col-span-5 xl:col-span-6 space-y-1 relative">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
+                  {currentSelectedProduct && (
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full font-mono flex items-center gap-1 border ${
+                      (currentProductBranchData?.quantity || 0) > 0
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                        : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                    }`}>
+                      <span className="opacity-80">المتاح بالفرع:</span>
+                      <strong className="text-xs">{currentProductBranchData?.quantity || 0}</strong>
+                      <span className="opacity-80">ق</span>
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
+                  <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
                     <Package size={18} />
                   </div>
                   <Input
-                    placeholder="اختر أو ابحث عن المنتج..."
+                    placeholder="اختر أو ابحث عن المنتج بالاسم أو الكود..."
                     value={isDropdownOpen ? productSearchTerm : (currentSelectedProduct ? currentSelectedProduct.nameAr : productSearchTerm)}
                     onFocus={() => setIsDropdownOpen(true)}
                     onChange={(e) => {
@@ -1492,11 +1505,11 @@ export const POS = () => {
                     </button>
                   </div>
 
-                  {/* Floating Dropdown List */}
+                  {/* Floating Dropdown List - Significantly wider and comfortable layout */}
                   {isDropdownOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-30 bg-card border border-border rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                    <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-[130%] sm:w-[150%] md:w-[170%] min-w-[340px] sm:min-w-[460px] md:min-w-[540px] max-w-[90vw] p-1.5 space-y-1">
                       {filteredProducts.length === 0 ? (
-                        <div className="p-3 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
+                        <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
                       ) : (
                         filteredProducts.map(p => {
                           const bd = store.getProductBranchData(p.id, currentBranchId);
@@ -1510,23 +1523,45 @@ export const POS = () => {
                                 setProductSearchTerm('');
                                 setIsDropdownOpen(false);
                               }}
-                              className={`p-2.5 text-xs font-bold hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer flex justify-between items-center ${p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : ''}`}
+                              className={`p-2.5 rounded-xl text-xs font-bold hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer flex justify-between items-center gap-3 transition-colors ${
+                                p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : 'text-foreground'
+                              }`}
                             >
-                              <span className="flex items-center gap-1.5 truncate">
-                                <Package size={14} className="text-amber-500 shrink-0" />
-                                <span className="truncate">{p.nameAr}</span>
-                                {categoriesList.find(c => c.id === p.categoryId) && (
-                                  <span className="text-[9px] font-normal px-1.5 py-0.5 bg-muted text-muted-foreground rounded-md shrink-0">
-                                    {categoriesList.find(c => c.id === p.categoryId)?.nameAr}
-                                  </span>
-                                )}
-                              </span>
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                                  <Package size={15} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-foreground text-xs truncate block max-w-[220px] sm:max-w-[320px]" title={p.nameAr}>
+                                      {p.nameAr}
+                                    </span>
+                                    {categoriesList.find(c => c.id === p.categoryId) && (
+                                      <span className="text-[10px] font-normal px-2 py-0.5 bg-muted text-muted-foreground rounded-md shrink-0">
+                                        {categoriesList.find(c => c.id === p.categoryId)?.nameAr}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {p.sku && (
+                                    <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">
+                                      كود: {p.sku}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
                               <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-[11px] font-bold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
+                                <span className="text-xs font-bold font-mono text-amber-500 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
                                   {p1.toFixed(2)} ج.م
                                 </span>
-                                <span className="text-[11px] font-extrabold font-mono text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border shrink-0" title="الكمية المتاحة">
-                                  {stockCount} ق
+                                <span className={`text-[11px] font-extrabold font-mono px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
+                                  stockCount > 0 
+                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                    : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                                }`} title="الكمية المتاحة في الفرع">
+                                  <span className="text-[10px] font-normal opacity-80">المتاح:</span>
+                                  <span>{stockCount}</span>
+                                  <span className="text-[10px] font-normal opacity-80">ق</span>
                                 </span>
                               </div>
                             </div>
@@ -1538,8 +1573,8 @@ export const POS = () => {
                 </div>
               </div>
 
-              {/* 2. SELECT PRICE TIER (Span 4) */}
-              <div className="md:col-span-4 space-y-1">
+              {/* 2. SELECT PRICE TIER (Span: md:col-span-3 lg:col-span-3 xl:col-span-3) */}
+              <div className="sm:col-span-1 md:col-span-3 lg:col-span-3 xl:col-span-3 space-y-1">
                 <Label className="text-xs font-bold text-muted-foreground block">السعر</Label>
                 <CustomSelect
                   disabled={!selectedProductId}
@@ -1559,9 +1594,9 @@ export const POS = () => {
                 />
               </div>
 
-              {/* 3. QUANTITY (Span 2) */}
-              <div className="md:col-span-2 space-y-1">
-                <Label className="text-xs font-bold text-muted-foreground block text-center">الكمية (قطعة)</Label>
+              {/* 3. QUANTITY (Span: md:col-span-3 lg:col-span-2 xl:col-span-1) */}
+              <div className="sm:col-span-1 md:col-span-3 lg:col-span-2 xl:col-span-1 space-y-1">
+                <Label className="text-xs font-bold text-muted-foreground block text-center">الكمية</Label>
                 <Input
                   type="number"
                   min={1}
@@ -1583,13 +1618,13 @@ export const POS = () => {
                 />
               </div>
 
-              {/* 4. ADD BUTTON (Span 2) */}
-              <div className="md:col-span-2">
+              {/* 4. ADD BUTTON (Span: md:col-span-12 lg:col-span-2 xl:col-span-2) */}
+              <div className="sm:col-span-2 md:col-span-12 lg:col-span-2 xl:col-span-2">
                 <Button
                   type="button"
                   onClick={handleAddProductToCart}
                   disabled={!selectedProductId}
-                  className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-full shadow-sm"
+                  className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-sm"
                 >
                   إضافة
                 </Button>
@@ -1614,7 +1649,7 @@ export const POS = () => {
                     <p className="text-xs italic">السلة فارغة. اختر منتجاً من الأعلى أو قم بمسح كود QR لإضافته للفاتورة.</p>
                   </div>
                 ) : (
-                  <Table>
+                  <Table className="min-w-[500px]">
                     <TableHeader className="bg-muted/40">
                       <TableRow>
                         <TableHead className="text-xs font-bold text-right">المنتج</TableHead>
