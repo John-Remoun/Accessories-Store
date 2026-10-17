@@ -844,21 +844,29 @@ export const Products = () => {
                       
                       {/* 4 Selling Prices Grid */}
                       <div className="grid grid-cols-4 gap-1 pt-1 border-t border-border/40 text-[10px] text-center">
-                        <div className="bg-amber-500/10 p-1 rounded-xl border border-amber-500/20">
+                        <div className="bg-amber-500/10 p-1 rounded-xl border border-amber-500/20" title={`سعر 1: ${Number(branchData.price1 || 0).toFixed(2)} ج.م`}>
                           <span className="block text-[9px] text-muted-foreground font-bold">سعر 1</span>
-                          <span className="font-mono font-extrabold text-amber-500">{Number(branchData.price1 || 0).toFixed(0)}</span>
+                          <span className="font-mono font-extrabold text-amber-500 whitespace-nowrap">
+                            {Number.isInteger(Number(branchData.price1 || 0)) ? Number(branchData.price1 || 0) : Number(branchData.price1 || 0).toFixed(2)}
+                          </span>
                         </div>
-                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60">
+                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60" title={`سعر 2: ${Number(branchData.price2 || branchData.price1 || 0).toFixed(2)} ج.م`}>
                           <span className="block text-[9px] text-muted-foreground font-bold">سعر 2</span>
-                          <span className="font-mono font-extrabold text-foreground">{Number(branchData.price2 || branchData.price1 || 0).toFixed(0)}</span>
+                          <span className="font-mono font-extrabold text-foreground whitespace-nowrap">
+                            {Number.isInteger(Number(branchData.price2 || branchData.price1 || 0)) ? Number(branchData.price2 || branchData.price1 || 0) : Number(branchData.price2 || branchData.price1 || 0).toFixed(2)}
+                          </span>
                         </div>
-                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60">
+                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60" title={`سعر 3: ${Number(branchData.price3 || branchData.price1 || 0).toFixed(2)} ج.م`}>
                           <span className="block text-[9px] text-muted-foreground font-bold">سعر 3</span>
-                          <span className="font-mono font-extrabold text-foreground">{Number(branchData.price3 || branchData.price1 || 0).toFixed(0)}</span>
+                          <span className="font-mono font-extrabold text-foreground whitespace-nowrap">
+                            {Number.isInteger(Number(branchData.price3 || branchData.price1 || 0)) ? Number(branchData.price3 || branchData.price1 || 0) : Number(branchData.price3 || branchData.price1 || 0).toFixed(2)}
+                          </span>
                         </div>
-                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60">
+                        <div className="bg-muted/40 p-1 rounded-xl border border-border/60" title={`سعر 4: ${Number(branchData.price4 || branchData.price1 || 0).toFixed(2)} ج.م`}>
                           <span className="block text-[9px] text-muted-foreground font-bold">سعر 4</span>
-                          <span className="font-mono font-extrabold text-foreground">{Number(branchData.price4 || branchData.price1 || 0).toFixed(0)}</span>
+                          <span className="font-mono font-extrabold text-foreground whitespace-nowrap">
+                            {Number.isInteger(Number(branchData.price4 || branchData.price1 || 0)) ? Number(branchData.price4 || branchData.price1 || 0) : Number(branchData.price4 || branchData.price1 || 0).toFixed(2)}
+                          </span>
                         </div>
                       </div>
                     </>

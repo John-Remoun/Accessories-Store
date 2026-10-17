@@ -97,6 +97,7 @@ const ProductSearchCombobox = ({
               filteredProducts.map(p => {
                 const bd = store.getProductBranchData(p.id, activeBranchId);
                 const stockCount = Number(bd?.quantity || 0);
+                const p1 = Number(bd?.price1 || 0);
                 const isSel = p.id === selectedProductId;
                 return (
                   <button
@@ -111,10 +112,15 @@ const ProductSearchCombobox = ({
                       isSel ? 'bg-amber-500/15 text-amber-500 font-bold border border-amber-500/30' : 'hover:bg-muted/60 text-foreground'
                     }`}
                   >
-                    <span className="font-bold">{p.nameAr}</span>
-                    <span className="text-[11px] font-extrabold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 shrink-0">
-                      {stockCount}
-                    </span>
+                    <span className="font-bold truncate">{p.nameAr}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-bold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
+                        {p1.toFixed(2)} ج.م
+                      </span>
+                      <span className="text-[11px] font-extrabold font-mono text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border shrink-0" title="الكمية المتاحة">
+                        {stockCount} ق
+                      </span>
+                    </div>
                   </button>
                 );
               })
@@ -1446,8 +1452,8 @@ export const POS = () => {
             {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-muted/20 p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
               
-              {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (Span 5) */}
-              <div className="md:col-span-5 space-y-1 relative">
+              {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (Span 4) */}
+              <div className="md:col-span-4 space-y-1 relative">
                 <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
                 <div className="relative">
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
@@ -1495,6 +1501,7 @@ export const POS = () => {
                         filteredProducts.map(p => {
                           const bd = store.getProductBranchData(p.id, currentBranchId);
                           const stockCount = Number(bd?.quantity || 0);
+                          const p1 = Number(bd?.price1 || 0);
                           return (
                             <div
                               key={p.id}
@@ -1514,9 +1521,14 @@ export const POS = () => {
                                   </span>
                                 )}
                               </span>
-                              <span className="text-[11px] font-extrabold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 shrink-0">
-                                {stockCount}
-                              </span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-[11px] font-bold font-mono text-amber-500 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 whitespace-nowrap">
+                                  {p1.toFixed(2)} ج.م
+                                </span>
+                                <span className="text-[11px] font-extrabold font-mono text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border shrink-0" title="الكمية المتاحة">
+                                  {stockCount} ق
+                                </span>
+                              </div>
                             </div>
                           );
                         })
@@ -1526,8 +1538,8 @@ export const POS = () => {
                 </div>
               </div>
 
-              {/* 2. SELECT PRICE TIER (Span 3) */}
-              <div className="md:col-span-3 space-y-1">
+              {/* 2. SELECT PRICE TIER (Span 4) */}
+              <div className="md:col-span-4 space-y-1">
                 <Label className="text-xs font-bold text-muted-foreground block">السعر</Label>
                 <CustomSelect
                   disabled={!selectedProductId}
@@ -1595,7 +1607,7 @@ export const POS = () => {
               </div>
 
               {/* Cart Items Table */}
-              <div className="bg-background rounded-2xl border border-border/80 overflow-hidden min-h-[200px] flex flex-col justify-between">
+              <div className="bg-background rounded-2xl border border-border/80 overflow-x-auto min-h-[200px] flex flex-col justify-between">
                 {cart.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground space-y-2">
                     <ShoppingCart size={36} className="text-muted-foreground/30" />
@@ -1622,7 +1634,7 @@ export const POS = () => {
                             </span>
                           </TableCell>
 
-                          <TableCell className="text-center py-3 font-mono font-bold text-xs text-foreground">
+                          <TableCell className="text-center py-3 font-mono font-bold text-xs text-foreground whitespace-nowrap">
                             {item.selectedPrice.toFixed(2)} ج.م
                           </TableCell>
 

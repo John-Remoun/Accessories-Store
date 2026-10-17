@@ -1640,10 +1640,10 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
 
       {/* REAL PHYSICAL PAPER RECEIPT MODAL (Matching media_1791084693796.png) */}
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
-        <DialogContent className="max-w-md bg-card border-border overflow-hidden p-0 rounded-3xl" dir="rtl" showCloseButton={false}>
+        <DialogContent className="max-w-md w-[95vw] sm:w-full max-h-[90vh] flex flex-col bg-card border-border overflow-hidden p-0 rounded-3xl shadow-2xl" dir="rtl" showCloseButton={false}>
           
           {/* Header Bar: X on Far Right, Title in Center, Send via WhatsApp ONLY on Far Left */}
-          <div className="bg-card border-b border-border/80 p-4 flex items-center justify-between print:hidden" dir="rtl">
+          <div className="bg-card border-b border-border/80 p-4 flex items-center justify-between shrink-0 select-none print:hidden" dir="rtl">
             {/* Far Right: X Close Button */}
             <button 
               onClick={() => setSelectedInvoice(null)} 
@@ -1671,7 +1671,7 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
           </div>
           
           {selectedInvoice && (
-            <div className="p-6 bg-white text-black w-full text-right font-sans text-xs" dir="rtl">
+            <div className="p-4 sm:p-6 bg-white text-black w-full text-right font-sans text-xs flex-1 overflow-y-auto overscroll-contain" dir="rtl">
               
               {/* Logo Header matching image media_1791084693796.png */}
               <div className="text-center pb-3 border-b border-gray-300">

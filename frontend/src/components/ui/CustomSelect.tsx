@@ -62,30 +62,31 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
+        title={selectedOption ? `${selectedOption.label}${selectedOption.sublabel ? ` (${selectedOption.sublabel})` : ''}` : placeholder}
         className={`w-full flex items-center justify-between border border-border/80 bg-background text-foreground font-bold transition-all shadow-2xs hover:border-amber-500/60 focus:outline-none focus:ring-2 focus:ring-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses} ${triggerClassName} ${
           isOpen ? 'border-amber-500 ring-2 ring-amber-500/20' : ''
         }`}
       >
-        <div className="truncate flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
           {(selectedOption?.icon || icon) && (
             <span className="shrink-0 text-amber-500">{selectedOption?.icon || icon}</span>
           )}
           {selectedOption ? (
-            <div className="flex items-center gap-1.5 truncate">
-              <span className="truncate">{selectedOption.label}</span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="whitespace-nowrap font-bold text-xs truncate">{selectedOption.label}</span>
               {selectedOption.sublabel && (
-                <span className="text-[10px] text-muted-foreground opacity-80 font-normal">
+                <span className="text-[10px] text-muted-foreground opacity-80 font-normal shrink-0 whitespace-nowrap">
                   ({selectedOption.sublabel})
                 </span>
               )}
             </div>
           ) : (
-            <span className="text-muted-foreground font-normal">{placeholder}</span>
+            <span className="text-muted-foreground font-normal whitespace-nowrap truncate">{placeholder}</span>
           )}
         </div>
         <ChevronDown
           size={16}
-          className={`text-muted-foreground shrink-0 transition-transform duration-200 ml-1 ${
+          className={`text-muted-foreground shrink-0 transition-transform duration-200 mr-auto ml-0.5 ${
             isOpen ? 'rotate-180 text-amber-500' : ''
           }`}
         />

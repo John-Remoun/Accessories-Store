@@ -1297,12 +1297,13 @@ Salla Bola & Mina`;
 
       {/* REAL PHYSICAL PAPER RECEIPT MODAL (Matching Receipt Modal) */}
       <Dialog open={!!selectedInvoice} onOpenChange={(open) => !open && setSelectedInvoice(null)}>
-        <DialogContent className="max-w-md bg-card border-border overflow-hidden p-0 rounded-3xl" dir="rtl" showCloseButton={false}>
+        <DialogContent className="max-w-md w-[95vw] sm:w-full max-h-[90vh] flex flex-col bg-card border-border overflow-hidden p-0 rounded-3xl shadow-2xl" dir="rtl" showCloseButton={false}>
           
-          <div className="bg-card border-b border-border/80 p-4 flex items-center justify-between print:hidden" dir="rtl">
+          <div className="bg-card border-b border-border/80 p-4 flex items-center justify-between shrink-0 select-none print:hidden" dir="rtl">
             <button 
               onClick={() => setSelectedInvoice(null)} 
               className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/60 shrink-0"
+              title="إغلاق"
             >
               <X size={18} />
             </button>
@@ -1323,7 +1324,7 @@ Salla Bola & Mina`;
           </div>
           
           {selectedInvoice && (
-            <div className="p-6 bg-white text-black w-full text-right font-sans text-xs" dir="rtl">
+            <div className="p-4 sm:p-6 bg-white text-black w-full text-right font-sans text-xs flex-1 overflow-y-auto overscroll-contain" dir="rtl">
               <div className="text-center pb-3 border-b border-gray-300">
                 <img src={lightLogo} alt="Salla Bola & Mina" className="h-16 mx-auto object-contain mb-1" />
               </div>
