@@ -32,7 +32,7 @@ const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 
 export const defaultPrinterConfig: PrinterServiceConfig = {
   printerName: 'Xprinter XP-246B',
-  labelWidthMm: 50,
+  labelWidthMm: 38,
   labelHeightMm: 25,
   serviceUrl: 'http://localhost:9100/print'
 };
@@ -51,12 +51,12 @@ export const getPrinterConfig = (): PrinterServiceConfig => {
 
 /**
  * Generates Native TSPL Command Stream formatted for thermal label printers (203 dpi)
- * Layout: Horizontal Landscape (50x25mm):
+ * Layout: Horizontal Landscape (38x25mm / 50x25mm):
  * - Large QR Code filling height on one side
  * - Name, Serial, Price 4 stacked beside it
  */
 export function generateTSPLCommands(job: PrintLabelJob): string {
-  const width = job.labelWidthMm || 50;
+  const width = job.labelWidthMm || 38;
   const height = job.labelHeightMm || 25;
   const copies = Math.max(1, job.copies || 1);
   const serial = (job.product.serial || '').trim();
@@ -66,10 +66,10 @@ export function generateTSPLCommands(job: PrintLabelJob): string {
     : '';
 
   // 203 DPI: 1mm = 8 dots.
-  // 50mm width = 400 dots, 25mm height = 200 dots.
-  const qrX = 16;
-  const textX = 190;
-  const textWidth = Math.max(100, (width * 8) - textX - 16);
+  // 38mm width = 304 dots, 25mm height = 200 dots.
+  const qrX = 12;
+  const textX = width >= 50 ? 190 : 150;
+  const textWidth = Math.max(80, (width * 8) - textX - 12);
 
   const commands = [
     `SIZE ${width} mm, ${height} mm`,
@@ -77,16 +77,16 @@ export function generateTSPLCommands(job: PrintLabelJob): string {
     `DIRECTION 1`,
     `CLS`,
     `; --- Large QR Code filling height ---`,
-    `QRCODE ${qrX},16,L,5,A,0,"${serial}"`,
+    `QRCODE ${qrX},16,L,${width >= 50 ? 5 : 4},A,0,"${serial}"`,
     `; --- Text column beside QR Code ---`,
     `BLOCK ${textX},16,${textWidth},60,"TSS24.BF2",0,1,1,2,1,"${name}"`,
-    `TEXT ${textX + 90},95,"2",0,1,1,2,"${serial}"`,
+    `TEXT ${textX + 60},95,"2",0,1,1,2,"${serial}"`,
   ];
 
   if (rawPrice4) {
     commands.push(
       `; --- Price Level 4 ONLY (raw number) ---`,
-      `TEXT ${textX + 90},140,"3",0,1,1,2,"${rawPrice4}"`
+      `TEXT ${textX + 60},140,"3",0,1,1,2,"${rawPrice4}"`
     );
   }
 

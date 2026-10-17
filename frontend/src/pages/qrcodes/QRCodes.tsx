@@ -71,7 +71,7 @@ export const QRCodes = () => {
         <title> </title>
         <style>
           @page {
-            size: 50mm 25mm;
+            size: 38mm 25mm;
             margin: 0mm !important;
             @top-left { content: none !important; }
             @top-center { content: none !important; }
@@ -88,8 +88,9 @@ export const QRCodes = () => {
             print-color-adjust: exact !important;
           }
           html, body {
-            width: 50mm !important;
+            width: 38mm !important;
             height: 25mm !important;
+            max-width: 38mm !important;
             max-height: 25mm !important;
             margin: 0mm !important;
             padding: 0mm !important;
@@ -100,10 +101,11 @@ export const QRCodes = () => {
             overflow: hidden !important;
           }
           .thermal-label-page {
-            width: 50mm !important;
+            width: 38mm !important;
             height: 25mm !important;
+            max-width: 38mm !important;
             max-height: 25mm !important;
-            padding: 1.5mm 2mm !important;
+            padding: 1mm 1mm !important;
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
@@ -124,8 +126,8 @@ export const QRCodes = () => {
             break-after: avoid !important;
           }
           .qr-box {
-            width: 22mm !important;
-            height: 22mm !important;
+            width: 18mm !important;
+            height: 18mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -138,19 +140,20 @@ export const QRCodes = () => {
             display: block !important;
           }
           .label-text-column {
-            flex: 1 !important;
-            height: 22mm !important;
+            width: 17mm !important;
+            max-width: 17mm !important;
+            height: 18mm !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             justify-content: space-between !important;
             text-align: center !important;
             overflow: hidden !important;
-            padding-right: 1.5mm !important;
-            padding-left: 1mm !important;
+            flex-shrink: 0 !important;
+            padding: 0 0.5mm !important;
           }
           .prod-name {
-            font-size: 8.5px !important;
+            font-size: 7.5px !important;
             font-weight: 800 !important;
             line-height: 1.15 !important;
             color: #000000 !important;
@@ -166,16 +169,16 @@ export const QRCodes = () => {
           }
           .prod-sku {
             font-family: monospace, "Courier New", Courier !important;
-            font-size: 8px !important;
+            font-size: 7.5px !important;
             font-weight: 700 !important;
             color: #000000 !important;
-            letter-spacing: 0.3px !important;
+            letter-spacing: 0.2px !important;
             line-height: 1 !important;
             text-align: center !important;
           }
           .prod-price {
             font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
-            font-size: 11px !important;
+            font-size: 10.5px !important;
             font-weight: 900 !important;
             color: #000000 !important;
             line-height: 1 !important;
@@ -196,10 +199,11 @@ export const QRCodes = () => {
       iframe.style.position = 'fixed';
       iframe.style.right = '0';
       iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.width = '300px';
+      iframe.style.height = '300px';
       iframe.style.border = '0';
       iframe.style.opacity = '0';
+      iframe.style.zIndex = '-9999';
       iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
     }

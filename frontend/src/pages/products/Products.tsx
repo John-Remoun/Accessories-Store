@@ -264,7 +264,7 @@ export const Products = () => {
   // Print Label Modal State & Thermal Printer Service Config
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [printCopies, setPrintCopies] = useState<number>(1);
-  const [labelSize, setLabelSize] = useState<'50x25' | '40x25' | '38x25' | '54x25'>('50x25');
+  const [labelSize, setLabelSize] = useState<'38x25' | '40x25' | '50x25'>('38x25');
   const [printerConfig, setPrinterConfig] = useState<PrinterServiceConfig>(getPrinterConfig());
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isSendingJob, setIsSendingJob] = useState<boolean>(false);
@@ -278,22 +278,32 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
-  // Isolated Thermal Label Printing (Calibrated for 50x25mm Landscape ticket)
+  // Isolated Thermal Label Printing (Calibrated strictly for single-ticket output)
   const handleExecutePrintLabels = () => {
     if (!printModalProduct) return;
     const copies = Math.max(1, Number(printCopies) || 1);
 
-    let widthMm = 50;
+    let widthMm = 38;
     let heightMm = 25;
-    if (labelSize === '40x25') {
+    let qrSizeMm = 18;
+    let textWidthMm = 17;
+
+    if (labelSize === '50x25') {
+      widthMm = 50;
+      heightMm = 25;
+      qrSizeMm = 21;
+      textWidthMm = 25;
+    } else if (labelSize === '40x25') {
       widthMm = 40;
       heightMm = 25;
-    } else if (labelSize === '38x25') {
+      qrSizeMm = 19;
+      textWidthMm = 18;
+    } else {
+      // Standard 38x25mm - Safe boundaries strictly fitting 1 ticket
       widthMm = 38;
       heightMm = 25;
-    } else if (labelSize === '54x25') {
-      widthMm = 54;
-      heightMm = 25;
+      qrSizeMm = 18;
+      textWidthMm = 17;
     }
 
     // Retrieve Price 4 for this product in active branch
@@ -351,6 +361,7 @@ export const Products = () => {
           html, body {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
+            max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
             margin: 0mm !important;
             padding: 0mm !important;
@@ -363,8 +374,9 @@ export const Products = () => {
           .thermal-label-page {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
+            max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
-            padding: 1.5mm 2mm !important;
+            padding: 1mm 1mm !important;
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
@@ -385,8 +397,8 @@ export const Products = () => {
             break-after: avoid !important;
           }
           .qr-box {
-            width: 22mm !important;
-            height: 22mm !important;
+            width: ${qrSizeMm}mm !important;
+            height: ${qrSizeMm}mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -399,19 +411,20 @@ export const Products = () => {
             display: block !important;
           }
           .label-text-column {
-            flex: 1 !important;
-            height: 22mm !important;
+            width: ${textWidthMm}mm !important;
+            max-width: ${textWidthMm}mm !important;
+            height: ${qrSizeMm}mm !important;
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
             justify-content: space-between !important;
             text-align: center !important;
             overflow: hidden !important;
-            padding-right: 1.5mm !important;
-            padding-left: 1mm !important;
+            flex-shrink: 0 !important;
+            padding: 0 0.5mm !important;
           }
           .prod-name {
-            font-size: 8.5px !important;
+            font-size: 7.5px !important;
             font-weight: 800 !important;
             line-height: 1.15 !important;
             color: #000000 !important;
@@ -427,16 +440,16 @@ export const Products = () => {
           }
           .prod-sku {
             font-family: monospace, "Courier New", Courier !important;
-            font-size: 8px !important;
+            font-size: 7.5px !important;
             font-weight: 700 !important;
             color: #000000 !important;
-            letter-spacing: 0.3px !important;
+            letter-spacing: 0.2px !important;
             line-height: 1 !important;
             text-align: center !important;
           }
           .prod-price {
             font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
-            font-size: 11px !important;
+            font-size: 10.5px !important;
             font-weight: 900 !important;
             color: #000000 !important;
             line-height: 1 !important;
@@ -457,10 +470,11 @@ export const Products = () => {
       iframe.style.position = 'fixed';
       iframe.style.right = '0';
       iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.width = '300px';
+      iframe.style.height = '300px';
       iframe.style.border = '0';
       iframe.style.opacity = '0';
+      iframe.style.zIndex = '-9999';
       iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
     }
@@ -1348,25 +1362,27 @@ export const Products = () => {
 
                 return (
                   <>
-                    {/* Realistic Thermal Label Sticker Preview (Exact 50x25mm Landscape proportions matching real ticket) */}
+                    {/* Realistic Thermal Label Sticker Preview */}
                     <div 
-                      className="bg-white text-black p-2.5 rounded-2xl border border-border/80 shadow-md flex flex-row items-center justify-between mx-auto overflow-hidden select-none transition-all w-[280px] h-[140px]"
+                      className={`bg-white text-black p-2 rounded-2xl border border-border/80 shadow-md flex flex-row items-center justify-between mx-auto overflow-hidden select-none transition-all ${
+                        labelSize === '50x25' ? 'w-[280px] h-[140px]' : 'w-[240px] h-[135px]'
+                      }`}
                       dir="rtl"
                     >
                       {/* Element 1: Large QR Code filling the full ticket height */}
-                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center w-[120px] h-[120px]">
-                        <QRCodeSVG value={printModalProduct.sku} size={114} level="M" />
+                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center w-[110px] h-[110px]">
+                        <QRCodeSVG value={printModalProduct.sku} size={105} level="M" />
                       </div>
 
                       {/* Elements 2, 3, 4: Column Beside QR Code (Name, Serial, Price 4) */}
-                      <div className="flex-1 h-[120px] flex flex-col items-center justify-between text-center px-1.5 py-0.5">
+                      <div className="flex-1 h-[110px] flex flex-col items-center justify-between text-center px-1 py-0.5">
                         {/* Element 2: Product Name */}
-                        <p className="font-bold text-xs text-gray-900 leading-tight line-clamp-2 w-full text-center">
+                        <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-2 w-full text-center">
                           {printModalProduct.nameAr}
                         </p>
 
                         {/* Element 3: Serial Number */}
-                        <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
+                        <p className="font-mono font-bold text-[9.5px] text-gray-700 tracking-wider">
                           {printModalProduct.sku}
                         </p>
 
@@ -1410,10 +1426,9 @@ export const Products = () => {
                   value={labelSize}
                   onChange={(val: any) => setLabelSize(val as any)}
                   options={[
-                    { value: '50x25', label: '50 × 25 مم (المقاس العرضي القياسي للتيكت)', sublabel: '5 × 2.5 سم - تلقائي' },
+                    { value: '38x25', label: '38 × 25 مم (المقاس القياسي الشائع لبكر الإكسسوارات)', sublabel: '3.8 × 2.5 سم - الافتراضي' },
                     { value: '40x25', label: '40 × 25 مم (عرضي)', sublabel: '4 × 2.5 سم' },
-                    { value: '38x25', label: '38 × 25 مم (عرضي)', sublabel: '3.8 × 2.5 سم' },
-                    { value: '54x25', label: '54 × 25 مم (عرضي)', sublabel: '5.4 × 2.5 سم' },
+                    { value: '50x25', label: '50 × 25 مم (عرضي كبير)', sublabel: '5 × 2.5 سم' },
                   ]}
                 />
               </div>
@@ -1449,6 +1464,19 @@ export const Products = () => {
                     +
                   </Button>
                 </div>
+              </div>
+
+              {/* Important Thermal Print Calibration Warning */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1.5" dir="rtl">
+                <div className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                  <Printer size={15} className="shrink-0" />
+                  <span>لضمان خروج تيكت واحد بالضبط دون خروج أي تيكت فارغ:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed opacity-95 pr-1">
+                  <li>في نافذة الطباعة: اضبط <strong>الهوامش (Margins)</strong> على <strong>بلا (None)</strong>.</li>
+                  <li>ألغِ تحديد خيار <strong>الرؤوس والتذييلات (Headers and footers)</strong>.</li>
+                  <li>تأكد أن مقاس الورق المختار في الطابعة يطابق مقاس البكرة.</li>
+                </ul>
               </div>
 
               {/* Action Buttons */}
