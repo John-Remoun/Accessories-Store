@@ -520,51 +520,102 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
 
     const cloned = (inv.items || []).map(it => {
       const bd = store.getProductBranchData(it.productId, inv.branchId);
+      const pr = Number(it.unitPrice);
+      const q = Number(it.quantity);
       return {
         physicalItemId: it.physicalItemId,
         productId: it.productId,
         productName: it.productName || store.getProduct(it.productId)?.nameAr || 'منتج',
-        unitPrice: Number(it.unitPrice || 0),
+        unitPrice: isNaN(pr) ? 0 : pr,
         unitCost: Number((it as any).unitCost !== undefined ? (it as any).unitCost : (bd?.cost || 0)),
-        quantity: Number(it.quantity || 1),
-        originalQuantity: Number(it.quantity || 1),
+        quantity: isNaN(q) || q <= 0 ? 1 : q,
+        originalQuantity: isNaN(q) || q <= 0 ? 1 : q,
       };
     });
     setEditItems(cloned);
   };
 
   const handleRemoveEditItem = (idx: number) => {
-    setEditItems(prev => prev.filter((_, i) => i !== idx));
+    setEditItems(prev => {
+      const updated = prev.filter((_, i) => i !== idx);
+      const newSub = updated.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
+      const newTot = Math.max(0, newSub - (Number(editDiscount) || 0));
+
+      if (editPaymentStatus === 'paid') {
+        setEditPaidAmount(newTot);
+        if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
+        else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
+        else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else {
+        setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
+      }
+      return updated;
+    });
   };
 
   const handleUpdateEditItemQuantity = (idx: number, delta: number) => {
     setEditItems(prev => {
       const copy = [...prev];
-      const newQty = Math.max(1, copy[idx].quantity + delta);
+      const curQty = Number(copy[idx].quantity) || 1;
+      const newQty = Math.max(1, curQty + delta);
       copy[idx] = { ...copy[idx], quantity: newQty };
+
+      const newSub = copy.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
+      const newTot = Math.max(0, newSub - (Number(editDiscount) || 0));
+
+      if (editPaymentStatus === 'paid') {
+        setEditPaidAmount(newTot);
+        if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
+        else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
+        else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else {
+        setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
+      }
       return copy;
     });
   };
 
   const handleUpdateEditItemPrice = (idx: number, newPrice: number) => {
+    const safePrice = isNaN(newPrice) ? 0 : Math.max(0, newPrice);
     setEditItems(prev => {
       const copy = [...prev];
-      copy[idx] = { ...copy[idx], unitPrice: Math.max(0, newPrice) };
+      copy[idx] = { ...copy[idx], unitPrice: safePrice };
+
+      const newSub = copy.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
+      const newTot = Math.max(0, newSub - (Number(editDiscount) || 0));
+
+      if (editPaymentStatus === 'paid') {
+        setEditPaidAmount(newTot);
+        if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
+        else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
+        else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else {
+        setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
+      }
       return copy;
     });
   };
 
   // Computations for Edit Modal
   const editSubtotal = useMemo(() => {
-    return editItems.reduce((acc, it) => acc + (it.unitPrice * (it.quantity || 1)), 0);
+    return editItems.reduce((acc, it) => {
+      const p = Number(it.unitPrice) || 0;
+      const q = Number(it.quantity) || 1;
+      return acc + (p * q);
+    }, 0);
   }, [editItems]);
 
   const editTotalCost = useMemo(() => {
-    return editItems.reduce((acc, it) => acc + ((it.unitCost || 0) * (it.quantity || 1)), 0);
+    return editItems.reduce((acc, it) => {
+      const c = Number(it.unitCost) || 0;
+      const q = Number(it.quantity) || 1;
+      return acc + (c * q);
+    }, 0);
   }, [editItems]);
 
   const editTotal = useMemo(() => {
-    return Math.max(0, editSubtotal - (editDiscount || 0));
+    const d = Number(editDiscount) || 0;
+    return Math.max(0, editSubtotal - d);
   }, [editSubtotal, editDiscount]);
 
   const editNetProfit = useMemo(() => {
@@ -737,13 +788,38 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
       setIsSubmittingEdit(true);
 
       const isMulti = editPaymentMethod === 'multi';
-      const effectivePaid = editPaymentStatus === 'paid' 
-        ? editTotal 
-        : isMulti 
-          ? (editSplitCash + editSplitVodafone + editSplitInstapay)
-          : Math.min(editPaidAmount, editTotal);
-      const effectiveRemaining = editPaymentStatus === 'paid' ? 0 : Math.max(0, editTotal - effectivePaid);
+      const cleanTotal = Number(editTotal) || 0;
+      const cleanSubtotal = Number(editSubtotal) || 0;
+      const cleanCost = Number(editTotalCost) || 0;
+      const cleanDiscount = Number(editDiscount) || 0;
+
+      const splitCash = Number(editSplitCash) || 0;
+      const splitVoda = Number(editSplitVodafone) || 0;
+      const splitInsta = Number(editSplitInstapay) || 0;
+      const splitSum = splitCash + splitVoda + splitInsta;
+
+      let effectivePaid: number;
+      if (editPaymentStatus === 'paid') {
+        effectivePaid = cleanTotal;
+      } else if (isMulti) {
+        effectivePaid = Math.min(splitSum, cleanTotal);
+      } else {
+        const pAmt = Number(editPaidAmount);
+        effectivePaid = Math.min(isNaN(pAmt) ? cleanTotal : Math.max(0, pAmt), cleanTotal);
+      }
+
+      const effectiveRemaining = editPaymentStatus === 'paid' ? 0 : Math.max(0, cleanTotal - effectivePaid);
       const effectiveStatus = effectiveRemaining <= 0 ? 'paid' : 'partial';
+
+      const finalSplitPayments = isMulti ? {
+        cash: splitCash,
+        vodafone_cash: splitVoda,
+        instapay: splitInsta,
+      } : {
+        cash: editPaymentMethod === 'cash' ? effectivePaid : 0,
+        vodafone_cash: editPaymentMethod === 'vodafone_cash' ? effectivePaid : 0,
+        instapay: editPaymentMethod === 'instapay' ? effectivePaid : 0,
+      };
 
       const updatedInvoicePayload: Invoice = {
         ...editingInvoice,
@@ -751,29 +827,21 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         customerPhone: editCustomerPhone.trim(),
         paymentMethod: editPaymentMethod,
         paymentSubMethod: (isMulti ? 'multi' : editPaymentMethod === 'vodafone_cash' ? 'vodafone_cash' : editPaymentMethod === 'instapay' ? 'instapay' : 'cash') as any,
-        splitPayments: isMulti ? {
-          cash: editSplitCash,
-          vodafone_cash: editSplitVodafone,
-          instapay: editSplitInstapay,
-        } : {
-          cash: editPaymentMethod === 'cash' ? effectivePaid : 0,
-          vodafone_cash: editPaymentMethod === 'vodafone_cash' ? effectivePaid : 0,
-          instapay: editPaymentMethod === 'instapay' ? effectivePaid : 0,
-        },
+        splitPayments: finalSplitPayments,
         paymentStatus: effectiveStatus,
         paidAmount: effectivePaid,
         remainingAmount: effectiveRemaining,
-        subtotal: editSubtotal,
-        discount: editDiscount,
-        total: editTotal,
-        totalCost: editTotalCost,
+        subtotal: cleanSubtotal,
+        discount: cleanDiscount,
+        total: cleanTotal,
+        totalCost: cleanCost,
         items: editItems.map(it => ({
           physicalItemId: it.physicalItemId,
           productId: it.productId,
           productName: it.productName,
-          unitPrice: it.unitPrice,
-          unitCost: it.unitCost,
-          quantity: it.quantity,
+          unitPrice: Number(it.unitPrice) || 0,
+          unitCost: Number(it.unitCost) || 0,
+          quantity: Number(it.quantity) || 1,
         })),
       };
 

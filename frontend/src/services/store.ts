@@ -323,7 +323,35 @@ class StoreService {
           productBranchData: Array.isArray(parsed.productBranchData) ? parsed.productBranchData : [],
           physicalItems: Array.isArray(parsed.physicalItems) ? parsed.physicalItems : [],
           customers: Array.isArray(parsed.customers) ? parsed.customers : [],
-          invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
+          invoices: (Array.isArray(parsed.invoices) ? parsed.invoices : []).map((inv: any) => {
+            if (!inv) return inv;
+            const t = Number(inv.total);
+            const cleanTot = isNaN(t) ? 0 : Math.max(0, t);
+            const p = Number(inv.paidAmount);
+            const cleanPaid = isNaN(p) ? (inv.paymentStatus === 'paid' ? cleanTot : 0) : Math.max(0, p);
+            const r = Number(inv.remainingAmount);
+            const cleanRem = isNaN(r) ? Math.max(0, cleanTot - cleanPaid) : Math.max(0, r);
+
+            let sp = inv.splitPayments;
+            if (sp) {
+              const sc = Number(sp.cash);
+              const sv = Number(sp.vodafone_cash);
+              const si = Number(sp.instapay);
+              sp = {
+                cash: isNaN(sc) ? 0 : Math.max(0, sc),
+                vodafone_cash: isNaN(sv) ? 0 : Math.max(0, sv),
+                instapay: isNaN(si) ? 0 : Math.max(0, si),
+              };
+            }
+            return {
+              ...inv,
+              total: cleanTot,
+              subtotal: isNaN(Number(inv.subtotal)) ? cleanTot : Number(inv.subtotal),
+              paidAmount: cleanPaid,
+              remainingAmount: cleanRem,
+              splitPayments: sp,
+            };
+          }),
           fixedExpenses: Array.isArray(parsed.fixedExpenses) ? parsed.fixedExpenses : [],
           compositions: Array.isArray(parsed.compositions) ? parsed.compositions : [],
           suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],

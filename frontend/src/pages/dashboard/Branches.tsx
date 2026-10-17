@@ -37,21 +37,33 @@ const getIsoDate = (dateStr: string) => {
 };
 
 const getInvoicePaid = (inv: Invoice): number => {
-  if (inv.paidAmount !== undefined) return Number(inv.paidAmount);
-  if (inv.paymentStatus === 'paid') return Number(inv.total || 0);
+  if (inv.paidAmount !== undefined && inv.paidAmount !== null) {
+    const val = Number(inv.paidAmount);
+    if (!isNaN(val)) return Math.max(0, val);
+  }
+  if (inv.paymentStatus === 'paid') {
+    const val = Number(inv.total);
+    if (!isNaN(val)) return Math.max(0, val);
+  }
   return 0;
 };
 
 const getInvoiceRemaining = (inv: Invoice): number => {
-  if (inv.remainingAmount !== undefined) return Number(inv.remainingAmount);
+  if (inv.remainingAmount !== undefined && inv.remainingAmount !== null) {
+    const val = Number(inv.remainingAmount);
+    if (!isNaN(val)) return Math.max(0, val);
+  }
   if (inv.paymentStatus === 'paid') return 0;
-  return Math.max(0, Number(inv.total || 0) - (inv.paidAmount || 0));
+  const tot = Number(inv.total || 0);
+  const paid = getInvoicePaid(inv);
+  return Math.max(0, (isNaN(tot) ? 0 : tot) - paid);
 };
 
 const getInvoiceRecognizedCost = (inv: Invoice): number => {
   const paid = getInvoicePaid(inv);
   const total = Number(inv.total || 0);
   const totalCost = Number(inv.totalCost || 0);
+  if (isNaN(paid) || isNaN(total) || isNaN(totalCost)) return 0;
   if (paid <= 0 || total <= 0 || totalCost <= 0) return 0;
   if (paid >= total) return totalCost;
   return totalCost * (paid / total);
@@ -123,14 +135,25 @@ export const Branches = () => {
 
   // Branch Specific Financial Stats
   const bInvs = store.getInvoicesByBranch(branch.id);
-  const collectedRev = bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
-  const totalRemainingDebt = bInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
-  const cost = bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
+  const collectedRev = bInvs.reduce((acc, inv) => {
+    const val = getInvoicePaid(inv);
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+  const totalRemainingDebt = bInvs.reduce((acc, inv) => {
+    const val = getInvoiceRemaining(inv);
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+  const cost = bInvs.reduce((acc, inv) => {
+    const val = getInvoiceRecognizedCost(inv);
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
 
   // Deduct fixed expenses directly from Total Collected Sales Revenue and Net Profit
-  const netRevenue = Math.max(0, collectedRev - totalFixedExpenses);
-  const grossProfit = collectedRev - cost;
-  const netProfit = grossProfit - totalFixedExpenses;
+  const safeCollected = isNaN(collectedRev) ? 0 : collectedRev;
+  const safeExpenses = isNaN(totalFixedExpenses) ? 0 : totalFixedExpenses;
+  const netRevenue = Math.max(0, safeCollected - safeExpenses);
+  const grossProfit = safeCollected - (isNaN(cost) ? 0 : cost);
+  const netProfit = grossProfit - safeExpenses;
   const isProfitable = netProfit >= 0;
 
   // Revenue Payment Method Breakdown (Cash in drawer, InstaPay, Vodafone Cash, and Deferred Debt)
@@ -142,8 +165,9 @@ export const Branches = () => {
 
     bInvs.forEach(inv => {
       const amt = getInvoicePaid(inv);
-      remainingTotal += getInvoiceRemaining(inv);
-      if (amt <= 0) return;
+      const rem = getInvoiceRemaining(inv);
+      remainingTotal += isNaN(rem) ? 0 : rem;
+      if (isNaN(amt) || amt <= 0) return;
 
       const hasSplit = inv.splitPayments && (
         inv.paymentSubMethod === 'multi' ||
@@ -153,25 +177,35 @@ export const Branches = () => {
       );
 
       if (hasSplit && inv.splitPayments) {
-        cashTotal += Number(inv.splitPayments.cash || 0);
-        vodafoneTotal += Number(inv.splitPayments.vodafone_cash || 0);
-        instapayTotal += Number(inv.splitPayments.instapay || 0);
+        const c = Number(inv.splitPayments.cash || 0);
+        const v = Number(inv.splitPayments.vodafone_cash || 0);
+        const i = Number(inv.splitPayments.instapay || 0);
+        cashTotal += isNaN(c) ? 0 : c;
+        vodafoneTotal += isNaN(v) ? 0 : v;
+        instapayTotal += isNaN(i) ? 0 : i;
       } else {
         const method = inv.paymentSubMethod || inv.paymentMethod;
+        const safeAmt = isNaN(amt) ? 0 : amt;
         if (method === 'instapay') {
-          instapayTotal += amt;
+          instapayTotal += safeAmt;
         } else if (method === 'vodafone_cash') {
-          vodafoneTotal += amt;
+          vodafoneTotal += safeAmt;
         } else {
-          cashTotal += amt;
+          cashTotal += safeAmt;
         }
       }
     });
 
     // Deduct expenses from Cash in Drawer first
-    const netCashTotal = Math.max(0, cashTotal - totalFixedExpenses);
+    const safeExpenses = isNaN(totalFixedExpenses) ? 0 : totalFixedExpenses;
+    const netCashTotal = Math.max(0, (isNaN(cashTotal) ? 0 : cashTotal) - safeExpenses);
 
-    return { cashTotal: netCashTotal, instapayTotal, vodafoneTotal, remainingTotal };
+    return { 
+      cashTotal: isNaN(netCashTotal) ? 0 : netCashTotal, 
+      instapayTotal: isNaN(instapayTotal) ? 0 : instapayTotal, 
+      vodafoneTotal: isNaN(vodafoneTotal) ? 0 : vodafoneTotal, 
+      remainingTotal: isNaN(remainingTotal) ? 0 : remainingTotal 
+    };
   }, [bInvs, totalFixedExpenses]);
 
   const allProducts = store.getProducts();

@@ -33,8 +33,14 @@ const WEEKDAY_NAMES_AR = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء'
 const FULL_WEEKDAY_NAMES_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 const getInvoicePaid = (inv: Invoice): number => {
-  if (inv.paidAmount !== undefined) return Number(inv.paidAmount);
-  if (inv.paymentStatus === 'paid') return Number(inv.total || 0);
+  if (inv.paidAmount !== undefined && inv.paidAmount !== null) {
+    const val = Number(inv.paidAmount);
+    if (!isNaN(val)) return Math.max(0, val);
+  }
+  if (inv.paymentStatus === 'paid') {
+    const val = Number(inv.total);
+    if (!isNaN(val)) return Math.max(0, val);
+  }
   return 0;
 };
 
@@ -42,6 +48,7 @@ const getInvoiceRecognizedCost = (inv: Invoice): number => {
   const paid = getInvoicePaid(inv);
   const total = Number(inv.total || 0);
   const totalCost = Number(inv.totalCost || 0);
+  if (isNaN(paid) || isNaN(total) || isNaN(totalCost)) return 0;
   if (paid <= 0 || total <= 0 || totalCost <= 0) return 0;
   if (paid >= total) return totalCost;
   return totalCost * (paid / total);

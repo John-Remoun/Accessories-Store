@@ -574,8 +574,7 @@ export class InvoiceService {
         computedTotalCost += lineCost;
 
         const invItem = transactionalEntityManager.create(InvoiceItemEntity, {
-          id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          invoice: { id: invoice.id } as any,
+          invoiceId: invoice.id,
           physicalItemId: itemPayload.physicalItemId,
           productId: itemPayload.productId,
           productName: itemPayload.productName || '',
@@ -601,6 +600,7 @@ export class InvoiceService {
       if (data.paymentMethod !== undefined) invoice.paymentMethod = data.paymentMethod;
       if (data.paymentSubMethod !== undefined) invoice.paymentSubMethod = data.paymentSubMethod;
       if (data.paymentStatus !== undefined) invoice.paymentStatus = data.paymentStatus;
+      if (data.splitPayments !== undefined) invoice.splitPayments = data.splitPayments;
 
       invoice.subtotal = computedSubtotal;
       invoice.discount = discount;
@@ -614,7 +614,7 @@ export class InvoiceService {
         invoice.remainingAmount = 0;
       } else {
         const paid = Number(data.paidAmount !== undefined ? data.paidAmount : invoice.paidAmount || 0);
-        invoice.paidAmount = Math.min(paid, computedTotal);
+        invoice.paidAmount = isNaN(paid) ? computedTotal : Math.min(paid, computedTotal);
         invoice.remainingAmount = Math.max(0, computedTotal - invoice.paidAmount);
         if (invoice.remainingAmount <= 0) {
           invoice.paymentStatus = 'paid';
