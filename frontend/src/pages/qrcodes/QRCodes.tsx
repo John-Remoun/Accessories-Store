@@ -74,9 +74,9 @@ export const QRCodes = () => {
         <meta charset="utf-8" />
         <title> </title>
         <style>
-          /* 1. ضبط مقاس الصفحة وتصفير الهوامش للطابعة الحرارية */
+          /* 1. ضبط مقاس الصفحة وتصفير الهوامش وإجبار الوضع الأفقي لمنع الشقلبة */
           @page {
-            size: 40mm 25mm;
+            size: 40mm 25mm landscape;
             margin: 0 !important;
             @top-left { content: none !important; }
             @top-center { content: none !important; }
@@ -97,6 +97,10 @@ export const QRCodes = () => {
           html, body {
             width: 40mm !important;
             height: 25mm !important;
+            max-width: 40mm !important;
+            max-height: 25mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
             overflow: hidden !important;
@@ -108,7 +112,7 @@ export const QRCodes = () => {
             height: 25mm !important;
             max-width: 40mm !important;
             max-height: 25mm !important;
-            padding: 1.5mm 2mm !important;
+            padding: 1mm 1.5mm !important;
             display: flex !important;
             flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
@@ -129,8 +133,8 @@ export const QRCodes = () => {
 
           /* 3. حاوية الـ QR كود على الشمال */
           .qr-section {
-            width: 19mm !important;
-            height: 19mm !important;
+            width: 17.5mm !important;
+            height: 17.5mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;

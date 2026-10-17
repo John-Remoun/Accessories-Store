@@ -265,6 +265,7 @@ export const Products = () => {
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [printCopies, setPrintCopies] = useState<number>(1);
   const [labelSize, setLabelSize] = useState<'40x25' | '38x25' | '50x25'>('40x25');
+  const [printOrientation, setPrintOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [printerConfig, setPrinterConfig] = useState<PrinterServiceConfig>(getPrinterConfig());
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isSendingJob, setIsSendingJob] = useState<boolean>(false);
@@ -285,8 +286,8 @@ export const Products = () => {
 
     const widthMm = labelSize === '50x25' ? 50 : labelSize === '38x25' ? 38 : 40;
     const heightMm = 25;
-    const qrWidthMm = labelSize === '50x25' ? 21 : 19;
-    const infoWidthMm = labelSize === '50x25' ? 24 : labelSize === '38x25' ? 16 : 18;
+    const qrWidthMm = labelSize === '50x25' ? 20 : 17.5;
+    const infoWidthMm = labelSize === '50x25' ? 26 : labelSize === '38x25' ? 17.5 : 19;
 
     // Retrieve Price 4 for this product in active branch
     const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
@@ -326,9 +327,9 @@ export const Products = () => {
         <meta charset="utf-8" />
         <title></title>
         <style>
-          /* 1. ضبط مقاس الصفحة وتصفير الهوامش للطابعة الحرارية */
+          /* 1. ضبط مقاس الصفحة وتصفير الهوامش وإجبار الوضع الأفقي لمنع الشقلبة */
           @page {
-            size: ${widthMm}mm ${heightMm}mm;
+            size: ${widthMm}mm ${heightMm}mm ${printOrientation};
             margin: 0 !important;
             @top-left { content: none !important; }
             @top-center { content: none !important; }
@@ -364,7 +365,7 @@ export const Products = () => {
             height: ${heightMm}mm !important;
             max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
-            padding: 1.5mm 2mm !important;
+            padding: 1mm 1.5mm !important;
             display: flex !important;
             flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
@@ -1413,20 +1414,37 @@ export const Products = () => {
               })()}
 
               {/* Label Roll Size Selector */}
-              <div className="space-y-1.5" dir="rtl">
-                <Label className="text-xs font-bold text-foreground block text-right">
-                  مقاس بكرة الملصقات (الاستيكر الحراري بالعرض):
-                </Label>
-                <CustomSelect
-                  size="sm"
-                  value={labelSize}
-                  onChange={(val: any) => setLabelSize(val as any)}
-                  options={[
-                    { value: '40x25', label: '40 × 25 مم (المقاس الفعلي للتيكت - 4 × 2.5 سم)', sublabel: 'الافتراضي' },
-                    { value: '38x25', label: '38 × 25 مم', sublabel: '3.8 × 2.5 سم' },
-                    { value: '50x25', label: '50 × 25 مم (عرضي كبير)', sublabel: '5 × 2.5 سم' },
-                  ]}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" dir="rtl">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground block text-right">
+                    مقاس التيكت:
+                  </Label>
+                  <CustomSelect
+                    size="sm"
+                    value={labelSize}
+                    onChange={(val: any) => setLabelSize(val as any)}
+                    options={[
+                      { value: '40x25', label: '40 × 25 مم (الافتراضي)', sublabel: 'المقاس الفعلي للتيكت' },
+                      { value: '38x25', label: '38 × 25 مم', sublabel: '3.8 × 2.5 سم' },
+                      { value: '50x25', label: '50 × 25 مم', sublabel: 'عرضي كبير' },
+                    ]}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-foreground block text-right">
+                    اتجاه الطباعة:
+                  </Label>
+                  <CustomSelect
+                    size="sm"
+                    value={printOrientation}
+                    onChange={(val: any) => setPrintOrientation(val as any)}
+                    options={[
+                      { value: 'landscape', label: 'بالعرض (Landscape)', sublabel: 'معدول على تيكت واحد (موصى به)' },
+                      { value: 'portrait', label: 'بالطول (Portrait)', sublabel: 'إذا كانت طابعتك مضبوطة بالطول' },
+                    ]}
+                  />
+                </div>
               </div>
 
               {/* Quantity Controls */}
@@ -1466,12 +1484,13 @@ export const Products = () => {
               <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1.5" dir="rtl">
                 <div className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                   <Printer size={15} className="shrink-0" />
-                  <span>تعليمات ضبط الطابعة لمنع خروج تيكتس فارغة نهائياً:</span>
+                  <span>تعليمات الطباعة لمنع الشقلبة وضمان خروج تيكت واحد مضبوط:</span>
                 </div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed opacity-95 pr-1">
-                  <li>في متصفح كروم: اضبط <strong>الهوامش (Margins)</strong> على <strong>بلا (None)</strong>.</li>
+                  <li>في نافذة طباعة كروم: تأكد أن <strong>الاتجاه (Layout)</strong> مضبوط على <strong>بالعرض (Landscape)</strong> لمنع خروج التيكت بالمشقلب.</li>
+                  <li>اضبط <strong>الهوامش (Margins)</strong> على <strong>بلا (None)</strong>.</li>
                   <li>ألغِ تحديد خيار <strong>الرؤوس والتذييلات (Headers and footers)</strong>.</li>
-                  <li>في إعدادات الطابعة بالويندوز (Printing Preferences): اضبط المقاس على <strong>40x25 mm</strong> ونوع الحساس <strong>Labels with Gaps (2-3mm)</strong>.</li>
+                  <li>ستلاحظ في معاينة كروم أن المستند صفحة واحدة فقط (1 من 1) وبداخله الكيو آر والبيانات معدولين تماماً.</li>
                 </ul>
               </div>
 
