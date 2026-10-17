@@ -32,8 +32,8 @@ const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 
 export const defaultPrinterConfig: PrinterServiceConfig = {
   printerName: 'Xprinter XP-246B',
-  labelWidthMm: 25,
-  labelHeightMm: 50,
+  labelWidthMm: 50,
+  labelHeightMm: 25,
   serviceUrl: 'http://localhost:9100/print'
 };
 
@@ -51,15 +51,13 @@ export const getPrinterConfig = (): PrinterServiceConfig => {
 
 /**
  * Generates Native TSPL Command Stream formatted for thermal label printers (203 dpi)
- * Layout: Strict Vertical (Portrait) 4-Element Stack:
- * 1. Element 1 (Top): Centered QR Code
- * 2. Element 2 (Below QR): Product Name
- * 3. Element 3 (Below Name): Serial Number
- * 4. Element 4 (Bottom): Price Level 4 value ONLY (raw number, e.g. "150")
+ * Layout: Horizontal Landscape (50x25mm):
+ * - Large QR Code filling height on one side
+ * - Name, Serial, Price 4 stacked beside it
  */
 export function generateTSPLCommands(job: PrintLabelJob): string {
-  const width = job.labelWidthMm || 25;
-  const height = job.labelHeightMm || 50;
+  const width = job.labelWidthMm || 50;
+  const height = job.labelHeightMm || 25;
   const copies = Math.max(1, job.copies || 1);
   const serial = (job.product.serial || '').trim();
   const name = (job.product.name || '').trim();
@@ -68,28 +66,27 @@ export function generateTSPLCommands(job: PrintLabelJob): string {
     : '';
 
   // 203 DPI: 1mm = 8 dots.
-  // For width 38mm -> 304 dots. Center X ~ 152.
-  // Center of QR with cell width 3 (~84 dots wide): X = 110
-  const qrX = Math.max(10, Math.round(((width * 8) - 84) / 2));
-  const textWidth = Math.round(width * 8 - 20);
+  // 50mm width = 400 dots, 25mm height = 200 dots.
+  const qrX = 16;
+  const textX = 190;
+  const textWidth = Math.max(100, (width * 8) - textX - 16);
 
   const commands = [
     `SIZE ${width} mm, ${height} mm`,
     `GAP 2 mm, 0 mm`,
     `DIRECTION 1`,
     `CLS`,
-    `; --- Element 1 (Top): QR Code centered ---`,
-    `QRCODE ${qrX},8,L,3,A,0,"${serial}"`,
-    `; --- Element 2: Product Name (Centered block below QR) ---`,
-    `BLOCK 10,105,${textWidth},40,"TSS24.BF2",0,1,1,2,1,"${name}"`,
-    `; --- Element 3: Serial Number (Centered below Name) ---`,
-    `TEXT 152,150,"2",0,1,1,2,"${serial}"`,
+    `; --- Large QR Code filling height ---`,
+    `QRCODE ${qrX},16,L,5,A,0,"${serial}"`,
+    `; --- Text column beside QR Code ---`,
+    `BLOCK ${textX},16,${textWidth},60,"TSS24.BF2",0,1,1,2,1,"${name}"`,
+    `TEXT ${textX + 90},95,"2",0,1,1,2,"${serial}"`,
   ];
 
   if (rawPrice4) {
     commands.push(
-      `; --- Element 4 (Bottom): Price Level 4 ONLY (raw number) ---`,
-      `TEXT 152,178,"3",0,1,1,2,"${rawPrice4}"`
+      `; --- Price Level 4 ONLY (raw number) ---`,
+      `TEXT ${textX + 90},140,"3",0,1,1,2,"${rawPrice4}"`
     );
   }
 

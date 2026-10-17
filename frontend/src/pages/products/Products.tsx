@@ -264,7 +264,7 @@ export const Products = () => {
   // Print Label Modal State & Thermal Printer Service Config
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [printCopies, setPrintCopies] = useState<number>(1);
-  const [labelSize, setLabelSize] = useState<'25x50' | '30x50' | '25x54' | '38x25'>('25x50');
+  const [labelSize, setLabelSize] = useState<'50x25' | '40x25' | '38x25' | '54x25'>('50x25');
   const [printerConfig, setPrinterConfig] = useState<PrinterServiceConfig>(getPrinterConfig());
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isSendingJob, setIsSendingJob] = useState<boolean>(false);
@@ -278,21 +278,21 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
-  // Isolated Thermal Label Printing (Calibrated for 25x50mm Portrait ticket)
+  // Isolated Thermal Label Printing (Calibrated for 50x25mm Landscape ticket)
   const handleExecutePrintLabels = () => {
     if (!printModalProduct) return;
     const copies = Math.max(1, Number(printCopies) || 1);
 
-    let widthMm = 25;
-    let heightMm = 50;
-    if (labelSize === '30x50') {
-      widthMm = 30;
-      heightMm = 50;
-    } else if (labelSize === '25x54') {
-      widthMm = 25;
-      heightMm = 54;
+    let widthMm = 50;
+    let heightMm = 25;
+    if (labelSize === '40x25') {
+      widthMm = 40;
+      heightMm = 25;
     } else if (labelSize === '38x25') {
       widthMm = 38;
+      heightMm = 25;
+    } else if (labelSize === '54x25') {
+      widthMm = 54;
       heightMm = 25;
     }
 
@@ -314,9 +314,11 @@ export const Products = () => {
           <div class="qr-box">
             ${qrSvgString}
           </div>
-          <div class="prod-name">${printModalProduct.nameAr}</div>
-          <div class="prod-sku">${printModalProduct.sku}</div>
-          ${price4Display ? `<div class="prod-price">${price4Display}</div>` : ''}
+          <div class="label-text-column">
+            <div class="prod-name">${printModalProduct.nameAr}</div>
+            <div class="prod-sku">${printModalProduct.sku}</div>
+            ${price4Display ? `<div class="prod-price">${price4Display}</div>` : ''}
+          </div>
         </div>
       `
       )
@@ -362,17 +364,17 @@ export const Products = () => {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-height: ${heightMm}mm !important;
-            padding: ${heightMm >= 45 ? '2.5mm 1.5mm' : '0.6mm 1mm'} !important;
+            padding: 1.5mm 2mm !important;
             display: flex !important;
-            flex-direction: column !important;
+            flex-direction: row !important;
             align-items: center !important;
-            justify-content: space-evenly !important;
-            text-align: center !important;
+            justify-content: space-between !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             overflow: hidden !important;
             background: #ffffff !important;
             color: #000000 !important;
+            box-sizing: border-box !important;
           }
           .thermal-label-page:not(:last-child) {
             page-break-after: always !important;
@@ -383,25 +385,37 @@ export const Products = () => {
             break-after: avoid !important;
           }
           .qr-box {
-            width: ${heightMm >= 45 ? 15 : 10.5}mm !important;
-            height: ${heightMm >= 45 ? 15 : 10.5}mm !important;
+            width: 22mm !important;
+            height: 22mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            margin: 0 auto !important;
             flex-shrink: 0 !important;
+            background: #ffffff !important;
           }
           .qr-box svg {
             width: 100% !important;
             height: 100% !important;
             display: block !important;
           }
+          .label-text-column {
+            flex: 1 !important;
+            height: 22mm !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            text-align: center !important;
+            overflow: hidden !important;
+            padding-right: 1.5mm !important;
+            padding-left: 1mm !important;
+          }
           .prod-name {
-            font-size: ${heightMm >= 45 ? 8.5 : 7.5}px !important;
+            font-size: 8.5px !important;
             font-weight: 800 !important;
-            line-height: 1.2 !important;
+            line-height: 1.15 !important;
             color: #000000 !important;
-            max-width: ${widthMm - 2}mm !important;
+            max-width: 100% !important;
             white-space: normal !important;
             display: -webkit-box !important;
             -webkit-line-clamp: 2 !important;
@@ -410,21 +424,19 @@ export const Products = () => {
             text-overflow: ellipsis !important;
             text-align: center !important;
             direction: rtl !important;
-            margin: 0.3mm 0 !important;
           }
           .prod-sku {
             font-family: monospace, "Courier New", Courier !important;
-            font-size: ${heightMm >= 45 ? 8 : 7}px !important;
+            font-size: 8px !important;
             font-weight: 700 !important;
             color: #000000 !important;
             letter-spacing: 0.3px !important;
             line-height: 1 !important;
             text-align: center !important;
-            margin: 0.2mm 0 !important;
           }
           .prod-price {
             font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
-            font-size: ${heightMm >= 45 ? 11 : 9}px !important;
+            font-size: 11px !important;
             font-weight: 900 !important;
             color: #000000 !important;
             line-height: 1 !important;
@@ -1314,18 +1326,18 @@ export const Products = () => {
       {/* ULTRA-CLEAN PRINT PRODUCT LABEL MODAL DIALOG */}
       {/* ------------------------------------------------------------------------- */}
       <Dialog open={!!printModalProduct} onOpenChange={(open) => !open && setPrintModalProduct(null)}>
-        <DialogContent className="max-w-xs sm:max-w-sm w-[92vw] bg-card border-border rounded-3xl p-6 shadow-2xl space-y-5" dir="rtl">
+        <DialogContent className="max-w-md w-[92vw] max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-5 shadow-2xl overflow-hidden" dir="rtl">
           
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+          {/* Header (Pinned) */}
+          <div className="flex items-center justify-between border-b border-border/60 pb-3 shrink-0">
             <h3 className="font-bold text-base text-foreground flex items-center gap-2">
               <Printer size={18} className="text-amber-500" />
-              <span>طباعة الملصق</span>
+              <span>طباعة الملصق (بالعرض)</span>
             </h3>
           </div>
 
           {printModalProduct && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-1 pl-1">
               
               {(() => {
                 const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
@@ -1336,36 +1348,33 @@ export const Products = () => {
 
                 return (
                   <>
-                    {/* Realistic Thermal Label Sticker Preview (Exact 25x50mm Portrait proportions matching real ticket) */}
+                    {/* Realistic Thermal Label Sticker Preview (Exact 50x25mm Landscape proportions matching real ticket) */}
                     <div 
-                      className={`bg-white text-black p-3 rounded-2xl border border-border/80 shadow-md flex flex-col items-center justify-evenly mx-auto overflow-hidden select-none text-center transition-all ${
-                        labelSize === '38x25' 
-                          ? 'w-[160px] h-[115px]' 
-                          : labelSize === '30x50'
-                          ? 'w-[145px] h-[250px]'
-                          : 'w-[130px] h-[260px]'
-                      }`} 
+                      className="bg-white text-black p-2.5 rounded-2xl border border-border/80 shadow-md flex flex-row items-center justify-between mx-auto overflow-hidden select-none transition-all w-[280px] h-[140px]"
                       dir="rtl"
                     >
-                      {/* Element 1: QR Code (Top, Centered) */}
-                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center">
-                        <QRCodeSVG value={printModalProduct.sku} size={labelSize === '38x25' ? 48 : 68} level="M" />
+                      {/* Element 1: Large QR Code filling the full ticket height */}
+                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center w-[120px] h-[120px]">
+                        <QRCodeSVG value={printModalProduct.sku} size={114} level="M" />
                       </div>
 
-                      {/* Element 2: Product Name (Below QR) */}
-                      <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-2 w-full px-1">
-                        {printModalProduct.nameAr}
-                      </p>
+                      {/* Elements 2, 3, 4: Column Beside QR Code (Name, Serial, Price 4) */}
+                      <div className="flex-1 h-[120px] flex flex-col items-center justify-between text-center px-1.5 py-0.5">
+                        {/* Element 2: Product Name */}
+                        <p className="font-bold text-xs text-gray-900 leading-tight line-clamp-2 w-full text-center">
+                          {printModalProduct.nameAr}
+                        </p>
 
-                      {/* Element 3: Serial Number (Below Name) */}
-                      <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
-                        {printModalProduct.sku}
-                      </p>
+                        {/* Element 3: Serial Number */}
+                        <p className="font-mono font-bold text-[10px] text-gray-700 tracking-wider">
+                          {printModalProduct.sku}
+                        </p>
 
-                      {/* Element 4: Price Level 4 ONLY (Bottom, raw number) */}
-                      <p className="font-mono font-black text-sm text-black">
-                        {price4Display || '—'}
-                      </p>
+                        {/* Element 4: Price Level 4 ONLY */}
+                        <p className="font-mono font-black text-sm text-black">
+                          {price4Display || '—'}
+                        </p>
+                      </div>
                     </div>
 
                     {/* Product Meta Info */}
@@ -1394,17 +1403,17 @@ export const Products = () => {
               {/* Label Roll Size Selector */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-foreground block text-right">
-                  مقاس بكرة الملصقات (الاستيكر الحراري):
+                  مقاس بكرة الملصقات (الاستيكر الحراري بالعرض):
                 </Label>
                 <CustomSelect
                   size="sm"
                   value={labelSize}
                   onChange={(val: any) => setLabelSize(val as any)}
                   options={[
-                    { value: '25x50', label: '25 × 50 مم (المقاس الطولي القياسي للتيكت)', sublabel: '2.5 × 5 سم - تلقائي' },
-                    { value: '30x50', label: '30 × 50 مم (طولي)', sublabel: '3 × 5 سم' },
-                    { value: '25x54', label: '25 × 54 مم (طولي)', sublabel: '2.5 × 5.4 سم' },
+                    { value: '50x25', label: '50 × 25 مم (المقاس العرضي القياسي للتيكت)', sublabel: '5 × 2.5 سم - تلقائي' },
+                    { value: '40x25', label: '40 × 25 مم (عرضي)', sublabel: '4 × 2.5 سم' },
                     { value: '38x25', label: '38 × 25 مم (عرضي)', sublabel: '3.8 × 2.5 سم' },
+                    { value: '54x25', label: '54 × 25 مم (عرضي)', sublabel: '5.4 × 2.5 سم' },
                   ]}
                 />
               </div>
