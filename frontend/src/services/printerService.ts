@@ -32,8 +32,8 @@ const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 
 export const defaultPrinterConfig: PrinterServiceConfig = {
   printerName: 'Xprinter XP-246B',
-  labelWidthMm: 38,
-  labelHeightMm: 25,
+  labelWidthMm: 25,
+  labelHeightMm: 50,
   serviceUrl: 'http://localhost:9100/print'
 };
 
@@ -58,8 +58,8 @@ export const getPrinterConfig = (): PrinterServiceConfig => {
  * 4. Element 4 (Bottom): Price Level 4 value ONLY (raw number, e.g. "150")
  */
 export function generateTSPLCommands(job: PrintLabelJob): string {
-  const width = job.labelWidthMm || 38;
-  const height = job.labelHeightMm || 28;
+  const width = job.labelWidthMm || 25;
+  const height = job.labelHeightMm || 50;
   const copies = Math.max(1, job.copies || 1);
   const serial = (job.product.serial || '').trim();
   const name = (job.product.name || '').trim();
