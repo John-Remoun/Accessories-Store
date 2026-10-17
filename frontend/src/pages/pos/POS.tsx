@@ -1448,22 +1448,22 @@ export const POS = () => {
 
             {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
             {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
-            <div className="bg-muted/20 p-3.5 sm:p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
-              <div className="flex flex-wrap sm:flex-nowrap items-end gap-2.5 sm:gap-3">
+            <div className="bg-muted/20 p-3 sm:p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
+              <div className="flex items-end gap-1.5 sm:gap-2.5 w-full">
                 
-                {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (flex-1 min-w-[200px]) */}
-                <div className="w-full sm:flex-1 min-w-[220px] space-y-1 relative">
-                  <div className="flex items-center gap-2 h-5">
-                    <Label className="text-xs font-bold text-muted-foreground block">اختر المنتج</Label>
+                {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (flex-1 spacious) */}
+                <div className="flex-1 min-w-0 space-y-1 relative">
+                  <div className="flex items-center gap-1.5 h-5 min-w-0 overflow-hidden">
+                    <Label className="text-xs font-bold text-muted-foreground shrink-0">اختر المنتج</Label>
                     {currentSelectedProduct && (
-                      <span className="text-[11px] font-mono text-emerald-500 font-bold">
+                      <span className="text-[10px] sm:text-[11px] font-mono text-emerald-500 font-bold truncate">
                         (المتاح: {currentProductBranchData?.quantity || 0} ق)
                       </span>
                     )}
                   </div>
                   <div className="relative">
-                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
-                      <Package size={18} />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
+                      <Package size={16} />
                     </div>
                     <Input
                       placeholder="اختر أو ابحث عن منتج..."
@@ -1473,9 +1473,9 @@ export const POS = () => {
                         setProductSearchTerm(e.target.value);
                         setIsDropdownOpen(true);
                       }}
-                      className="pr-10 pl-14 h-11 text-xs font-bold rounded-xl bg-background border-border"
+                      className="pr-9 pl-11 h-11 text-xs font-bold rounded-xl bg-background border-border w-full truncate"
                     />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                       {selectedProductId && (
                         <button 
                           type="button"
@@ -1487,7 +1487,7 @@ export const POS = () => {
                           className="text-muted-foreground hover:text-foreground p-0.5"
                           title="إلغاء التحديد"
                         >
-                          <X size={14} />
+                          <X size={13} />
                         </button>
                       )}
                       <button 
@@ -1495,13 +1495,13 @@ export const POS = () => {
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         className="text-muted-foreground hover:text-foreground p-0.5"
                       >
-                        <ChevronDown size={16} />
+                        <ChevronDown size={15} />
                       </button>
                     </div>
 
                     {/* Floating Dropdown List - NO PRICE BADGE, ONLY AVAILABLE QUANTITY */}
                     {isDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full min-w-[320px] sm:min-w-[440px] max-w-[90vw] p-1.5 space-y-1">
+                      <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full min-w-[280px] sm:min-w-[420px] max-w-[90vw] p-1.5 space-y-1">
                         {filteredProducts.length === 0 ? (
                           <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
                         ) : (
@@ -1564,16 +1564,16 @@ export const POS = () => {
                   </div>
                 </div>
 
-                {/* 2. SELECT PRICE TIER (Ample fixed width so price is NEVER truncated!) */}
-                <div className="w-[calc(50%-5px)] sm:w-48 lg:w-52 shrink-0 space-y-1">
+                {/* 2. SELECT PRICE TIER */}
+                <div className="w-28 sm:w-36 md:w-44 shrink-0 space-y-1">
                   <div className="h-5 flex items-center">
-                    <Label className="text-xs font-bold text-muted-foreground block">السعر</Label>
+                    <Label className="text-xs font-bold text-muted-foreground block truncate">السعر</Label>
                   </div>
                   <CustomSelect
                     disabled={!selectedProductId}
                     value={selectedPriceTier}
                     onChange={(val: any) => setSelectedPriceTier(val)}
-                    placeholder={selectedProductId ? 'اختر السعر' : 'اختر المنتج أولاً'}
+                    placeholder={selectedProductId ? 'اختر السعر' : 'السعر'}
                     options={
                       currentProductBranchData
                         ? [
@@ -1587,10 +1587,10 @@ export const POS = () => {
                   />
                 </div>
 
-                {/* 3. QUANTITY (Fixed width with centered 1) */}
-                <div className="w-[calc(25%-5px)] sm:w-20 lg:w-24 shrink-0 space-y-1">
+                {/* 3. QUANTITY */}
+                <div className="w-12 sm:w-16 shrink-0 space-y-1">
                   <div className="h-5 flex items-center justify-center">
-                    <Label className="text-xs font-bold text-muted-foreground block text-center">الكمية</Label>
+                    <Label className="text-xs font-bold text-muted-foreground block text-center truncate">الكمية</Label>
                   </div>
                   <Input
                     type="number"
@@ -1609,19 +1609,23 @@ export const POS = () => {
                         setInputQuantity(rawVal);
                       }
                     }}
-                    className="h-11 text-center font-mono font-bold text-xs rounded-xl bg-background"
+                    className="h-11 text-center font-mono font-bold text-xs rounded-xl bg-background px-1"
                   />
                 </div>
 
                 {/* 4. ADD BUTTON */}
-                <div className="w-[calc(25%-5px)] sm:w-20 lg:w-24 shrink-0">
+                <div className="w-14 sm:w-20 shrink-0 space-y-1">
+                  <div className="h-5 flex items-center justify-center select-none opacity-0 pointer-events-none" aria-hidden="true">
+                    <span>إضافة</span>
+                  </div>
                   <Button
                     type="button"
                     onClick={handleAddProductToCart}
                     disabled={!selectedProductId}
-                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-sm rounded-xl shadow-sm"
+                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs sm:text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 p-0 sm:px-2"
                   >
-                    إضافة
+                    <Plus size={15} className="shrink-0 hidden sm:inline" />
+                    <span>إضافة</span>
                   </Button>
                 </div>
 
