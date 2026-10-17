@@ -7,7 +7,7 @@ import { ProductBranchDataEntity } from '../products/product-branch-data.entity'
 import { CustomerEntity } from '../customers/customer.entity';
 import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
-import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, StockUpdateItem } from '../../common/socket/socket.service';
+import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, broadcastInvoiceUpdated, StockUpdateItem } from '../../common/socket/socket.service';
 import { whatsappService } from '../whatsapp/whatsapp.service';
 
 export class InvoiceService {
@@ -440,6 +440,215 @@ export class InvoiceService {
     }
 
     return { success: true, remainingToPay };
+  }
+
+  public async updateInvoice(id: string, data: any) {
+    const result = await AppDataSource.transaction(async (transactionalEntityManager) => {
+      const invoice = await transactionalEntityManager.findOne(InvoiceEntity, {
+        where: [{ id }, { invoiceNumber: id }],
+        relations: ['invoiceItems'],
+      });
+
+      if (!invoice) {
+        throw new AppError('الفاتورة غير موجودة', 404);
+      }
+
+      const originalItems = invoice.invoiceItems || [];
+      const branchId = invoice.branchId;
+      const newItems = Array.isArray(data.items) ? data.items : [];
+
+      // Calculate stock differences
+      const originalQtyMap = new Map<string, number>();
+      for (const item of originalItems) {
+        if (item.productId) {
+          originalQtyMap.set(item.productId, (originalQtyMap.get(item.productId) || 0) + Number(item.quantity || 1));
+        }
+      }
+
+      const newQtyMap = new Map<string, number>();
+      for (const item of newItems) {
+        if (item.productId) {
+          newQtyMap.set(item.productId, (newQtyMap.get(item.productId) || 0) + Number(item.quantity || 1));
+        }
+      }
+
+      const allProductIds = new Set([...originalQtyMap.keys(), ...newQtyMap.keys()]);
+      const updatedStockItems: StockUpdateItem[] = [];
+
+      for (const pId of allProductIds) {
+        const origQty = originalQtyMap.get(pId) || 0;
+        const newQty = newQtyMap.get(pId) || 0;
+        const diff = newQty - origQty; // if negative, quantity returned to inventory!
+
+        if (diff < 0) {
+          const returnQty = Math.abs(diff);
+          await transactionalEntityManager.query(
+            `UPDATE product_branch_data
+             SET quantity = quantity + $1, "updatedAt" = NOW()
+             WHERE "productId" = $2 AND "branchId" = $3`,
+            [returnQty, pId, branchId]
+          );
+
+          const bData: any = await transactionalEntityManager.query(
+            `SELECT p.name AS "productName", p."nameAr" AS "nameAr", pbd.quantity
+             FROM product_branch_data pbd
+             LEFT JOIN products p ON p.id = pbd."productId"
+             WHERE pbd."productId" = $1 AND pbd."branchId" = $2`,
+            [pId, branchId]
+          );
+          if (bData && bData.length > 0) {
+            const q = Number(bData[0].quantity);
+            updatedStockItems.push({
+              productId: pId,
+              productName: bData[0].nameAr || bData[0].productName || '',
+              newQuantity: q,
+              isOutOfStock: q <= 0,
+            });
+          }
+        } else if (diff > 0) {
+          await transactionalEntityManager.query(
+            `UPDATE product_branch_data
+             SET quantity = quantity - $1, "updatedAt" = NOW()
+             WHERE "productId" = $2 AND "branchId" = $3`,
+            [diff, pId, branchId]
+          );
+
+          const bData: any = await transactionalEntityManager.query(
+            `SELECT p.name AS "productName", p."nameAr" AS "nameAr", pbd.quantity
+             FROM product_branch_data pbd
+             LEFT JOIN products p ON p.id = pbd."productId"
+             WHERE pbd."productId" = $1 AND pbd."branchId" = $2`,
+            [pId, branchId]
+          );
+          if (bData && bData.length > 0) {
+            const q = Number(bData[0].quantity);
+            updatedStockItems.push({
+              productId: pId,
+              productName: bData[0].nameAr || bData[0].productName || '',
+              newQuantity: q,
+              isOutOfStock: q <= 0,
+            });
+          }
+        }
+      }
+
+      // If any physical item was removed, mark it available
+      const newPhysicalIds = new Set(newItems.map((it: any) => it.physicalItemId).filter(Boolean));
+      for (const item of originalItems) {
+        if (item.physicalItemId && !newPhysicalIds.has(item.physicalItemId)) {
+          await transactionalEntityManager.query(
+            `UPDATE physical_items SET status = 'available', "updatedAt" = NOW() WHERE id = $1`,
+            [item.physicalItemId]
+          );
+        }
+      }
+
+      // Delete old invoice items
+      await transactionalEntityManager.delete(InvoiceItemEntity, { invoice: { id: invoice.id } });
+
+      // Re-create items and calculate totals
+      let computedSubtotal = 0;
+      let computedTotalCost = 0;
+      const createdItems: InvoiceItemEntity[] = [];
+
+      for (const itemPayload of newItems) {
+        const unitPrice = Number(itemPayload.unitPrice || 0);
+        const quantity = Number(itemPayload.quantity || 1);
+        
+        let unitCost = itemPayload.unitCost !== undefined && itemPayload.unitCost !== null
+          ? Number(itemPayload.unitCost)
+          : 0;
+
+        if (unitCost === 0 && itemPayload.productId) {
+          const bd = await transactionalEntityManager.findOne(ProductBranchDataEntity, {
+            where: { productId: itemPayload.productId, branchId }
+          });
+          unitCost = Number(bd?.cost || 0);
+        }
+
+        const lineTotal = unitPrice * quantity;
+        const lineCost = unitCost * quantity;
+        const lineProfit = lineTotal - lineCost;
+
+        computedSubtotal += lineTotal;
+        computedTotalCost += lineCost;
+
+        const invItem = transactionalEntityManager.create(InvoiceItemEntity, {
+          id: `item_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          invoice: { id: invoice.id } as any,
+          physicalItemId: itemPayload.physicalItemId,
+          productId: itemPayload.productId,
+          productName: itemPayload.productName || '',
+          unitPrice,
+          unitCost,
+          quantity,
+          profit: lineProfit,
+        });
+
+        createdItems.push(invItem);
+      }
+
+      if (createdItems.length > 0) {
+        await transactionalEntityManager.save(createdItems);
+      }
+
+      const discount = Number(data.discount !== undefined ? data.discount : invoice.discount || 0);
+      const computedTotal = Math.max(0, computedSubtotal - discount);
+      const computedNetProfit = computedTotal - computedTotalCost;
+
+      if (data.customerName !== undefined) invoice.customerName = data.customerName;
+      if (data.customerPhone !== undefined) invoice.customerPhone = data.customerPhone;
+      if (data.paymentMethod !== undefined) invoice.paymentMethod = data.paymentMethod;
+      if (data.paymentSubMethod !== undefined) invoice.paymentSubMethod = data.paymentSubMethod;
+      if (data.paymentStatus !== undefined) invoice.paymentStatus = data.paymentStatus;
+
+      invoice.subtotal = computedSubtotal;
+      invoice.discount = discount;
+      invoice.total = computedTotal;
+      invoice.totalCost = computedTotalCost;
+      invoice.netProfit = computedNetProfit;
+
+      // Adjust paidAmount and remainingAmount
+      if (invoice.paymentStatus === 'paid') {
+        invoice.paidAmount = computedTotal;
+        invoice.remainingAmount = 0;
+      } else {
+        const paid = Number(data.paidAmount !== undefined ? data.paidAmount : invoice.paidAmount || 0);
+        invoice.paidAmount = Math.min(paid, computedTotal);
+        invoice.remainingAmount = Math.max(0, computedTotal - invoice.paidAmount);
+        if (invoice.remainingAmount <= 0) {
+          invoice.paymentStatus = 'paid';
+        }
+      }
+
+      invoice.invoiceItems = createdItems;
+      await transactionalEntityManager.save(invoice);
+
+      return {
+        formattedInvoice: this.formatInvoiceResponse(invoice),
+        updatedStockItems,
+        targetBranchId: branchId,
+      };
+    });
+
+    // Broadcast after transaction commits
+    try {
+      broadcastInvoiceUpdated(result.formattedInvoice);
+      if (result.updatedStockItems.length > 0) {
+        broadcastStockUpdate({
+          branchId: result.targetBranchId,
+          invoiceNumber: result.formattedInvoice.invoiceNumber,
+          items: result.updatedStockItems,
+        });
+      }
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after invoice update:', bErr);
+    }
+
+    return {
+      ...result.formattedInvoice,
+      updatedStock: result.updatedStockItems,
+    };
   }
 
   private formatInvoiceResponse(invoice: InvoiceEntity) {

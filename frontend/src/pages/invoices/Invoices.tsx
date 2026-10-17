@@ -12,7 +12,8 @@ import {
   ChevronLeft, ChevronRight, Search, RotateCcw, 
   Send, Trash2, Building2, Sparkles, X, AlertTriangle,
   Star, BookOpen, CreditCard, Phone, CheckCircle2, Clock, FileText,
-  User, DollarSign, ArrowLeftRight, MessageSquareText, ShieldCheck
+  User, DollarSign, ArrowLeftRight, MessageSquareText, ShieldCheck,
+  Pencil, Plus, Minus, Save, PackageCheck, Receipt
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -470,6 +471,184 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     handleOpenWhatsAppModal(inv);
   };
 
+  // --- SUPER ADMIN: EDIT INVOICE & RETURNS STATE ---
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState<string>('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState<string>('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi'>('cash');
+  const [editPaymentStatus, setEditPaymentStatus] = useState<'paid' | 'partial' | 'deferred'>('paid');
+  const [editPaidAmount, setEditPaidAmount] = useState<number>(0);
+  const [editDiscount, setEditDiscount] = useState<number>(0);
+  const [editItems, setEditItems] = useState<Array<{
+    physicalItemId?: string;
+    productId: string;
+    productName?: string;
+    unitPrice: number;
+    unitCost: number;
+    quantity: number;
+    originalQuantity: number;
+  }>>([]);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
+
+  const handleOpenEditModal = (inv: Invoice) => {
+    setEditingInvoice(inv);
+    setEditCustomerName(inv.customerName || '');
+    setEditCustomerPhone(inv.customerPhone || '');
+    setEditPaymentMethod(inv.paymentMethod || 'cash');
+    const isPartial = (inv.remainingAmount && inv.remainingAmount > 0) || inv.paymentStatus === 'partial' || inv.paymentStatus === 'deferred';
+    setEditPaymentStatus(isPartial ? 'partial' : 'paid');
+    setEditPaidAmount(inv.paidAmount !== undefined ? inv.paidAmount : inv.total);
+    setEditDiscount(inv.discount || 0);
+
+    const cloned = (inv.items || []).map(it => {
+      const bd = store.getProductBranchData(it.productId, inv.branchId);
+      return {
+        physicalItemId: it.physicalItemId,
+        productId: it.productId,
+        productName: it.productName || store.getProduct(it.productId)?.nameAr || 'منتج',
+        unitPrice: Number(it.unitPrice || 0),
+        unitCost: Number((it as any).unitCost !== undefined ? (it as any).unitCost : (bd?.cost || 0)),
+        quantity: Number(it.quantity || 1),
+        originalQuantity: Number(it.quantity || 1),
+      };
+    });
+    setEditItems(cloned);
+  };
+
+  const handleRemoveEditItem = (idx: number) => {
+    setEditItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpdateEditItemQuantity = (idx: number, delta: number) => {
+    setEditItems(prev => {
+      const copy = [...prev];
+      const newQty = Math.max(1, copy[idx].quantity + delta);
+      copy[idx] = { ...copy[idx], quantity: newQty };
+      return copy;
+    });
+  };
+
+  const handleUpdateEditItemPrice = (idx: number, newPrice: number) => {
+    setEditItems(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], unitPrice: Math.max(0, newPrice) };
+      return copy;
+    });
+  };
+
+  // Computations for Edit Modal
+  const editSubtotal = useMemo(() => {
+    return editItems.reduce((acc, it) => acc + (it.unitPrice * (it.quantity || 1)), 0);
+  }, [editItems]);
+
+  const editTotalCost = useMemo(() => {
+    return editItems.reduce((acc, it) => acc + ((it.unitCost || 0) * (it.quantity || 1)), 0);
+  }, [editItems]);
+
+  const editTotal = useMemo(() => {
+    return Math.max(0, editSubtotal - (editDiscount || 0));
+  }, [editSubtotal, editDiscount]);
+
+  const editNetProfit = useMemo(() => {
+    return editTotal - editTotalCost;
+  }, [editTotal, editTotalCost]);
+
+  // Track returned items and quantities to be restored to inventory
+  const returnedItemsSummary = useMemo(() => {
+    if (!editingInvoice) return [];
+    const origMap = new Map<string, { name: string; qty: number }>();
+    (editingInvoice.items || []).forEach(it => {
+      const cur = origMap.get(it.productId) || { name: it.productName || 'منتج', qty: 0 };
+      cur.qty += (it.quantity || 1);
+      origMap.set(it.productId, cur);
+    });
+
+    const newMap = new Map<string, number>();
+    editItems.forEach(it => {
+      newMap.set(it.productId, (newMap.get(it.productId) || 0) + (it.quantity || 1));
+    });
+
+    const returnedList: Array<{ productId: string; productName: string; returnCount: number }> = [];
+    origMap.forEach((val, pId) => {
+      const newQ = newMap.get(pId) || 0;
+      if (val.qty > newQ) {
+        returnedList.push({
+          productId: pId,
+          productName: val.name,
+          returnCount: val.qty - newQ
+        });
+      }
+    });
+    return returnedList;
+  }, [editingInvoice, editItems]);
+
+  const originalNetProfit = useMemo(() => {
+    if (!editingInvoice) return 0;
+    return (editingInvoice.total || 0) - (editingInvoice.totalCost || 0);
+  }, [editingInvoice]);
+
+  const profitDeduction = useMemo(() => {
+    return Math.max(0, originalNetProfit - editNetProfit);
+  }, [originalNetProfit, editNetProfit]);
+
+  const handleSaveInvoiceEdit = async () => {
+    if (!editingInvoice) return;
+    if (editItems.length === 0) {
+      toast.error('لا يمكن حفظ الفاتورة بدون أي منتجات. إذا أردت إلغاء الفاتورة بالكامل يمكنك حذفها.');
+      return;
+    }
+
+    try {
+      setIsSubmittingEdit(true);
+
+      const effectivePaid = editPaymentStatus === 'paid' ? editTotal : Math.min(editPaidAmount, editTotal);
+      const effectiveRemaining = editPaymentStatus === 'paid' ? 0 : Math.max(0, editTotal - effectivePaid);
+      const effectiveStatus = effectiveRemaining <= 0 ? 'paid' : 'partial';
+
+      const updatedInvoicePayload: Invoice = {
+        ...editingInvoice,
+        customerName: editCustomerName.trim() || 'عميل فرع',
+        customerPhone: editCustomerPhone.trim(),
+        paymentMethod: editPaymentMethod,
+        paymentStatus: effectiveStatus,
+        paidAmount: effectivePaid,
+        remainingAmount: effectiveRemaining,
+        subtotal: editSubtotal,
+        discount: editDiscount,
+        total: editTotal,
+        totalCost: editTotalCost,
+        items: editItems.map(it => ({
+          physicalItemId: it.physicalItemId,
+          productId: it.productId,
+          productName: it.productName,
+          unitPrice: it.unitPrice,
+          unitCost: it.unitCost,
+          quantity: it.quantity,
+        })),
+      };
+
+      const returnedStockPayload = returnedItemsSummary.map(r => ({
+        productId: r.productId,
+        quantity: r.returnCount
+      }));
+
+      await store.updateInvoice(updatedInvoicePayload, returnedStockPayload);
+
+      toast.success(
+        returnedStockPayload.length > 0
+          ? `تم حفظ تعديلات الفاتورة بنجاح، وإرجاع ${returnedStockPayload.reduce((a, b) => a + b.quantity, 0)} قطعة للمخزن وتحديث الأرباح.`
+          : 'تم حفظ تعديلات الفاتورة بنجاح.'
+      );
+
+      setEditingInvoice(null);
+      setRefreshKey(prev => prev + 1);
+    } catch (err: any) {
+      toast.error(err?.message || 'حدث خطأ أثناء تعديل الفاتورة');
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
   // WhatsApp Statement Reminder
   const handleSendWhatsAppStatementReminder = (customerName: string, customerPhone: string, invoices: Invoice[], totalDebt: number) => {
     const msg = `*تذكير بكشف الحساب والديون المستحقة - Salla Bola & Mina*
@@ -907,6 +1086,18 @@ Salla Bola & Mina`;
                       {/* Card Action Buttons Row */}
                       <div className="pt-2 border-t border-border/40 flex items-center justify-end gap-2">
                         
+                        {/* Super Admin: تعديل الفاتورة والمرتجعات */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleOpenEditModal(inv)}
+                            className="h-8 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs"
+                            title="تعديل الفاتورة وإرجاع المنتجات (سوبر أدمن فقط)"
+                          >
+                            <Pencil size={13} />
+                            <span>تعديل</span>
+                          </button>
+                        )}
+
                         {/* Button 1: واتساب */}
                         <button
                           onClick={() => handleSendWhatsAppInvoice(inv)}
@@ -1061,6 +1252,18 @@ Salla Bola & Mina`;
                           >
                             <DollarSign size={15} />
                             <span>تسديد المتبقي</span>
+                          </button>
+                        )}
+
+                        {/* Super Admin: تعديل الفاتورة والمرتجعات */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleOpenEditModal(inv)}
+                            className="h-9 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                            title="تعديل الفاتورة وإرجاع المنتجات (سوبر أدمن فقط)"
+                          >
+                            <Pencil size={14} />
+                            <span>تعديل</span>
                           </button>
                         )}
 
@@ -1417,6 +1620,20 @@ Salla Bola & Mina`;
             </DialogTitle>
 
             <div className="flex items-center gap-2 shrink-0">
+              {isAdmin && (
+                <Button 
+                  onClick={() => {
+                    if (selectedInvoice) {
+                      handleOpenEditModal(selectedInvoice);
+                      setSelectedInvoice(null);
+                    }
+                  }}
+                  className="rounded-xl font-bold text-xs gap-1.5 bg-amber-500 hover:bg-amber-600 text-black shadow-xs"
+                >
+                  <Pencil size={14} />
+                  <span>تعديل</span>
+                </Button>
+              )}
               <Button 
                 onClick={() => selectedInvoice && handleSendWhatsAppInvoice(selectedInvoice)} 
                 className="rounded-xl font-bold text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
@@ -1888,6 +2105,331 @@ Salla Bola & Mina`;
               <span>تأكيد حذف فواتير اليوم</span>
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SUPER ADMIN EDIT INVOICE & RETURNS MODAL */}
+      <Dialog open={!!editingInvoice} onOpenChange={(open) => !open && !isSubmittingEdit && setEditingInvoice(null)}>
+        <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[90vh] flex flex-col bg-card border-border overflow-hidden p-0 rounded-3xl shadow-2xl" dir="rtl">
+          
+          {/* Modal Header */}
+          <DialogHeader className="p-5 border-b border-border/80 bg-muted/20 shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500">
+                  <Pencil size={20} />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                    <span>تعديل بيانات الفاتورة وإدارة المرتجعات</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                      سوبر أدمن
+                    </span>
+                  </DialogTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                    فاتورة رقم #{editingInvoice?.invoiceNumber} • تاريخ: {editingInvoice ? new Date(editingInvoice.date).toLocaleDateString('ar-EG') : ''}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingInvoice(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors border border-border/60"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </DialogHeader>
+
+          {/* Modal Scrollable Body */}
+          {editingInvoice && (
+            <div className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
+
+              {/* 1. Customer & Payment Details */}
+              <div className="bg-muted/20 p-4 rounded-2xl border border-border/60 space-y-4">
+                <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                  <User size={16} className="text-amber-500" />
+                  <span>بيانات العميل والدفع</span>
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Customer Name */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground block">اسم العميل</label>
+                    <Input
+                      value={editCustomerName}
+                      onChange={(e) => setEditCustomerName(e.target.value)}
+                      placeholder="اسم العميل"
+                      className="h-10 text-xs font-bold rounded-xl bg-background"
+                    />
+                  </div>
+
+                  {/* Customer Phone */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground block">رقم هاتف العميل</label>
+                    <Input
+                      type="tel"
+                      value={editCustomerPhone}
+                      onChange={(e) => setEditCustomerPhone(e.target.value)}
+                      placeholder="01xxxxxxxxx"
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  {/* Payment Method */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground block">طريقة الدفع</label>
+                    <select
+                      value={editPaymentMethod}
+                      onChange={(e) => setEditPaymentMethod(e.target.value as any)}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl bg-background border border-border text-foreground outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="cash">نقداً (كاش)</option>
+                      <option value="vodafone_cash">فودافون كاش</option>
+                      <option value="instapay">إنستاباي (InstaPay)</option>
+                      <option value="card">فيزا / بطاقة بنكية</option>
+                      <option value="transfer">تحويل بنكي</option>
+                      <option value="multi">دفع متعدد (مقسم)</option>
+                    </select>
+                  </div>
+
+                  {/* Payment Status */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground block">حالة السداد</label>
+                    <select
+                      value={editPaymentStatus}
+                      onChange={(e) => {
+                        const val = e.target.value as any;
+                        setEditPaymentStatus(val);
+                        if (val === 'paid') {
+                          setEditPaidAmount(editTotal);
+                        }
+                      }}
+                      className="w-full h-10 px-3 text-xs font-bold rounded-xl bg-background border border-border text-foreground outline-none focus:ring-1 focus:ring-amber-500"
+                    >
+                      <option value="paid">مدفوعة بالكامل</option>
+                      <option value="partial">آجل / دفع جزئي</option>
+                    </select>
+                  </div>
+
+                  {/* Paid & Remaining if Partial */}
+                  {editPaymentStatus === 'partial' && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="font-bold text-foreground block">المبلغ المدفوع حالياً (ج.م)</label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={editTotal}
+                          value={editPaidAmount}
+                          onChange={(e) => setEditPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="font-bold text-rose-400 block">المبلغ المتبقي (آجل) (ج.م)</label>
+                        <div className="h-10 px-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-mono font-bold flex items-center">
+                          {Math.max(0, editTotal - editPaidAmount).toFixed(2)} ج.م
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Discount */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="font-bold text-foreground block">الخصم الممنوح (ج.م)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editDiscount}
+                      onChange={(e) => setEditDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-background max-w-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Items List & Returns Management */}
+              <div className="bg-muted/20 p-4 rounded-2xl border border-border/60 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1">
+                  <div>
+                    <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                      <PackageCheck size={16} className="text-amber-500" />
+                      <span>منتجات الفاتورة الحالية ({editItems.length} صنف)</span>
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      لحذف منتج قام العميل بإرجاعه، اضغط على زر الحذف، أو استخدم أزرار (+) و (-) لتعديل الكمية.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="border border-border/80 rounded-xl overflow-hidden bg-background">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right border-collapse min-w-[500px]">
+                      <thead>
+                        <tr className="bg-muted/60 text-muted-foreground text-[11px] font-bold border-b border-border/80">
+                          <th className="p-2.5">المنتج</th>
+                          <th className="p-2.5 text-center">السعر</th>
+                          <th className="p-2.5 text-center">الكمية المباعة</th>
+                          <th className="p-2.5 text-center">الإجمالي</th>
+                          <th className="p-2.5 text-center">إرجاع / حذف</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {editItems.map((item, idx) => {
+                          const isReduced = (item.quantity || 1) < item.originalQuantity;
+                          const lineTotal = item.unitPrice * (item.quantity || 1);
+
+                          return (
+                            <tr key={idx} className="hover:bg-muted/20">
+                              <td className="p-2.5">
+                                <div className="font-bold text-foreground">{item.productName}</div>
+                                {isReduced && (
+                                  <span className="text-[10px] text-amber-500 font-bold block mt-0.5">
+                                    ↩️ سيتم إرجاع {item.originalQuantity - item.quantity} قطعة للمخزن
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="p-2.5 text-center">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={item.unitPrice}
+                                  onChange={(e) => handleUpdateEditItemPrice(idx, parseFloat(e.target.value) || 0)}
+                                  className="w-20 h-8 text-center text-xs font-mono font-bold bg-muted/40 border border-border rounded-lg outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                              </td>
+
+                              <td className="p-2.5 text-center">
+                                <div className="inline-flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateEditItemQuantity(idx, -1)}
+                                    disabled={item.quantity <= 1}
+                                    className="w-6 h-6 rounded flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
+                                    title="تقليل الكمية وإرجاع قطعة للمخزن"
+                                  >
+                                    <Minus size={12} />
+                                  </button>
+                                  <span className="font-mono font-bold text-xs w-6 text-center">{item.quantity}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateEditItemQuantity(idx, 1)}
+                                    className="w-6 h-6 rounded flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    title="زيادة الكمية"
+                                  >
+                                    <Plus size={12} />
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="p-2.5 text-center font-mono font-bold text-amber-500">
+                                {lineTotal.toFixed(2)} ج.م
+                              </td>
+
+                              <td className="p-2.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveEditItem(idx)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors"
+                                  title="إرجاع المنتج بالكامل للمخزن وحذفه من الفاتورة"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Returned Items Box notification */}
+                {returnedItemsSummary.length > 0 && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-[11px] text-amber-300">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-400">
+                      <RotateCcw size={14} />
+                      <span>إشعار المرتجعات التلقائي للمخزون:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-0.5 text-muted-foreground pr-2">
+                      {returnedItemsSummary.map((r, i) => (
+                        <li key={i} className="text-foreground">
+                          <strong>{r.productName}</strong>: سيتم إعادة <strong>{r.returnCount} قطعة</strong> تلقائياً إلى مخزن الفرع.
+                        </li>
+                      ))}
+                    </ul>
+                    {profitDeduction > 0 && (
+                      <div className="pt-1 text-emerald-400 font-bold border-t border-amber-500/20">
+                        • تم خصم نسبة ربح المرتجع بقيمة: <strong>-{profitDeduction.toFixed(2)} ج.م</strong> تلقائياً من إجمالي أرباح الفاتورة.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Live Financial Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-card p-4 rounded-2xl border border-border/80">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-muted-foreground">المجموع الفرعي</span>
+                  <div className="text-sm font-mono font-bold text-foreground">{editSubtotal.toFixed(2)} ج.م</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-muted-foreground">الخصم</span>
+                  <div className="text-sm font-mono font-bold text-rose-400">-{editDiscount.toFixed(2)} ج.م</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-muted-foreground">إجمالي الفاتورة الجديد</span>
+                  <div className="text-base font-mono font-extrabold text-amber-500">{editTotal.toFixed(2)} ج.م</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-muted-foreground">صافي الربح الجديد</span>
+                  <div className="text-sm font-mono font-bold text-emerald-400">{editNetProfit.toFixed(2)} ج.م</div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* Modal Footer */}
+          <DialogFooter className="p-4 border-t border-border/80 bg-muted/10 flex items-center justify-end gap-2 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmittingEdit}
+              onClick={() => setEditingInvoice(null)}
+              className="rounded-xl text-xs font-bold h-10 px-5"
+            >
+              إلغاء
+            </Button>
+
+            <Button
+              type="button"
+              disabled={isSubmittingEdit}
+              onClick={handleSaveInvoiceEdit}
+              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs h-10 px-6 rounded-xl gap-2 shadow-lg shadow-amber-950/20"
+            >
+              {isSubmittingEdit ? (
+                <>
+                  <RotateCcw className="animate-spin" size={15} />
+                  <span>جاري الحفظ...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={15} />
+                  <span>حفظ التعديل وتحديث المخزون والأرباح</span>
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+
         </DialogContent>
       </Dialog>
 

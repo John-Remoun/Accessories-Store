@@ -61,6 +61,13 @@ export function initSocketClient(): Socket {
     }
   });
 
+  socket.on('invoice:updated', (invoice: any) => {
+    console.log('⚡ [Socket.io Client] Real-time invoice:updated received:', invoice?.invoiceNumber);
+    if (invoice) {
+      store.updateInvoiceFromSocket(invoice);
+    }
+  });
+
   socket.on('invoices:deleted', (data: { ids: string[] }) => {
     console.log('⚡ [Socket.io Client] Real-time invoices:deleted received:', data?.ids);
     if (data && Array.isArray(data.ids)) {

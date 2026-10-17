@@ -43,6 +43,13 @@ class StoreService {
                 this.state.invoices.unshift(payload);
                 this.saveState(false);
               }
+            } else if (type === 'INVOICE_UPDATED' && payload) {
+              if (!this.state.invoices) this.state.invoices = [];
+              const idx = this.state.invoices.findIndex(i => i.id === payload.id || i.invoiceNumber === payload.invoiceNumber);
+              if (idx !== -1) {
+                this.state.invoices[idx] = { ...this.state.invoices[idx], ...payload };
+                this.saveState(false);
+              }
             } else if (type === 'INVOICES_DELETED' && payload && Array.isArray(payload.ids)) {
               const delSet = new Set(payload.ids);
               payload.ids.forEach((id: string) => this.tombstonedInvoiceIds.add(id));
@@ -753,6 +760,71 @@ class StoreService {
       this.state.invoices.unshift(invoice);
       this.saveState(false);
       this.notifyListeners();
+    }
+  }
+
+  public updateInvoiceFromSocket(invoice: any) {
+    if (!invoice || !invoice.id) return;
+    if (this.tombstonedInvoiceIds.has(invoice.id) || this.tombstonedInvoiceIds.has(invoice.invoiceNumber)) return;
+    if (!this.state.invoices) this.state.invoices = [];
+    const idx = this.state.invoices.findIndex(i => i.id === invoice.id || i.invoiceNumber === invoice.invoiceNumber);
+    if (idx !== -1) {
+      this.state.invoices[idx] = { ...this.state.invoices[idx], ...invoice };
+      this.saveState(false);
+      this.notifyListeners();
+    }
+  }
+
+  public async updateInvoice(updatedInvoice: Invoice, returnedStock?: Array<{ productId: string; quantity: number }>) {
+    if (!this.state.invoices) this.state.invoices = [];
+    const idx = this.state.invoices.findIndex(i => i.id === updatedInvoice.id || i.invoiceNumber === updatedInvoice.invoiceNumber);
+    if (idx !== -1) {
+      this.state.invoices[idx] = { ...this.state.invoices[idx], ...updatedInvoice };
+    } else {
+      this.state.invoices.unshift(updatedInvoice);
+    }
+
+    // Immediately restore stock locally for returned items
+    if (returnedStock && returnedStock.length > 0) {
+      for (const ret of returnedStock) {
+        const bd = (this.state.productBranchData || []).find(
+          b => b.productId === ret.productId && b.branchId === updatedInvoice.branchId
+        );
+        if (bd) {
+          bd.quantity = Math.max(0, (bd.quantity || 0) + Number(ret.quantity));
+        }
+      }
+    }
+
+    this.saveState(false);
+    this.notifyListeners();
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'INVOICE_UPDATED',
+          payload: updatedInvoice
+        });
+      } catch {}
+    }
+
+    try {
+      const serverRes = await api.updateInvoice(updatedInvoice.id, updatedInvoice);
+      if (serverRes && Array.isArray(serverRes.updatedStock) && serverRes.updatedStock.length > 0) {
+        this.applyRealtimeStockUpdate(updatedInvoice.branchId, serverRes.updatedStock, true);
+      }
+      if (serverRes && serverRes.id) {
+        const finalIdx = this.state.invoices.findIndex(i => i.id === serverRes.id || i.invoiceNumber === serverRes.invoiceNumber);
+        if (finalIdx !== -1) {
+          this.state.invoices[finalIdx] = { ...this.state.invoices[finalIdx], ...serverRes };
+          this.saveState(false);
+          this.notifyListeners();
+        }
+      }
+      return serverRes;
+    } catch (err) {
+      console.warn('API updateInvoice warning:', err);
+      return updatedInvoice;
     }
   }
 

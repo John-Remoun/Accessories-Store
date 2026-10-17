@@ -84,4 +84,15 @@ export class InvoiceController {
       next(error);
     }
   }
+
+  public async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const invoice = await invoiceService.updateInvoice(id, req.body);
+      return sendResponse(res, 200, 'Invoice updated successfully', invoice);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+

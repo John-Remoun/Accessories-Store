@@ -84,3 +84,13 @@ export function broadcastInvoicesDeleted(ids: string[]): void {
   io.emit('invoices:deleted', { ids, timestamp: new Date().toISOString() });
 }
 
+export function broadcastInvoiceUpdated(invoice: any): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting invoice updated: #${invoice?.invoiceNumber}`);
+  io.emit('invoice:updated', invoice);
+  if (invoice?.branchId) {
+    io.to(`branch:${invoice.branchId}`).emit('invoice:updated', invoice);
+  }
+}
+
+

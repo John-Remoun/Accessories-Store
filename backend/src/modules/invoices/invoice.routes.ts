@@ -20,6 +20,7 @@ router.delete('/:id', authenticate, (req, res, next) => {
 });
 router.patch('/:id/toggle-favorite', authenticate, (req, res, next) => controller.toggleFavorite(req, res, next));
 router.patch('/:id/pay', authenticate, (req, res, next) => controller.paySingleInvoice(req, res, next));
+router.put('/:id', authenticate, (req, res, next) => controller.update(req, res, next));
 router.post('/pay-customer-debt', authenticate, (req, res, next) => controller.payCustomerDebt(req, res, next));
 
 export default router;
