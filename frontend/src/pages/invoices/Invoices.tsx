@@ -13,11 +13,14 @@ import {
   Send, Trash2, Building2, Sparkles, X, AlertTriangle,
   Star, BookOpen, CreditCard, Phone, CheckCircle2, Clock, FileText,
   User, DollarSign, ArrowLeftRight, MessageSquareText, ShieldCheck,
-  Pencil, Plus, Minus, Save, PackageCheck, Receipt
+  Pencil, Plus, Minus, Save, PackageCheck, Receipt, Coins
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
+import { CustomSelect } from '../../components/ui/CustomSelect';
 import lightLogo from '../../assets/light-logo.png';
+import vodafoneLogo from '../../assets/vodafone-logo.png';
+import instapayLogo from '../../assets/instapay-logo.png';
 
 const MONTH_NAMES_AR = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -479,6 +482,9 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const [editPaymentStatus, setEditPaymentStatus] = useState<'paid' | 'partial' | 'deferred'>('paid');
   const [editPaidAmount, setEditPaidAmount] = useState<number>(0);
   const [editDiscount, setEditDiscount] = useState<number>(0);
+  const [editSplitCash, setEditSplitCash] = useState<number>(0);
+  const [editSplitVodafone, setEditSplitVodafone] = useState<number>(0);
+  const [editSplitInstapay, setEditSplitInstapay] = useState<number>(0);
   const [editItems, setEditItems] = useState<Array<{
     physicalItemId?: string;
     productId: string;
@@ -494,11 +500,23 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     setEditingInvoice(inv);
     setEditCustomerName(inv.customerName || '');
     setEditCustomerPhone(inv.customerPhone || '');
-    setEditPaymentMethod(inv.paymentMethod || 'cash');
+    const initialMethod = (inv.paymentSubMethod || inv.paymentMethod || 'cash') as any;
+    setEditPaymentMethod(initialMethod);
     const isPartial = (inv.remainingAmount && inv.remainingAmount > 0) || inv.paymentStatus === 'partial' || inv.paymentStatus === 'deferred';
     setEditPaymentStatus(isPartial ? 'partial' : 'paid');
     setEditPaidAmount(inv.paidAmount !== undefined ? inv.paidAmount : inv.total);
     setEditDiscount(inv.discount || 0);
+
+    // Populate split payments
+    if (inv.splitPayments) {
+      setEditSplitCash(Number(inv.splitPayments.cash || 0));
+      setEditSplitVodafone(Number(inv.splitPayments.vodafone_cash || 0));
+      setEditSplitInstapay(Number(inv.splitPayments.instapay || 0));
+    } else {
+      setEditSplitCash(initialMethod === 'cash' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
+      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
+      setEditSplitInstapay(initialMethod === 'instapay' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
+    }
 
     const cloned = (inv.items || []).map(it => {
       const bd = store.getProductBranchData(it.productId, inv.branchId);
@@ -591,6 +609,123 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     return Math.max(0, originalNetProfit - editNetProfit);
   }, [originalNetProfit, editNetProfit]);
 
+  const originalPaymentInfo = useMemo(() => {
+    if (!editingInvoice) return null;
+    const method = editingInvoice.paymentSubMethod || editingInvoice.paymentMethod || 'cash';
+    if (editingInvoice.splitPayments && (editingInvoice.paymentSubMethod === 'multi' || editingInvoice.paymentMethod === 'multi')) {
+      const parts = [
+        editingInvoice.splitPayments.cash ? `كاش: ${editingInvoice.splitPayments.cash} ج.م` : null,
+        editingInvoice.splitPayments.vodafone_cash ? `فودافون: ${editingInvoice.splitPayments.vodafone_cash} ج.م` : null,
+        editingInvoice.splitPayments.instapay ? `إنستاباي: ${editingInvoice.splitPayments.instapay} ج.م` : null,
+      ].filter(Boolean);
+      return {
+        name: 'دفع مقسّم (متعدد)',
+        color: 'text-amber-500 bg-amber-500/10 border-amber-500/30',
+        icon: <Coins size={14} className="shrink-0 text-amber-500" />,
+        details: parts.length > 0 ? parts.join(' • ') : undefined
+      };
+    }
+    switch (method) {
+      case 'vodafone_cash':
+        return {
+          name: 'فودافون كاش',
+          color: 'text-red-500 bg-red-500/10 border-red-500/30',
+          icon: <img src={vodafoneLogo} alt="فودافون كاش" className="w-4 h-4 object-contain shrink-0 rounded-full" />,
+        };
+      case 'instapay':
+        return {
+          name: 'إنستاباي (InstaPay)',
+          color: 'text-purple-500 bg-purple-500/10 border-purple-500/30',
+          icon: <img src={instapayLogo} alt="إنستاباي" className="w-4 h-4 object-contain shrink-0 rounded-md" />,
+        };
+      case 'card':
+        return {
+          name: 'فيزا / بطاقة بنكية',
+          color: 'text-blue-500 bg-blue-500/10 border-blue-500/30',
+          icon: <CreditCard size={14} className="shrink-0 text-blue-500" />,
+        };
+      case 'transfer':
+        return {
+          name: 'تحويل بنكي',
+          color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/30',
+          icon: <Building2 size={14} className="shrink-0 text-emerald-500" />,
+        };
+      case 'cash':
+      default:
+        return {
+          name: 'نقداً (كاش)',
+          color: 'text-amber-500 bg-amber-500/10 border-amber-500/30',
+          icon: (
+            <svg className="w-4 h-4 fill-none stroke-current shrink-0" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="2" />
+              <circle cx="12" cy="12" r="3" />
+              <path d="M6 12h.01M18 12h.01" />
+            </svg>
+          ),
+        };
+    }
+  }, [editingInvoice]);
+
+  const paymentMethodOptions = useMemo(() => [
+    {
+      value: 'cash',
+      label: 'نقداً (كاش)',
+      sublabel: 'في اليد',
+      icon: (
+        <svg className="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M6 12h.01M18 12h.01" />
+        </svg>
+      ),
+    },
+    {
+      value: 'vodafone_cash',
+      label: 'فودافون كاش',
+      sublabel: 'محفظة',
+      icon: <img src={vodafoneLogo} alt="فودافون" className="w-4 h-4 object-contain rounded-full" />,
+    },
+    {
+      value: 'instapay',
+      label: 'إنستاباي (InstaPay)',
+      sublabel: 'IPN فوري',
+      icon: <img src={instapayLogo} alt="إنستاباي" className="w-4 h-4 object-contain rounded-md" />,
+    },
+    {
+      value: 'multi',
+      label: 'دفع متعدد (مقسم)',
+      sublabel: 'أكثر من وسيلة',
+      icon: <Coins size={15} />,
+    },
+    {
+      value: 'card',
+      label: 'فيزا / بطاقة بنكية',
+      sublabel: 'POS',
+      icon: <CreditCard size={15} />,
+    },
+    {
+      value: 'transfer',
+      label: 'تحويل بنكي',
+      sublabel: 'حساب بنكي',
+      icon: <Building2 size={15} />,
+    },
+  ], []);
+
+  const paymentStatusOptions = useMemo(() => [
+    {
+      value: 'paid',
+      label: 'مدفوعة بالكامل',
+      sublabel: 'تم سداد كامل قيمة الفاتورة',
+      icon: <CheckCircle2 size={16} className="text-emerald-500" />,
+    },
+    {
+      value: 'partial',
+      label: 'آجل / دفع جزئي',
+      sublabel: 'سداد جزء والباقي آجل',
+      icon: <Clock size={16} className="text-amber-500" />,
+    },
+  ], []);
+
   const handleSaveInvoiceEdit = async () => {
     if (!editingInvoice) return;
     if (editItems.length === 0) {
@@ -601,7 +736,12 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     try {
       setIsSubmittingEdit(true);
 
-      const effectivePaid = editPaymentStatus === 'paid' ? editTotal : Math.min(editPaidAmount, editTotal);
+      const isMulti = editPaymentMethod === 'multi';
+      const effectivePaid = editPaymentStatus === 'paid' 
+        ? editTotal 
+        : isMulti 
+          ? (editSplitCash + editSplitVodafone + editSplitInstapay)
+          : Math.min(editPaidAmount, editTotal);
       const effectiveRemaining = editPaymentStatus === 'paid' ? 0 : Math.max(0, editTotal - effectivePaid);
       const effectiveStatus = effectiveRemaining <= 0 ? 'paid' : 'partial';
 
@@ -610,6 +750,16 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         customerName: editCustomerName.trim() || 'عميل فرع',
         customerPhone: editCustomerPhone.trim(),
         paymentMethod: editPaymentMethod,
+        paymentSubMethod: (isMulti ? 'multi' : editPaymentMethod === 'vodafone_cash' ? 'vodafone_cash' : editPaymentMethod === 'instapay' ? 'instapay' : 'cash') as any,
+        splitPayments: isMulti ? {
+          cash: editSplitCash,
+          vodafone_cash: editSplitVodafone,
+          instapay: editSplitInstapay,
+        } : {
+          cash: editPaymentMethod === 'cash' ? effectivePaid : 0,
+          vodafone_cash: editPaymentMethod === 'vodafone_cash' ? effectivePaid : 0,
+          instapay: editPaymentMethod === 'instapay' ? effectivePaid : 0,
+        },
         paymentStatus: effectiveStatus,
         paidAmount: effectivePaid,
         remainingAmount: effectiveRemaining,
@@ -2178,40 +2328,32 @@ Salla Bola & Mina`;
                     />
                   </div>
 
-                  {/* Payment Method */}
-                  <div className="space-y-1.5">
-                    <label className="font-bold text-foreground block">طريقة الدفع</label>
-                    <select
-                      value={editPaymentMethod}
-                      onChange={(e) => setEditPaymentMethod(e.target.value as any)}
-                      className="w-full h-10 px-3 text-xs font-bold rounded-xl bg-background border border-border text-foreground outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      <option value="cash">نقداً (كاش)</option>
-                      <option value="vodafone_cash">فودافون كاش</option>
-                      <option value="instapay">إنستاباي (InstaPay)</option>
-                      <option value="card">فيزا / بطاقة بنكية</option>
-                      <option value="transfer">تحويل بنكي</option>
-                      <option value="multi">دفع متعدد (مقسم)</option>
-                    </select>
-                  </div>
-
-                  {/* Payment Status */}
+                  {/* Payment Status (Styled with CustomSelect) */}
                   <div className="space-y-1.5">
                     <label className="font-bold text-foreground block">حالة السداد</label>
-                    <select
+                    <CustomSelect
                       value={editPaymentStatus}
-                      onChange={(e) => {
-                        const val = e.target.value as any;
-                        setEditPaymentStatus(val);
-                        if (val === 'paid') {
+                      onChange={(val) => {
+                        const sVal = val as 'paid' | 'partial';
+                        setEditPaymentStatus(sVal);
+                        if (sVal === 'paid') {
                           setEditPaidAmount(editTotal);
                         }
                       }}
-                      className="w-full h-10 px-3 text-xs font-bold rounded-xl bg-background border border-border text-foreground outline-none focus:ring-1 focus:ring-amber-500"
-                    >
-                      <option value="paid">مدفوعة بالكامل</option>
-                      <option value="partial">آجل / دفع جزئي</option>
-                    </select>
+                      options={paymentStatusOptions}
+                    />
+                  </div>
+
+                  {/* Discount */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-foreground block">الخصم الممنوح (ج.م)</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editDiscount}
+                      onChange={(e) => setEditDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
+                    />
                   </div>
 
                   {/* Paid & Remaining if Partial */}
@@ -2237,16 +2379,185 @@ Salla Bola & Mina`;
                     </>
                   )}
 
-                  {/* Discount */}
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <label className="font-bold text-foreground block">الخصم الممنوح (ج.م)</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={editDiscount}
-                      onChange={(e) => setEditDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                      className="h-10 text-xs font-mono font-bold rounded-xl bg-background max-w-xs"
-                    />
+                  {/* Payment Method Section - Distinctive POS Buttons + Custom Theme Select */}
+                  <div className="space-y-3 sm:col-span-2 pt-2 border-t border-border/50">
+                    {/* Registered / Original Payment Info */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-2xl bg-background/80 border border-border/80 gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground font-bold">طريقة الدفع المسجلة بالفاتورة:</span>
+                        {originalPaymentInfo && (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border ${originalPaymentInfo.color}`}>
+                            {originalPaymentInfo.icon}
+                            <span>{originalPaymentInfo.name}</span>
+                          </span>
+                        )}
+                      </div>
+                      {originalPaymentInfo?.details && (
+                        <span className="text-[11px] font-mono font-bold text-foreground bg-muted/60 px-2.5 py-1 rounded-xl border border-border/60">
+                          {originalPaymentInfo.details}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-foreground block text-xs">
+                          اختر طريقة الدفع المعدلة (نفس تصميم نقطة البيع):
+                        </label>
+                        <span className="text-[11px] text-amber-500 font-bold">
+                          المحدد الآن: {paymentMethodOptions.find(o => o.value === editPaymentMethod)?.label || 'نقداً'}
+                        </span>
+                      </div>
+
+                      {/* 3 Prominent POS Buttons + Multi */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {/* Cash */}
+                        <button
+                          type="button"
+                          onClick={() => setEditPaymentMethod('cash')}
+                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                            editPaymentMethod === 'cash'
+                              ? 'bg-amber-500/20 text-amber-500 border-amber-500 shadow-xs ring-1 ring-amber-500/40'
+                              : 'bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                          }`}
+                        >
+                          <svg className="w-4 h-4 fill-none stroke-current shrink-0" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="2" y="6" width="20" height="12" rx="2" />
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M6 12h.01M18 12h.01" />
+                          </svg>
+                          <span>نقداً (كاش)</span>
+                        </button>
+
+                        {/* Vodafone Cash */}
+                        <button
+                          type="button"
+                          onClick={() => setEditPaymentMethod('vodafone_cash')}
+                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                            editPaymentMethod === 'vodafone_cash'
+                              ? 'bg-red-500/20 text-red-500 border-red-500 shadow-xs ring-1 ring-red-500/40'
+                              : 'bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                          }`}
+                        >
+                          <img src={vodafoneLogo} alt="فودافون كاش" className="w-5 h-5 object-contain shrink-0 rounded-full" />
+                          <span>فودافون كاش</span>
+                        </button>
+
+                        {/* InstaPay */}
+                        <button
+                          type="button"
+                          onClick={() => setEditPaymentMethod('instapay')}
+                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                            editPaymentMethod === 'instapay'
+                              ? 'bg-purple-500/20 text-purple-500 border-purple-500 shadow-xs ring-1 ring-purple-500/40'
+                              : 'bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                          }`}
+                        >
+                          <img src={instapayLogo} alt="إنستاباي" className="w-5 h-5 object-contain shrink-0 rounded-md" />
+                          <span>إنستاباي (InstaPay)</span>
+                        </button>
+
+                        {/* Split / Multi Payment */}
+                        <button
+                          type="button"
+                          onClick={() => setEditPaymentMethod('multi')}
+                          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                            editPaymentMethod === 'multi'
+                              ? 'bg-amber-500 text-black border-amber-500 font-extrabold shadow-sm ring-1 ring-amber-400'
+                              : 'bg-background text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground'
+                          }`}
+                        >
+                          <Coins size={15} className="shrink-0" />
+                          <span>دفع مقسّم (متعدد)</span>
+                        </button>
+                      </div>
+
+                      {/* Custom Theme Dropdown for selecting any method */}
+                      <div className="pt-1">
+                        <CustomSelect
+                          value={editPaymentMethod}
+                          onChange={(val) => setEditPaymentMethod(val as any)}
+                          options={paymentMethodOptions}
+                          placeholder="أو اختر من قائمة وسائل الدفع..."
+                        />
+                      </div>
+                    </div>
+
+                    {/* Split Breakdown when multi */}
+                    {editPaymentMethod === 'multi' && (
+                      <div className="space-y-3 pt-2.5 border-t border-border/50 animate-in fade-in-50">
+                        <div className="text-[11px] text-muted-foreground">
+                          أدخل مبالغ التوزيع بين وسائل الدفع:
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          {/* Cash Split */}
+                          <div className="p-2.5 rounded-xl border border-border bg-card space-y-1.5">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                              <Coins size={14} className="text-amber-500" />
+                              <span>نقداً (كاش)</span>
+                            </span>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={editSplitCash}
+                                onChange={(e) => setEditSplitCash(Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="h-8 text-xs font-mono font-bold text-left pl-8 rounded-lg bg-background"
+                              />
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">ج.م</span>
+                            </div>
+                          </div>
+
+                          {/* Vodafone Cash Split */}
+                          <div className="p-2.5 rounded-xl border border-border bg-card space-y-1.5">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                              <img src={vodafoneLogo} alt="فودافون" className="w-3.5 h-3.5 object-contain rounded-full" />
+                              <span>فودافون كاش</span>
+                            </span>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={editSplitVodafone}
+                                onChange={(e) => setEditSplitVodafone(Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="h-8 text-xs font-mono font-bold text-left pl-8 rounded-lg bg-background"
+                              />
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">ج.م</span>
+                            </div>
+                          </div>
+
+                          {/* InstaPay Split */}
+                          <div className="p-2.5 rounded-xl border border-border bg-card space-y-1.5">
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1">
+                              <img src={instapayLogo} alt="إنستاباي" className="w-3.5 h-3.5 object-contain rounded-md" />
+                              <span>إنستاباي</span>
+                            </span>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={editSplitInstapay}
+                                onChange={(e) => setEditSplitInstapay(Math.max(0, parseFloat(e.target.value) || 0))}
+                                className="h-8 text-xs font-mono font-bold text-left pl-8 rounded-lg bg-background"
+                              />
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">ج.م</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Split Total Indicator */}
+                        <div className="p-2 rounded-xl bg-background/80 border border-border/80 text-xs flex items-center justify-between">
+                          <span className="text-muted-foreground">مجموع المبالغ الموزعة:</span>
+                          <span className={`font-mono font-bold ${(editSplitCash + editSplitVodafone + editSplitInstapay) === editTotal ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {(editSplitCash + editSplitVodafone + editSplitInstapay).toFixed(2)} ج.م
+                            {editTotal > 0 && ` (من أصل ${editTotal.toFixed(2)} ج.م)`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
