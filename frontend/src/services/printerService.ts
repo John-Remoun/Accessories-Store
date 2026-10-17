@@ -32,7 +32,7 @@ const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 
 export const defaultPrinterConfig: PrinterServiceConfig = {
   printerName: 'Xprinter XP-246B',
-  labelWidthMm: 38,
+  labelWidthMm: 40,
   labelHeightMm: 25,
   serviceUrl: 'http://localhost:9100/print'
 };
@@ -51,12 +51,12 @@ export const getPrinterConfig = (): PrinterServiceConfig => {
 
 /**
  * Generates Native TSPL Command Stream formatted for thermal label printers (203 dpi)
- * Layout: Horizontal Landscape (38x25mm / 50x25mm):
+ * Layout: Horizontal Landscape (40x25mm / 50x25mm):
  * - Large QR Code filling height on one side
  * - Name, Serial, Price 4 stacked beside it
  */
 export function generateTSPLCommands(job: PrintLabelJob): string {
-  const width = job.labelWidthMm || 38;
+  const width = job.labelWidthMm || 40;
   const height = job.labelHeightMm || 25;
   const copies = Math.max(1, job.copies || 1);
   const serial = (job.product.serial || '').trim();

@@ -38,6 +38,7 @@ export const QRCodes = () => {
     const selectedItems = filteredItems.filter(i => selectedQRs.has(i.id));
     if (selectedItems.length === 0) return;
 
+
     const labelPagesHtml = selectedItems.map(item => {
       const product = store.getProduct(item.productId);
       const bd = store.getProductBranchData(item.productId, item.branchId || 'b1');
@@ -50,14 +51,17 @@ export const QRCodes = () => {
       const qrSvgString = svgEl ? svgEl.outerHTML : '';
 
       return `
-        <div class="thermal-label-page">
-          <div class="qr-box">
+        <div class="ticket-label">
+          <!-- 1. الـ QR Code على اليسار -->
+          <div class="qr-section">
             ${qrSvgString}
           </div>
-          <div class="label-text-column">
-            <div class="prod-name">${product?.nameAr || 'منتج'}</div>
-            <div class="prod-sku">${item.id}</div>
-            ${price4Val ? `<div class="prod-price">${price4Val}</div>` : ''}
+
+          <!-- 2. التفاصيل على اليمين -->
+          <div class="info-section">
+            <div class="serial-no">${item.id}</div>
+            <div class="item-title">${product?.nameAr || 'منتج'}</div>
+            <div class="price-tag">${price4Val || '—'} <span class="currency">ج.م</span></div>
           </div>
         </div>
       `;
@@ -65,14 +69,15 @@ export const QRCodes = () => {
 
     const printDocumentHtml = `
       <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
+      <html lang="ar">
       <head>
         <meta charset="utf-8" />
         <title> </title>
         <style>
+          /* 1. ضبط مقاس الصفحة وتصفير الهوامش للطابعة الحرارية */
           @page {
-            size: 38mm 25mm;
-            margin: 0mm !important;
+            size: 40mm 25mm;
+            margin: 0 !important;
             @top-left { content: none !important; }
             @top-center { content: none !important; }
             @top-right { content: none !important; }
@@ -80,109 +85,117 @@ export const QRCodes = () => {
             @bottom-center { content: none !important; }
             @bottom-right { content: none !important; }
           }
-          *, *::before, *::after {
+
+          * {
             box-sizing: border-box !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
           html, body {
-            width: 38mm !important;
+            width: 40mm !important;
             height: 25mm !important;
-            max-width: 38mm !important;
-            max-height: 25mm !important;
-            margin: 0mm !important;
-            padding: 0mm !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", "Tahoma", sans-serif !important;
-            direction: rtl !important;
+            background-color: #ffffff !important;
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
             overflow: hidden !important;
           }
-          .thermal-label-page {
-            width: 38mm !important;
+
+          /* 2. حاوية التيكت الواحد */
+          .ticket-label {
+            width: 40mm !important;
             height: 25mm !important;
-            max-width: 38mm !important;
+            max-width: 40mm !important;
             max-height: 25mm !important;
-            padding: 1mm 1mm !important;
+            padding: 1.5mm 2mm !important;
             display: flex !important;
-            flex-direction: row !important;
+            flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
             justify-content: space-between !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
             overflow: hidden !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            box-sizing: border-box !important;
-          }
-          .thermal-label-page:not(:last-child) {
             page-break-after: always !important;
             break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            background-color: #ffffff !important;
+            box-sizing: border-box !important;
           }
-          .thermal-label-page:last-child {
+
+          .ticket-label:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
-          .qr-box {
-            width: 18mm !important;
-            height: 18mm !important;
+
+          /* 3. حاوية الـ QR كود على الشمال */
+          .qr-section {
+            width: 19mm !important;
+            height: 19mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             flex-shrink: 0 !important;
-            background: #ffffff !important;
           }
-          .qr-box svg {
+
+          .qr-section img, .qr-section svg {
             width: 100% !important;
             height: 100% !important;
+            object-fit: contain !important;
+            image-rendering: pixelated !important;
             display: block !important;
           }
-          .label-text-column {
-            width: 17mm !important;
-            max-width: 17mm !important;
-            height: 18mm !important;
+
+          /* 4. حاوية البيانات على اليمين */
+          .info-section {
+            width: 18mm !important;
+            height: 100% !important;
             display: flex !important;
             flex-direction: column !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            text-align: center !important;
+            justify-content: center !important;
+            direction: rtl !important;
+            text-align: right !important;
             overflow: hidden !important;
-            flex-shrink: 0 !important;
-            padding: 0 0.5mm !important;
+            padding-right: 0.5mm !important;
           }
-          .prod-name {
-            font-size: 7.5px !important;
-            font-weight: 800 !important;
-            line-height: 1.15 !important;
-            color: #000000 !important;
-            max-width: 100% !important;
-            white-space: normal !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
+
+          /* السيريال نمبر */
+          .serial-no {
+            font-size: 7.5pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            direction: ltr !important;
+            text-align: right !important;
+            white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            text-align: center !important;
-            direction: rtl !important;
+            margin-bottom: 0.8mm !important;
+            line-height: 1.2 !important;
           }
-          .prod-sku {
-            font-family: monospace, "Courier New", Courier !important;
-            font-size: 7.5px !important;
-            font-weight: 700 !important;
-            color: #000000 !important;
-            letter-spacing: 0.2px !important;
-            line-height: 1 !important;
-            text-align: center !important;
+
+          /* اسم الصنف */
+          .item-title {
+            font-size: 7pt !important;
+            font-weight: normal !important;
+            color: #000 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.2 !important;
+            margin-bottom: 1mm !important;
           }
-          .prod-price {
-            font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
-            font-size: 10.5px !important;
+
+          /* السعر */
+          .price-tag {
+            font-size: 9.5pt !important;
             font-weight: 900 !important;
-            color: #000000 !important;
+            color: #000 !important;
             line-height: 1 !important;
-            text-align: center !important;
+            white-space: nowrap !important;
+          }
+
+          .price-tag .currency {
+            font-size: 6pt !important;
+            font-weight: normal !important;
           }
         </style>
       </head>

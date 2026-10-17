@@ -264,7 +264,7 @@ export const Products = () => {
   // Print Label Modal State & Thermal Printer Service Config
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [printCopies, setPrintCopies] = useState<number>(1);
-  const [labelSize, setLabelSize] = useState<'38x25' | '40x25' | '50x25'>('38x25');
+  const [labelSize, setLabelSize] = useState<'40x25' | '38x25' | '50x25'>('40x25');
   const [printerConfig, setPrinterConfig] = useState<PrinterServiceConfig>(getPrinterConfig());
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const [isSendingJob, setIsSendingJob] = useState<boolean>(false);
@@ -278,33 +278,15 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
-  // Isolated Thermal Label Printing (Calibrated strictly for single-ticket output)
+  // Isolated Thermal Label Printing (Exact 40x25mm single-ticket architecture)
   const handleExecutePrintLabels = () => {
     if (!printModalProduct) return;
     const copies = Math.max(1, Number(printCopies) || 1);
 
-    let widthMm = 38;
-    let heightMm = 25;
-    let qrSizeMm = 18;
-    let textWidthMm = 17;
-
-    if (labelSize === '50x25') {
-      widthMm = 50;
-      heightMm = 25;
-      qrSizeMm = 21;
-      textWidthMm = 25;
-    } else if (labelSize === '40x25') {
-      widthMm = 40;
-      heightMm = 25;
-      qrSizeMm = 19;
-      textWidthMm = 18;
-    } else {
-      // Standard 38x25mm - Safe boundaries strictly fitting 1 ticket
-      widthMm = 38;
-      heightMm = 25;
-      qrSizeMm = 18;
-      textWidthMm = 17;
-    }
+    const widthMm = labelSize === '50x25' ? 50 : labelSize === '38x25' ? 38 : 40;
+    const heightMm = 25;
+    const qrWidthMm = labelSize === '50x25' ? 21 : 19;
+    const infoWidthMm = labelSize === '50x25' ? 24 : labelSize === '38x25' ? 16 : 18;
 
     // Retrieve Price 4 for this product in active branch
     const bd = store.getProductBranchData(printModalProduct.id, activeBranchId);
@@ -320,14 +302,17 @@ export const Products = () => {
     const labelPagesHtml = Array.from({ length: copies })
       .map(
         (_, i) => `
-        <div class="thermal-label-page" key="${i}">
-          <div class="qr-box">
+        <div class="ticket-label" key="${i}">
+          <!-- 1. الـ QR Code على اليسار -->
+          <div class="qr-section">
             ${qrSvgString}
           </div>
-          <div class="label-text-column">
-            <div class="prod-name">${printModalProduct.nameAr}</div>
-            <div class="prod-sku">${printModalProduct.sku}</div>
-            ${price4Display ? `<div class="prod-price">${price4Display}</div>` : ''}
+
+          <!-- 2. التفاصيل على اليمين -->
+          <div class="info-section">
+            <div class="serial-no">${printModalProduct.sku}</div>
+            <div class="item-title">${printModalProduct.nameAr}</div>
+            <div class="price-tag">${price4Display || '—'} <span class="currency">ج.م</span></div>
           </div>
         </div>
       `
@@ -336,14 +321,15 @@ export const Products = () => {
 
     const printDocumentHtml = `
       <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
+      <html lang="ar">
       <head>
         <meta charset="utf-8" />
         <title></title>
         <style>
+          /* 1. ضبط مقاس الصفحة وتصفير الهوامش للطابعة الحرارية */
           @page {
             size: ${widthMm}mm ${heightMm}mm;
-            margin: 0mm !important;
+            margin: 0 !important;
             @top-left { content: none !important; }
             @top-center { content: none !important; }
             @top-right { content: none !important; }
@@ -351,109 +337,121 @@ export const Products = () => {
             @bottom-center { content: none !important; }
             @bottom-right { content: none !important; }
           }
-          *, *::before, *::after {
+
+          * {
             box-sizing: border-box !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
+
           html, body {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
-            margin: 0mm !important;
-            padding: 0mm !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", "Tahoma", sans-serif !important;
-            direction: rtl !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #ffffff !important;
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
             overflow: hidden !important;
           }
-          .thermal-label-page {
+
+          /* 2. حاوية التيكت الواحد */
+          .ticket-label {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-width: ${widthMm}mm !important;
             max-height: ${heightMm}mm !important;
-            padding: 1mm 1mm !important;
+            padding: 1.5mm 2mm !important;
             display: flex !important;
-            flex-direction: row !important;
+            flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
             align-items: center !important;
             justify-content: space-between !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
             overflow: hidden !important;
-            background: #ffffff !important;
-            color: #000000 !important;
-            box-sizing: border-box !important;
-          }
-          .thermal-label-page:not(:last-child) {
             page-break-after: always !important;
             break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            background-color: #ffffff !important;
+            box-sizing: border-box !important;
           }
-          .thermal-label-page:last-child {
+
+          .ticket-label:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
-          .qr-box {
-            width: ${qrSizeMm}mm !important;
-            height: ${qrSizeMm}mm !important;
+
+          /* 3. حاوية الـ QR كود على الشمال */
+          .qr-section {
+            width: ${qrWidthMm}mm !important;
+            height: ${qrWidthMm}mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             flex-shrink: 0 !important;
-            background: #ffffff !important;
           }
-          .qr-box svg {
+
+          .qr-section img, .qr-section svg {
             width: 100% !important;
             height: 100% !important;
+            object-fit: contain !important;
+            image-rendering: pixelated !important;
             display: block !important;
           }
-          .label-text-column {
-            width: ${textWidthMm}mm !important;
-            max-width: ${textWidthMm}mm !important;
-            height: ${qrSizeMm}mm !important;
+
+          /* 4. حاوية البيانات على اليمين */
+          .info-section {
+            width: ${infoWidthMm}mm !important;
+            height: 100% !important;
             display: flex !important;
             flex-direction: column !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            text-align: center !important;
+            justify-content: center !important;
+            direction: rtl !important;
+            text-align: right !important;
             overflow: hidden !important;
-            flex-shrink: 0 !important;
-            padding: 0 0.5mm !important;
+            padding-right: 0.5mm !important;
           }
-          .prod-name {
-            font-size: 7.5px !important;
-            font-weight: 800 !important;
-            line-height: 1.15 !important;
-            color: #000000 !important;
-            max-width: 100% !important;
-            white-space: normal !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
+
+          /* السيريال نمبر */
+          .serial-no {
+            font-size: 7.5pt !important;
+            font-weight: 700 !important;
+            color: #000 !important;
+            direction: ltr !important;
+            text-align: right !important;
+            white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
-            text-align: center !important;
-            direction: rtl !important;
+            margin-bottom: 0.8mm !important;
+            line-height: 1.2 !important;
           }
-          .prod-sku {
-            font-family: monospace, "Courier New", Courier !important;
-            font-size: 7.5px !important;
-            font-weight: 700 !important;
-            color: #000000 !important;
-            letter-spacing: 0.2px !important;
-            line-height: 1 !important;
-            text-align: center !important;
+
+          /* اسم الصنف */
+          .item-title {
+            font-size: 7pt !important;
+            font-weight: normal !important;
+            color: #000 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            line-height: 1.2 !important;
+            margin-bottom: 1mm !important;
           }
-          .prod-price {
-            font-family: monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
-            font-size: 10.5px !important;
+
+          /* السعر */
+          .price-tag {
+            font-size: 9.5pt !important;
             font-weight: 900 !important;
-            color: #000000 !important;
+            color: #000 !important;
             line-height: 1 !important;
-            text-align: center !important;
+            white-space: nowrap !important;
+          }
+
+          .price-tag .currency {
+            font-size: 6pt !important;
+            font-weight: normal !important;
           }
         </style>
       </head>
@@ -1362,39 +1360,37 @@ export const Products = () => {
 
                 return (
                   <>
-                    {/* Realistic Thermal Label Sticker Preview */}
+                    {/* Realistic Thermal Label Sticker Preview (Exact 40x25mm: QR Left, Info Right) */}
                     <div 
-                      className={`bg-white text-black p-2 rounded-2xl border border-border/80 shadow-md flex flex-row items-center justify-between mx-auto overflow-hidden select-none transition-all ${
-                        labelSize === '50x25' ? 'w-[280px] h-[140px]' : 'w-[240px] h-[135px]'
-                      }`}
-                      dir="rtl"
+                      className="bg-white text-black p-2 rounded-2xl border border-border/80 shadow-md flex flex-row items-center justify-between mx-auto overflow-hidden select-none transition-all w-[260px] h-[140px]"
+                      dir="ltr"
                     >
-                      {/* Element 1: Large QR Code filling the full ticket height */}
-                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center w-[110px] h-[110px]">
-                        <QRCodeSVG value={printModalProduct.sku} size={105} level="M" />
+                      {/* Element 1: QR Code on the Left */}
+                      <div id="label-qr-preview-container" className="p-0.5 bg-white shrink-0 flex items-center justify-center w-[115px] h-[115px]">
+                        <QRCodeSVG value={printModalProduct.sku} size={110} level="M" />
                       </div>
 
-                      {/* Elements 2, 3, 4: Column Beside QR Code (Name, Serial, Price 4) */}
-                      <div className="flex-1 h-[110px] flex flex-col items-center justify-between text-center px-1 py-0.5">
-                        {/* Element 2: Product Name */}
-                        <p className="font-bold text-[11px] text-gray-900 leading-tight line-clamp-2 w-full text-center">
-                          {printModalProduct.nameAr}
-                        </p>
-
-                        {/* Element 3: Serial Number */}
-                        <p className="font-mono font-bold text-[9.5px] text-gray-700 tracking-wider">
+                      {/* Element 2: Details on the Right */}
+                      <div className="flex-1 h-[115px] flex flex-col justify-center text-right px-2" dir="rtl">
+                        {/* Serial Number */}
+                        <p className="font-mono font-bold text-[11px] text-gray-800 tracking-wider truncate mb-1" dir="ltr" style={{ textAlign: 'right' }}>
                           {printModalProduct.sku}
                         </p>
 
-                        {/* Element 4: Price Level 4 ONLY */}
-                        <p className="font-mono font-black text-sm text-black">
-                          {price4Display || '—'}
+                        {/* Item Title */}
+                        <p className="font-normal text-xs text-gray-900 leading-tight truncate mb-2">
+                          {printModalProduct.nameAr}
+                        </p>
+
+                        {/* Price Tag */}
+                        <p className="font-black text-sm text-black">
+                          {price4Display || '—'} <span className="text-[10px] font-normal">ج.م</span>
                         </p>
                       </div>
                     </div>
 
                     {/* Product Meta Info */}
-                    <div className="space-y-2 text-xs bg-muted/30 p-3.5 rounded-2xl border border-border/50">
+                    <div className="space-y-2 text-xs bg-muted/30 p-3.5 rounded-2xl border border-border/50" dir="rtl">
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground font-bold">المنتج:</span>
                         <span className="font-bold text-foreground line-clamp-1 max-w-[180px]">{printModalProduct.nameAr}</span>
@@ -1417,7 +1413,7 @@ export const Products = () => {
               })()}
 
               {/* Label Roll Size Selector */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5" dir="rtl">
                 <Label className="text-xs font-bold text-foreground block text-right">
                   مقاس بكرة الملصقات (الاستيكر الحراري بالعرض):
                 </Label>
@@ -1426,15 +1422,15 @@ export const Products = () => {
                   value={labelSize}
                   onChange={(val: any) => setLabelSize(val as any)}
                   options={[
-                    { value: '38x25', label: '38 × 25 مم (المقاس القياسي الشائع لبكر الإكسسوارات)', sublabel: '3.8 × 2.5 سم - الافتراضي' },
-                    { value: '40x25', label: '40 × 25 مم (عرضي)', sublabel: '4 × 2.5 سم' },
+                    { value: '40x25', label: '40 × 25 مم (المقاس الفعلي للتيكت - 4 × 2.5 سم)', sublabel: 'الافتراضي' },
+                    { value: '38x25', label: '38 × 25 مم', sublabel: '3.8 × 2.5 سم' },
                     { value: '50x25', label: '50 × 25 مم (عرضي كبير)', sublabel: '5 × 2.5 سم' },
                   ]}
                 />
               </div>
 
               {/* Quantity Controls */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5" dir="rtl">
                 <Label className="text-xs font-bold text-foreground block text-right">
                   عدد الملصقات (الكمية):
                 </Label>
@@ -1470,17 +1466,17 @@ export const Products = () => {
               <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 space-y-1.5" dir="rtl">
                 <div className="font-bold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                   <Printer size={15} className="shrink-0" />
-                  <span>لضمان خروج تيكت واحد بالضبط دون خروج أي تيكت فارغ:</span>
+                  <span>تعليمات ضبط الطابعة لمنع خروج تيكتس فارغة نهائياً:</span>
                 </div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] leading-relaxed opacity-95 pr-1">
-                  <li>في نافذة الطباعة: اضبط <strong>الهوامش (Margins)</strong> على <strong>بلا (None)</strong>.</li>
+                  <li>في متصفح كروم: اضبط <strong>الهوامش (Margins)</strong> على <strong>بلا (None)</strong>.</li>
                   <li>ألغِ تحديد خيار <strong>الرؤوس والتذييلات (Headers and footers)</strong>.</li>
-                  <li>تأكد أن مقاس الورق المختار في الطابعة يطابق مقاس البكرة.</li>
+                  <li>في إعدادات الطابعة بالويندوز (Printing Preferences): اضبط المقاس على <strong>40x25 mm</strong> ونوع الحساس <strong>Labels with Gaps (2-3mm)</strong>.</li>
                 </ul>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 space-y-2">
+              <div className="pt-2 space-y-2" dir="rtl">
                 <Button
                   type="button"
                   onClick={handleExecutePrintLabels}
