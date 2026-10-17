@@ -12,7 +12,7 @@ import {
   ChevronLeft, ChevronRight, Search, RotateCcw, 
   Send, Trash2, Building2, Sparkles, X, AlertTriangle,
   Star, BookOpen, CreditCard, Phone, CheckCircle2, Clock, FileText,
-  User, DollarSign, ArrowLeftRight, MessageSquareText
+  User, DollarSign, ArrowLeftRight, MessageSquareText, ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -42,29 +42,37 @@ export const Invoices = () => {
   const isAdmin = user?.role === 'admin';
   const location = useLocation();
 
-  if (!isAdmin) {
-    return (
-      <div className="p-8 text-center text-rose-500 font-bold bg-card border border-border rounded-2xl m-6" dir="rtl">
-        غير مصرح لك بالوصول لصفحة الفواتير والمبيعات (متاح للسوبر أدمن فقط).
-      </div>
-    );
-  }
-
   const allInvoices = store.getInvoices();
 
   // Active Branch Identification
   const activeBranchId = useMemo(() => {
+    if (!isAdmin && user?.branchId) {
+      return user.branchId;
+    }
     const params = new URLSearchParams(location.search);
     return params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b1';
-  }, [location.search, user?.branchId]);
+  }, [location.search, user?.branchId, isAdmin]);
 
   const activeBranch = store.getBranch(activeBranchId);
-  const activeBranchName = activeBranch?.nameAr || 'فرع أحمد عرابي';
+  const activeBranchName = activeBranch?.nameAr || 'الفرع';
+
+  // Invoices Filtering: Employees see ONLY their own invoices, Admins see all
+  const userInvoices = useMemo(() => {
+    if (isAdmin) return allInvoices;
+    if (!user) return [];
+    return allInvoices.filter(inv => {
+      const isMine = inv.employeeId === user.id || 
+                     inv.employeeId === user.username ||
+                     (user.name && (inv as any).cashierName === user.name) ||
+                     (inv.employeeId && store.getUsers().find(u => u.id === inv.employeeId)?.username === user.username);
+      return isMine;
+    });
+  }, [allInvoices, isAdmin, user]);
 
   // Branch Invoices
   const branchInvoices = useMemo(() => {
-    return allInvoices.filter(inv => inv.branchId === activeBranchId);
-  }, [allInvoices, activeBranchId]);
+    return userInvoices.filter(inv => !activeBranchId || inv.branchId === activeBranchId);
+  }, [userInvoices, activeBranchId]);
 
   // State Management
   const [activeTab, setActiveTab] = useState<'all' | 'unpaid' | 'paid' | 'favorites'>('all');
@@ -337,42 +345,129 @@ export const Invoices = () => {
     setRefreshKey(prev => prev + 1);
   };
 
-  // WhatsApp Sender Helpers
-  const handleSendWhatsAppInvoice = (inv: Invoice) => {
+  // WhatsApp Recipient Selection Modal State
+  const [whatsAppModalInvoice, setWhatsAppModalInvoice] = useState<Invoice | null>(null);
+  const [recipientType, setRecipientType] = useState<'customer' | 'bola' | 'mina'>('customer');
+  const [recipientPhoneInput, setRecipientPhoneInput] = useState<string>('');
+
+  const getAdminPhone = (type: 'bola' | 'mina') => {
+    const allUsers = store.getUsers();
+    if (type === 'bola') {
+      const bUser = allUsers.find(u => u && u.username && u.username.trim().toLowerCase() === 'bola');
+      return bUser?.phone || localStorage.getItem('super_admin_phone_bola') || '01204292945';
+    } else {
+      const mUser = allUsers.find(u => u && u.username && u.username.trim().toLowerCase() === 'mina');
+      return mUser?.phone || localStorage.getItem('super_admin_phone_mina') || '01094534953';
+    }
+  };
+
+  const handleOpenWhatsAppModal = (inv: Invoice) => {
+    setWhatsAppModalInvoice(inv);
+    setRecipientType('customer');
+    setRecipientPhoneInput(inv.customerPhone || '');
+  };
+
+  const handleSelectRecipientType = (type: 'customer' | 'bola' | 'mina') => {
+    setRecipientType(type);
+    if (type === 'customer') {
+      setRecipientPhoneInput(whatsAppModalInvoice?.customerPhone || '');
+    } else if (type === 'bola') {
+      setRecipientPhoneInput(getAdminPhone('bola'));
+    } else if (type === 'mina') {
+      setRecipientPhoneInput(getAdminPhone('mina'));
+    }
+  };
+
+  const handleConfirmSendWhatsApp = () => {
+    if (!whatsAppModalInvoice) return;
+    const cleanPhone = recipientPhoneInput.replace(/[^0-9]/g, '');
+    if (!cleanPhone) {
+      toast.error('يرجى كتابة أو تحديد رقم هاتف صحيح لإرسال الواتساب');
+      return;
+    }
+
+    // Persist updated super admin phone numbers for future use
+    if (recipientType === 'bola') {
+      localStorage.setItem('super_admin_phone_bola', recipientPhoneInput.trim());
+      const bUser = store.getUsers().find(u => u?.username?.toLowerCase() === 'bola');
+      if (bUser) store.updateUser(bUser.id, { phone: recipientPhoneInput.trim() });
+    } else if (recipientType === 'mina') {
+      localStorage.setItem('super_admin_phone_mina', recipientPhoneInput.trim());
+      const mUser = store.getUsers().find(u => u?.username?.toLowerCase() === 'mina');
+      if (mUser) store.updateUser(mUser.id, { phone: recipientPhoneInput.trim() });
+    }
+
+    const inv = whatsAppModalInvoice;
     const branchObj = store.getBranch(inv.branchId);
     const branchName = branchObj ? branchObj.nameAr : activeBranchName;
     const sellerObj = store.getUsers().find(u => u.id === inv.employeeId);
-    const sellerName = sellerObj ? sellerObj.name : 'الكاشير';
+    const sellerName = sellerObj ? sellerObj.name : (user?.name || 'الكاشير');
     const customerInfo = inv.customerName ? `${inv.customerName} (${inv.customerPhone || ''})` : 'عميل الفرع';
-
-    const itemNames = inv.items.map(i => {
-      const p = store.getProduct(i.productId);
-      return i.productName || p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
-    }).join(', ');
-
     const rem = getInvoiceRemaining(inv);
+    const paid = getInvoicePaid(inv);
 
-    const msg = `*فاتورة مبيعات - Salla Bola & Mina*
-------------------------------
+    const itemLines = inv.items.map((item) => {
+      const p = store.getProduct(item.productId);
+      const name = item.productName || p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
+      const count = item.quantity || 1;
+      const total = item.unitPrice * count;
+      return `• ${name} (عدد ${count}) : ${total.toFixed(2)} ج.م`;
+    }).join('\n');
+
+    let msg = '';
+    if (recipientType === 'customer') {
+      msg = `*متجر Salla Bola & Mina للإكسسوارات*
+فاتورة مبيعات مسلسل: #${inv.invoiceNumber}
+التاريخ: ${new Date(inv.date).toLocaleDateString('ar-EG')} - ${new Date(inv.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+اسم العميل: ${inv.customerName || 'عميل محترم'}
+الموظف البائع: ${sellerName}
+الفرع: ${branchName}
+-----------------------------------
+تفاصيل المشتريات:
+${itemLines}
+-----------------------------------
+المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م
+${paid > 0 ? `المدفوع: ${paid.toFixed(2)} ج.م\n` : ''}${rem > 0 ? `المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}طريقة السداد: ${inv.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentMethod === 'instapay' ? 'إنستاباي' : inv.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
+-----------------------------------
+هدفنا إرضاء العميل وليس الربح ❤️
+متجر Salla Bola & Mina للإكسسوارات`;
+    } else {
+      const adminName = recipientType === 'bola' ? 'بولا (Bola)' : 'مينا (Mina)';
+      msg = `🧾 *إشعار فاتورة مبيعات جديدة للسوبر أدمن ${adminName}*
+-----------------------------------
 • رقم الفاتورة: #${inv.invoiceNumber}
 • الفرع: ${branchName}
 • التاريخ: ${new Date(inv.date).toLocaleDateString('ar-EG')} - ${new Date(inv.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-• الكاشير: ${sellerName}
+• الكاشير البائع: ${sellerName}
 • العميل: ${customerInfo}
 
-الأصناف: ${itemNames}
+📦 تفاصيل الأصناف والمشتريات:
+${itemLines}
 
-------------------------------
-• إجمالي الفاتورة: ${inv.total.toFixed(2)} ج.م
-• المدفوع: ${getInvoicePaid(inv).toFixed(2)} ج.م
-• المتبقي المستحق: ${rem.toFixed(2)} ج.م
-------------------------------
-هدفنا إرضاء العميل وليس الربح`;
+-----------------------------------
+💰 المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م
+💵 المدفوع: ${paid.toFixed(2)} ج.م
+${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}💳 طريقة السداد: ${inv.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentMethod === 'instapay' ? 'إنستاباي' : inv.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
+-----------------------------------
+متجر Salla Bola & Mina للإكسسوارات`;
+    }
 
-    const phoneNum = inv.customerPhone ? inv.customerPhone.replace(/[^0-9]/g, '') : '';
-    const targetPhone = phoneNum.startsWith('01') ? `2${phoneNum}` : phoneNum;
+    let targetPhone = cleanPhone;
+    if (targetPhone.startsWith('0')) {
+      targetPhone = '20' + targetPhone.slice(1);
+    } else if (!targetPhone.startsWith('20')) {
+      targetPhone = '20' + targetPhone;
+    }
+
     const url = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
+    toast.success(`تم تجهيز رسالة الواتساب إلى ${recipientType === 'customer' ? 'العميل' : recipientType === 'bola' ? 'بولا' : 'مينا'}`);
+    setWhatsAppModalInvoice(null);
+  };
+
+  // Alias for backward compatibility with existing button triggers
+  const handleSendWhatsAppInvoice = (inv: Invoice) => {
+    handleOpenWhatsAppModal(inv);
   };
 
   // WhatsApp Statement Reminder
@@ -432,6 +527,13 @@ Salla Bola & Mina`;
             <p className="text-xs text-muted-foreground font-medium mt-0.5">تتبع الفواتير المدفوعة والأجلة وتاريخ السداد — {activeBranchName}</p>
           </div>
         </div>
+
+        {!isAdmin && (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold shadow-xs">
+            <User size={15} />
+            <span>فواتيرك المسجلة باسمك فقط ({branchInvoices.length} فاتورة)</span>
+          </div>
+        )}
       </div>
 
       {/* CALENDAR STRIPE CARD */}
@@ -949,16 +1051,18 @@ Salla Bola & Mina`;
                       </div>
 
                       {/* Card Action Buttons Row (Exact Design matching Image 3) */}
-                      <div className="pt-2 border-t border-border/40 grid grid-cols-3 gap-2">
+                      <div className={`pt-2 border-t border-border/40 grid ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                         
-                        {/* Button 1: تسديد المتبقي (Solid Emerald Button) */}
-                        <button
-                          onClick={() => handleOpenSinglePayModal(inv)}
-                          className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-900/20 transition-all"
-                        >
-                          <DollarSign size={15} />
-                          <span>تسديد المتبقي</span>
-                        </button>
+                        {/* Button 1: تسديد المتبقي (Solid Emerald Button - Admin Only) */}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleOpenSinglePayModal(inv)}
+                            className="h-9 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-900/20 transition-all"
+                          >
+                            <DollarSign size={15} />
+                            <span>تسديد المتبقي</span>
+                          </button>
+                        )}
 
                         {/* Button 2: كشف الحساب (Gold/Yellow Outlined Button) */}
                         <button
@@ -1063,8 +1167,8 @@ Salla Bola & Mina`;
                 </button>
               )}
 
-              {/* Pay Debt Button */}
-              {statementTotalDebt > 0 && (
+              {/* Pay Debt Button (Admin Only) */}
+              {isAdmin && statementTotalDebt > 0 && (
                 <button
                   onClick={() => handleOpenCustomerDebtPayModal(statementCustomerName, statementCustomerPhone || '', statementTotalDebt)}
                   className="w-full h-11 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-950/40 transition-all"
@@ -1466,6 +1570,202 @@ Salla Bola & Mina`;
 
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================= */}
+      {/* MODAL: WHATSAPP RECIPIENT SELECTION (Customer vs Bola vs Mina) */}
+      {/* ========================================================= */}
+      <Dialog open={!!whatsAppModalInvoice} onOpenChange={(open) => !open && setWhatsAppModalInvoice(null)}>
+        <DialogContent className="max-w-md w-[95vw] sm:w-full bg-card border-border/80 p-0 rounded-3xl overflow-hidden shadow-2xl" dir="rtl" showCloseButton={false}>
+          
+          {/* Header */}
+          <div className="bg-gradient-to-r from-emerald-950/80 via-emerald-900/60 to-emerald-950/80 border-b border-emerald-800/40 p-4 sm:p-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+                <Send size={20} />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold text-white">إرسال الفاتورة عبر الواتساب</DialogTitle>
+                {whatsAppModalInvoice && (
+                  <p className="text-xs text-emerald-300 font-mono mt-0.5">
+                    فاتورة #{whatsAppModalInvoice.invoiceNumber} — {whatsAppModalInvoice.total.toFixed(2)} ج.م
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setWhatsAppModalInvoice(null)}
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-emerald-200/70 hover:text-white hover:bg-emerald-900/40 transition-colors border border-emerald-700/40 shrink-0"
+              title="إغلاق"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {whatsAppModalInvoice && (
+            <div className="p-5 space-y-4">
+              
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-foreground block">
+                  اختر وجهة الإرسال (المستلم):
+                </label>
+                <p className="text-[11px] text-muted-foreground">
+                  اختر إرسال الفاتورة للعميل صاحب الفاتورة أو إشعار أحد مديري السوبر أدمن (بولا أو مينا).
+                </p>
+              </div>
+
+              {/* 3 Recipient Selection Cards */}
+              <div className="space-y-2.5">
+                
+                {/* 1. Customer Card */}
+                <div 
+                  onClick={() => handleSelectRecipientType('customer')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                    recipientType === 'customer'
+                      ? 'bg-emerald-500/15 border-emerald-500 text-foreground ring-2 ring-emerald-500/30 shadow-xs'
+                      : 'bg-card border-border/80 hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      recipientType === 'customer' ? 'bg-emerald-500 text-white' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      <User size={18} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>العميل صاحب الفاتورة</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono">
+                          {whatsAppModalInvoice.customerName || 'عميل الفرع'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted-foreground block mt-0.5">
+                        {whatsAppModalInvoice.customerPhone ? whatsAppModalInvoice.customerPhone : 'لا يوجد رقم مسجل بالفاتورة'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    recipientType === 'customer' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-border'
+                  }`}>
+                    {recipientType === 'customer' && <CheckCircle2 size={14} />}
+                  </div>
+                </div>
+
+                {/* 2. Bola (Super Admin) Card */}
+                <div 
+                  onClick={() => handleSelectRecipientType('bola')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                    recipientType === 'bola'
+                      ? 'bg-amber-500/15 border-amber-500 text-foreground ring-2 ring-amber-500/30 shadow-xs'
+                      : 'bg-card border-border/80 hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      recipientType === 'bola' ? 'bg-amber-500 text-black' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>سوبر أدمن: بولا (Bola)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono">
+                          إشعار الإدارة
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted-foreground block mt-0.5">
+                        الرقم المعتمد: {getAdminPhone('bola')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    recipientType === 'bola' ? 'border-amber-500 bg-amber-500 text-black' : 'border-border'
+                  }`}>
+                    {recipientType === 'bola' && <CheckCircle2 size={14} />}
+                  </div>
+                </div>
+
+                {/* 3. Mina (Super Admin) Card */}
+                <div 
+                  onClick={() => handleSelectRecipientType('mina')}
+                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                    recipientType === 'mina'
+                      ? 'bg-amber-500/15 border-amber-500 text-foreground ring-2 ring-amber-500/30 shadow-xs'
+                      : 'bg-card border-border/80 hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                      recipientType === 'mina' ? 'bg-amber-500 text-black' : 'bg-muted text-muted-foreground'
+                    }`}>
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground flex items-center gap-2">
+                        <span>سوبر أدمن: مينا (Mina)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-mono">
+                          إشعار الإدارة
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted-foreground block mt-0.5">
+                        الرقم المعتمد: {getAdminPhone('mina')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                    recipientType === 'mina' ? 'border-amber-500 bg-amber-500 text-black' : 'border-border'
+                  }`}>
+                    {recipientType === 'mina' && <CheckCircle2 size={14} />}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Phone Input Field (Auto populated, editable) */}
+              <div className="space-y-1.5 pt-2 border-t border-border/60">
+                <label className="text-xs font-bold text-foreground flex items-center justify-between">
+                  <span>رقم الهاتف الموجه إليه رسالة الواتساب:</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">يمكنك تعديل الرقم قبل الإرسال</span>
+                </label>
+                <div className="relative">
+                  <Phone size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input 
+                    type="tel"
+                    value={recipientPhoneInput}
+                    onChange={(e) => setRecipientPhoneInput(e.target.value)}
+                    placeholder="01xxxxxxxxx"
+                    className="pr-10 h-11 text-xs font-mono font-bold rounded-xl bg-background border-border"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+
+              {/* Send and Cancel Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/80">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setWhatsAppModalInvoice(null)}
+                  className="rounded-xl text-xs font-bold h-11 px-5"
+                >
+                  إلغاء
+                </Button>
+                
+                <Button 
+                  type="button" 
+                  onClick={handleConfirmSendWhatsApp}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs h-11 px-6 rounded-xl gap-2 shadow-lg shadow-emerald-950/40"
+                >
+                  <Send size={15} />
+                  <span>إرسال عبر الواتساب الآن</span>
+                </Button>
+              </div>
+
+            </div>
+          )}
+
         </DialogContent>
       </Dialog>
 

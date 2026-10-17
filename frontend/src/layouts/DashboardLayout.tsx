@@ -98,6 +98,7 @@ export const DashboardLayout = () => {
   const employeeNav = [
     { name: 'نقطة البيع', path: '/pos', icon: ShoppingCart },
     { name: 'المنتجات', path: '/products', icon: Package },
+    { name: 'سجل الفواتير', path: '/invoices', icon: FileText },
   ];
 
   const navItems = isAdmin ? adminNav : employeeNav;

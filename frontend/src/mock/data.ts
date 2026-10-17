@@ -1,8 +1,8 @@
 import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData } from '../types';
 
 export const mockUsers: User[] = [
-  { id: 'admin-bola', username: 'bola', name: 'Bola', role: 'admin', password: '00000000', joinDate: '2026-01-01' },
-  { id: 'admin-mina', username: 'mina', name: 'Mina', role: 'admin', password: '00000000', joinDate: '2026-01-01' },
+  { id: 'admin-bola', username: 'bola', name: 'Bola', role: 'admin', password: '00000000', joinDate: '2026-01-01', phone: '01204292945' },
+  { id: 'admin-mina', username: 'mina', name: 'Mina', role: 'admin', password: '00000000', joinDate: '2026-01-01', phone: '01094534953' },
   { id: 'admin-test', username: 'test', name: 'Test', role: 'admin', password: '12344321', joinDate: '2026-01-01' },
 ];
 

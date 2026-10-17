@@ -335,6 +335,7 @@ class StoreService {
               ...state.users[idx],
               role: 'admin',
               password: defaultUser.password || state.users[idx].password,
+              phone: state.users[idx].phone || defaultUser.phone,
             };
           }
         }
