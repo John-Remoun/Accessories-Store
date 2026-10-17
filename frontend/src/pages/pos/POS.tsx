@@ -1446,68 +1446,68 @@ export const POS = () => {
               )}
             </div>
 
-            {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
-            {/* SINGLE-ROW PRODUCT SELECTION MATCHING SCREENSHOT */}
-            <div className="bg-muted/20 p-3 sm:p-4 rounded-2xl border border-border/50 mb-6" dir="rtl">
-              <div className="flex items-end gap-1.5 sm:gap-2.5 w-full">
+            {/* PRODUCT SELECTION CARD (Mobile: Vertical Stack matching Screenshot 1, Desktop: Single Horizontal Row) */}
+            <div className="bg-card p-4 sm:p-4 rounded-3xl sm:rounded-2xl border border-border/80 shadow-xs mb-6" dir="rtl">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3.5 sm:gap-2.5 w-full">
                 
-                {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX (flex-1 spacious) */}
-                <div className="flex-1 min-w-0 space-y-1 relative">
-                  <div className="flex items-center gap-1.5 h-5 min-w-0 overflow-hidden">
-                    <Label className="text-xs font-bold text-muted-foreground shrink-0">اختر المنتج</Label>
+                {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX */}
+                <div className="w-full sm:flex-1 min-w-0 space-y-1.5 sm:space-y-1 relative">
+                  <div className="flex items-center justify-between sm:justify-start gap-1.5 h-5 min-w-0">
+                    <Label className="text-xs sm:text-xs font-bold text-foreground sm:text-muted-foreground shrink-0">اختر المنتج</Label>
                     {currentSelectedProduct && (
-                      <span className="text-[10px] sm:text-[11px] font-mono text-emerald-500 font-bold truncate">
+                      <span className="text-[11px] font-mono text-emerald-500 font-bold truncate">
                         (المتاح: {currentProductBranchData?.quantity || 0} ق)
                       </span>
                     )}
                   </div>
                   <div className="relative">
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
-                      <Package size={16} />
+                    <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
+                      <Package size={18} />
                     </div>
                     <Input
-                      placeholder="اختر أو ابحث عن منتج..."
+                      placeholder="اختر أو ابحث عن المنتج..."
                       value={isDropdownOpen ? productSearchTerm : (currentSelectedProduct ? currentSelectedProduct.nameAr : productSearchTerm)}
                       onFocus={() => setIsDropdownOpen(true)}
                       onChange={(e) => {
                         setProductSearchTerm(e.target.value);
                         setIsDropdownOpen(true);
                       }}
-                      className="pr-9 pl-11 h-11 text-xs font-bold rounded-xl bg-background border-border w-full truncate"
+                      className="pr-10 pl-11 h-12 sm:h-11 text-sm sm:text-xs font-bold rounded-2xl sm:rounded-xl bg-background border-border w-full truncate focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:border-amber-500"
                     />
-                    <div className="absolute left-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                       {selectedProductId && (
                         <button 
-                          type="button"
+                          type="button" 
                           onClick={() => {
                             setSelectedProductId('');
                             setProductSearchTerm('');
                             setInputQuantity(1);
                           }}
-                          className="text-muted-foreground hover:text-foreground p-0.5"
+                          className="text-muted-foreground hover:text-foreground p-1 rounded-md"
                           title="إلغاء التحديد"
                         >
-                          <X size={13} />
+                          <X size={14} />
                         </button>
                       )}
                       <button 
                         type="button" 
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="text-muted-foreground hover:text-foreground p-0.5"
+                        className="text-muted-foreground hover:text-foreground p-1 rounded-md"
                       >
-                        <ChevronDown size={15} />
+                        <ChevronDown size={16} />
                       </button>
                     </div>
 
-                    {/* Floating Dropdown List - NO PRICE BADGE, ONLY AVAILABLE QUANTITY */}
+                    {/* Floating Dropdown List - Matching Screenshot 2 with Name, Category Badge, and Amber Stock Pill */}
                     {isDropdownOpen && (
-                      <div className="absolute top-full right-0 mt-1.5 z-40 bg-card/98 backdrop-blur-xl border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full min-w-[280px] sm:min-w-[420px] max-w-[90vw] p-1.5 space-y-1">
+                      <div className="absolute top-full right-0 left-0 mt-2 z-50 bg-card border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full p-2 space-y-1">
                         {filteredProducts.length === 0 ? (
                           <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
                         ) : (
                           filteredProducts.map(p => {
                             const bd = store.getProductBranchData(p.id, currentBranchId);
                             const stockCount = Number(bd?.quantity || 0);
+                            const cat = categoriesList.find(c => c.id === p.categoryId);
                             return (
                               <div
                                 key={p.id}
@@ -1517,42 +1517,25 @@ export const POS = () => {
                                   setIsDropdownOpen(false);
                                   setInputQuantity(1);
                                 }}
-                                className={`p-2.5 rounded-xl text-xs font-bold hover:bg-amber-500/10 hover:text-amber-500 cursor-pointer flex justify-between items-center gap-3 transition-colors ${
+                                className={`py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-amber-500/10 cursor-pointer flex justify-between items-center gap-2.5 transition-colors ${
                                   p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : 'text-foreground'
                                 }`}
                               >
                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
-                                    <Package size={15} />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-bold text-foreground text-xs truncate block max-w-[220px] sm:max-w-[320px]" title={p.nameAr}>
-                                        {p.nameAr}
-                                      </span>
-                                      {categoriesList.find(c => c.id === p.categoryId) && (
-                                        <span className="text-[10px] font-normal px-2 py-0.5 bg-muted text-muted-foreground rounded-md shrink-0">
-                                          {categoriesList.find(c => c.id === p.categoryId)?.nameAr}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {p.sku && (
-                                      <span className="text-[10px] text-muted-foreground font-mono block mt-0.5">
-                                        كود: {p.sku}
-                                      </span>
-                                    )}
-                                  </div>
+                                  <Package size={17} className="text-amber-500 shrink-0" />
+                                  <span className="font-bold text-foreground text-xs sm:text-xs truncate block" title={p.nameAr}>
+                                    {p.nameAr}
+                                  </span>
+                                  {cat && (
+                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-muted/80 text-muted-foreground rounded-md shrink-0">
+                                      {cat.nameAr}
+                                    </span>
+                                  )}
                                 </div>
 
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className={`text-[11px] font-extrabold font-mono px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 ${
-                                    stockCount > 0 
-                                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                                      : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                                  }`} title="الكمية المتاحة في الفرع">
-                                    <span className="text-[10px] font-normal opacity-80">المتاح:</span>
-                                    <span>{stockCount}</span>
-                                    <span className="text-[10px] font-normal opacity-80">ق</span>
+                                <div className="shrink-0">
+                                  <span className="text-[11px] font-extrabold font-mono px-2.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shrink-0">
+                                    {stockCount}
                                   </span>
                                 </div>
                               </div>
@@ -1565,15 +1548,15 @@ export const POS = () => {
                 </div>
 
                 {/* 2. SELECT PRICE TIER */}
-                <div className="w-28 sm:w-36 md:w-44 shrink-0 space-y-1">
-                  <div className="h-5 flex items-center">
-                    <Label className="text-xs font-bold text-muted-foreground block truncate">السعر</Label>
-                  </div>
+                <div className="w-full sm:w-36 md:w-44 shrink-0 space-y-1.5 sm:space-y-1">
+                  <Label className="text-xs sm:text-xs font-bold text-foreground sm:text-muted-foreground block text-right">السعر</Label>
                   <CustomSelect
+                    size="md"
                     disabled={!selectedProductId}
                     value={selectedPriceTier}
                     onChange={(val: any) => setSelectedPriceTier(val)}
                     placeholder={selectedProductId ? 'اختر السعر' : 'السعر'}
+                    className="h-12 sm:h-11 rounded-2xl sm:rounded-xl text-sm sm:text-xs font-bold"
                     options={
                       currentProductBranchData
                         ? [
@@ -1588,10 +1571,10 @@ export const POS = () => {
                 </div>
 
                 {/* 3. QUANTITY */}
-                <div className="w-12 sm:w-16 shrink-0 space-y-1">
-                  <div className="h-5 flex items-center justify-center">
-                    <Label className="text-xs font-bold text-muted-foreground block text-center truncate">الكمية</Label>
-                  </div>
+                <div className="w-full sm:w-16 md:w-20 shrink-0 space-y-1.5 sm:space-y-1">
+                  <Label className="text-xs sm:text-xs font-bold text-foreground sm:text-muted-foreground block text-center truncate">
+                    الكمية (قطعة)
+                  </Label>
                   <Input
                     type="number"
                     min={1}
@@ -1609,22 +1592,19 @@ export const POS = () => {
                         setInputQuantity(rawVal);
                       }
                     }}
-                    className="h-11 text-center font-mono font-bold text-xs rounded-xl bg-background px-1"
+                    className="h-12 sm:h-11 text-center font-mono font-bold text-base sm:text-xs rounded-2xl sm:rounded-xl bg-background border-border w-full"
                   />
                 </div>
 
                 {/* 4. ADD BUTTON */}
-                <div className="w-14 sm:w-20 shrink-0 space-y-1">
-                  <div className="h-5 flex items-center justify-center select-none opacity-0 pointer-events-none" aria-hidden="true">
-                    <span>إضافة</span>
-                  </div>
+                <div className="w-full sm:w-20 md:w-24 shrink-0 pt-1 sm:pt-0">
                   <Button
                     type="button"
                     onClick={handleAddProductToCart}
                     disabled={!selectedProductId}
-                    className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs sm:text-sm rounded-xl shadow-sm transition-all flex items-center justify-center gap-1 p-0 sm:px-2"
+                    className="w-full h-12 sm:h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-base sm:text-sm rounded-2xl sm:rounded-xl shadow-md sm:shadow-sm transition-all flex items-center justify-center gap-1.5"
                   >
-                    <Plus size={15} className="shrink-0 hidden sm:inline" />
+                    <Plus size={16} className="shrink-0 hidden sm:inline" />
                     <span>إضافة</span>
                   </Button>
                 </div>
