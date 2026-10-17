@@ -33,7 +33,7 @@ const PRINTER_CONFIG_KEY = 'xp246b_printer_config';
 export const defaultPrinterConfig: PrinterServiceConfig = {
   printerName: 'Xprinter XP-246B',
   labelWidthMm: 38,
-  labelHeightMm: 28,
+  labelHeightMm: 25,
   serviceUrl: 'http://localhost:9100/print'
 };
 

@@ -70,7 +70,13 @@ export const QRCodes = () => {
         <style>
           @page {
             size: 38mm 25mm;
-            margin: 0 !important;
+            margin: 0mm !important;
+            @top-left { content: none !important; }
+            @top-center { content: none !important; }
+            @top-right { content: none !important; }
+            @bottom-left { content: none !important; }
+            @bottom-center { content: none !important; }
+            @bottom-right { content: none !important; }
           }
           *, *::before, *::after {
             box-sizing: border-box !important;
@@ -189,12 +195,21 @@ export const QRCodes = () => {
       doc.write(printDocumentHtml);
       doc.close();
 
+      const originalParentTitle = document.title;
       setTimeout(() => {
         try {
+          document.title = "";
+          if (iframe.contentDocument) {
+            iframe.contentDocument.title = "";
+          }
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
         } catch (e) {
           console.error("Print iframe error", e);
+        } finally {
+          setTimeout(() => {
+            document.title = originalParentTitle;
+          }, 1500);
         }
       }, 350);
     }

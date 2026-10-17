@@ -317,11 +317,17 @@ export const Products = () => {
       <html dir="rtl" lang="ar">
       <head>
         <meta charset="utf-8" />
-        <title> </title>
+        <title></title>
         <style>
           @page {
             size: ${widthMm}mm ${heightMm}mm;
-            margin: 0 !important;
+            margin: 0mm !important;
+            @top-left { content: none !important; }
+            @top-center { content: none !important; }
+            @top-right { content: none !important; }
+            @bottom-left { content: none !important; }
+            @bottom-center { content: none !important; }
+            @bottom-right { content: none !important; }
           }
           *, *::before, *::after {
             box-sizing: border-box !important;
@@ -334,8 +340,8 @@ export const Products = () => {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-height: ${heightMm}mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
+            margin: 0mm !important;
+            padding: 0mm !important;
             background: #ffffff !important;
             color: #000000 !important;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Cairo", "Tahoma", sans-serif !important;
@@ -440,12 +446,22 @@ export const Products = () => {
       doc.write(printDocumentHtml);
       doc.close();
 
+      const originalParentTitle = document.title;
       setTimeout(() => {
         try {
+          // Clear titles so Chrome doesn't print parent page title in header
+          document.title = "";
+          if (iframe.contentDocument) {
+            iframe.contentDocument.title = "";
+          }
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
         } catch (e) {
           console.error("Print iframe error", e);
+        } finally {
+          setTimeout(() => {
+            document.title = originalParentTitle;
+          }, 1500);
         }
       }, 350);
     }
@@ -1406,6 +1422,17 @@ export const Products = () => {
                     +
                   </Button>
                 </div>
+              </div>
+
+              {/* Important Thermal Print Tip */}
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-400">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>لإلغاء التاريخ والاسم والروابط من أطراف الورقة:</span>
+                </div>
+                <p className="leading-relaxed opacity-90">
+                  في نافذة الطباعة، افتح <strong>المزيد من الإعدادات (More settings)</strong> وألغِ تحديد خيار <strong>(الرؤوس والتذييلات / Headers and footers)</strong> واختر طابعتك الحرارية ليطبع التيكت الصافي فقط.
+                </p>
               </div>
 
               {/* Action Buttons */}
