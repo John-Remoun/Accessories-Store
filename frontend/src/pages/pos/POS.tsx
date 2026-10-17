@@ -1509,9 +1509,9 @@ export const POS = () => {
                       </div>
                     )}
 
-                    {/* Floating Dropdown List - Matching Screenshot 2 with Name, Category Badge, and Amber Stock Pill */}
+                    {/* Floating Dropdown List - Generous width on Laptop/Desktop (sm:w-[480px] md:w-[560px] lg:w-[640px]) and full width on mobile */}
                     {isDropdownOpen && (
-                      <div className="absolute top-full right-0 left-0 mt-2 z-50 bg-card border border-border/90 rounded-2xl shadow-2xl max-h-72 overflow-y-auto w-full p-2 space-y-1">
+                      <div className="absolute top-full right-0 mt-2 z-50 bg-card border border-border/90 rounded-2xl shadow-2xl max-h-80 overflow-y-auto w-full sm:w-[480px] md:w-[560px] lg:w-[640px] p-2 space-y-1">
                         {filteredProducts.length === 0 ? (
                           <div className="p-4 text-xs text-muted-foreground text-center">لا يوجد منتج يطابق البحث</div>
                         ) : (
@@ -1528,25 +1528,25 @@ export const POS = () => {
                                   setIsDropdownOpen(false);
                                   setInputQuantity(1);
                                 }}
-                                className={`py-2.5 px-2.5 sm:px-3 rounded-xl text-xs font-bold hover:bg-amber-500/10 cursor-pointer flex justify-between items-center gap-2 transition-colors ${
+                                className={`py-2.5 px-3 rounded-xl text-xs font-bold hover:bg-amber-500/10 cursor-pointer flex justify-between items-center gap-2.5 transition-colors ${
                                   p.id === selectedProductId ? 'bg-amber-500/15 text-amber-500' : 'text-foreground'
                                 }`}
                               >
-                                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                                  <Package size={16} className="text-amber-500 shrink-0" />
-                                  <span className="font-bold text-foreground text-xs leading-snug break-words flex-1 min-w-0 line-clamp-2 sm:line-clamp-none sm:truncate" title={p.nameAr}>
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <Package size={17} className="text-amber-500 shrink-0" />
+                                  <span className="font-bold text-foreground text-xs sm:text-xs leading-snug break-words flex-1 min-w-0 line-clamp-2" title={p.nameAr}>
                                     {p.nameAr}
                                   </span>
                                   {cat && (
-                                    <span className="hidden sm:inline-block text-[10px] font-medium px-2 py-0.5 bg-muted/80 text-muted-foreground rounded-md shrink-0">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 bg-muted/80 text-muted-foreground rounded-md shrink-0">
                                       {cat.nameAr}
                                     </span>
                                   )}
                                 </div>
 
-                                <div className="shrink-0">
-                                  <span className="text-[10px] sm:text-[11px] font-extrabold font-mono px-1.5 sm:px-2.5 py-0.5 rounded-md sm:rounded-full border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shrink-0">
-                                    {stockCount}
+                                <div className="shrink-0 flex items-center gap-1.5">
+                                  <span className="text-[10px] sm:text-[11px] font-extrabold font-mono px-2 sm:px-2.5 py-0.5 rounded-full border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shrink-0">
+                                    {stockCount} <span className="hidden sm:inline font-normal text-[9px] opacity-80">متاح</span>
                                   </span>
                                 </div>
                               </div>
