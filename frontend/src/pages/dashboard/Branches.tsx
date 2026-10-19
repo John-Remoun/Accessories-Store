@@ -1033,15 +1033,12 @@ export const Branches = () => {
                 {VODAFONE_CASH_NUMBERS.map((num) => {
                   const amount = paymentBreakdown.vodafoneNumbersBreakdown?.[num] || 0;
                   return (
-                    <div key={num} className="bg-background/80 dark:bg-card/80 p-2.5 rounded-xl border border-rose-500/20 flex flex-col justify-between">
-                      <span className="text-[11px] font-mono font-bold text-foreground text-right" dir="ltr">
+                    <div key={num} className="bg-background/80 dark:bg-card/80 p-2.5 rounded-xl border border-rose-500/20 flex flex-col items-center justify-center text-center gap-1">
+                      <span className="text-[11px] font-mono font-bold text-foreground" dir="ltr">
                         {num}
                       </span>
-                      <div className="text-left font-mono font-bold text-xs text-rose-600 mt-1.5 flex items-center justify-between">
-                        <span className="text-[10px] font-sans text-muted-foreground">الإجمالي:</span>
-                        <span>
-                          {amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-sans">ج.م</span>
-                        </span>
+                      <div className="font-mono font-extrabold text-xs sm:text-sm text-rose-600">
+                        {amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-sans font-bold">ج.م</span>
                       </div>
                     </div>
                   );
