@@ -122,6 +122,8 @@ export interface FixedExpense {
   amount: number;
   type: 'daily' | 'monthly';
   date: string;
+  userId?: string;
+  userName?: string;
 }
 
 export interface InternalComponent {

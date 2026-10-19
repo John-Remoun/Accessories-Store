@@ -96,6 +96,7 @@ export const DashboardLayout = () => {
   ];
 
   const employeeNav = [
+    { name: `لوحة تحكم ومصاريف ${currentBranch ? currentBranch.nameAr : 'الفرع'}`, path: `/branches?id=${activeBranchId}`, icon: LayoutDashboard },
     { name: 'نقطة البيع', path: '/pos', icon: ShoppingCart },
     { name: 'المنتجات', path: '/products', icon: Package },
     { name: 'سجل الفواتير', path: '/invoices', icon: FileText },

@@ -26,7 +26,13 @@ export class FixedExpenseController {
 
   public async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const expense = await expenseService.createExpense(req.body);
+      const authUser = (req as any).user;
+      const payload = {
+        ...req.body,
+        userId: req.body.userId || authUser?.id,
+        userName: req.body.userName || authUser?.name || authUser?.username,
+      };
+      const expense = await expenseService.createExpense(payload);
       return sendResponse(res, 201, 'Fixed expense added', expense);
     } catch (error) {
       next(error);

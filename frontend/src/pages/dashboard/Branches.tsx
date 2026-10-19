@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { CustomSelect } from '../../components/ui/CustomSelect';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
-  Users, Package, QrCode, ShoppingCart, 
+  Users, User, Package, QrCode, ShoppingCart, 
   MapPin, TrendingUp, Box, Layers, AlertTriangle, Tag, Sparkles, DollarSign,
   Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar,
   ChevronLeft, ChevronRight, Clock, FileText
@@ -84,10 +84,10 @@ export const Branches = () => {
   const [expenseType] = useState<'daily' | 'monthly'>('daily');
   const [expensesVersion, setExpensesVersion] = useState(0);
 
-  if (!isAdmin) {
+  if (!user) {
     return (
       <div className="p-8 font-bold text-destructive text-center">
-        غير مصرح لك بدخول هذه الصفحة. فقط السوبر أدمن يمكنه الوصول للوحة الفروع.
+        يرجى تسجيل الدخول أولاً للوصول إلى لوحة الفرع والمصاريف.
       </div>
     );
   }
@@ -114,6 +114,7 @@ export const Branches = () => {
     e.preventDefault();
     if (!expenseTitle.trim() || !expenseAmount || parseFloat(expenseAmount) <= 0) return;
 
+    const currentUserName = user?.name || user?.username || 'الموظف';
     store.addFixedExpense({
       id: `exp-${Date.now()}`,
       branchId: branch.id,
@@ -121,6 +122,8 @@ export const Branches = () => {
       amount: parseFloat(expenseAmount),
       type: 'daily',
       date: new Date().toISOString(),
+      userId: user?.id,
+      userName: currentUserName,
     });
 
     setExpenseTitle('');
@@ -723,31 +726,45 @@ export const Branches = () => {
                     <th className="py-2.5 px-3 text-right">سبب المصروف</th>
                     <th className="py-2.5 px-3 text-center">التاريخ</th>
                     <th className="py-2.5 px-3 text-center">المبلغ</th>
+                    <th className="py-2.5 px-3 text-center">أضيف بواسطة (الحساب)</th>
                     <th className="py-2.5 px-3 text-center w-16">إجراء</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {fixedExpensesList.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-3 px-3 font-bold text-foreground">{exp.title}</td>
-                      <td className="py-3 px-3 text-center font-mono text-muted-foreground">
-                        {new Date(exp.date).toLocaleDateString('ar-EG')}
-                      </td>
-                      <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
-                        {Number(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveExpense(exp.id)}
-                          className="text-muted-foreground hover:text-rose-500 transition-colors p-2 rounded-xl hover:bg-rose-500/10 active:scale-95"
-                          title="حذف المصروف وإعادة المبلغ للدرج"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {fixedExpensesList.map((exp) => {
+                    const canDelete = isAdmin || !exp.userId || exp.userId === user?.id;
+                    return (
+                      <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-3 font-bold text-foreground">{exp.title}</td>
+                        <td className="py-3 px-3 text-center font-mono text-muted-foreground">
+                          {new Date(exp.date).toLocaleDateString('ar-EG')}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
+                          {Number(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold text-xs">
+                            <User size={13} className="shrink-0" />
+                            <span>{exp.userName || 'الإدارة'}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {canDelete ? (
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveExpense(exp.id)}
+                              className="text-muted-foreground hover:text-rose-500 transition-colors p-2 rounded-xl hover:bg-rose-500/10 active:scale-95"
+                              title="حذف المصروف وإعادة المبلغ للدرج"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground/30 text-xs select-none" title="لا يمكنك حذف مصروف أضافه حساب آخر">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

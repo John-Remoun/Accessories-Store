@@ -40,6 +40,9 @@ export async function applySecurityHardening(dataSource: DataSource): Promise<vo
         "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT now(),
         CONSTRAINT "PK_suppliers_id" PRIMARY KEY ("id")
       );
+
+      ALTER TABLE IF EXISTS public.fixed_expenses ADD COLUMN IF NOT EXISTS "userName" character varying(150);
+      ALTER TABLE IF EXISTS public.fixed_expenses ADD COLUMN IF NOT EXISTS "userId" character varying(100);
     `);
 
     // 1. Enable Row Level Security (RLS) on all eleven audited tables plus suppliers

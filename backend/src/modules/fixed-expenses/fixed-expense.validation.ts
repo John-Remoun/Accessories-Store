@@ -7,4 +7,6 @@ export const createFixedExpenseSchema = z.object({
   amount: z.number().min(0, 'Amount must be non-negative'),
   type: z.enum(['daily', 'monthly']),
   date: z.string().optional(),
+  userName: z.string().optional(),
+  userId: z.string().optional(),
 });

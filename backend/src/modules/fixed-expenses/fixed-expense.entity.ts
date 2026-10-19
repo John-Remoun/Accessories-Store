@@ -20,6 +20,12 @@ export class FixedExpenseEntity {
   @Column({ type: 'varchar', length: 50 })
   date!: string;
 
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  userName?: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  userId?: string;
+
   @CreateDateColumn()
   createdAt!: Date;
 
