@@ -108,7 +108,7 @@ export const Branches = () => {
 
   // Fixed Expenses for this branch
   const fixedExpensesList = useMemo(() => store.getFixedExpensesByBranch(branch.id), [branch.id, expensesVersion]);
-  const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (item.amount || 0), 0), [fixedExpensesList]);
+  const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0), [fixedExpensesList]);
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +150,7 @@ export const Branches = () => {
 
   // Deduct fixed expenses directly from Total Collected Sales Revenue and Net Profit
   const safeCollected = isNaN(collectedRev) ? 0 : collectedRev;
-  const safeExpenses = isNaN(totalFixedExpenses) ? 0 : totalFixedExpenses;
+  const safeExpenses = Number(totalFixedExpenses) || 0;
   const netRevenue = Math.max(0, safeCollected - safeExpenses);
   const grossProfit = safeCollected - (isNaN(cost) ? 0 : cost);
   const netProfit = grossProfit - safeExpenses;
@@ -216,7 +216,7 @@ export const Branches = () => {
     });
 
     // Deduct expenses from Cash in Drawer first
-    const safeExpenses = isNaN(totalFixedExpenses) ? 0 : totalFixedExpenses;
+    const safeExpenses = Number(totalFixedExpenses) || 0;
     const netCashTotal = Math.max(0, (isNaN(cashTotal) ? 0 : cashTotal) - safeExpenses);
 
     return { 
@@ -328,7 +328,7 @@ export const Branches = () => {
       const d = new Date(exp.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
+    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -363,7 +363,7 @@ export const Branches = () => {
       const d = new Date(exp.date);
       return d.getFullYear() === currentYear;
     });
-    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
+    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -374,7 +374,7 @@ export const Branches = () => {
       const mRem = mInvs.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
       const mCost = mInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const mExp = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx)
-                               .reduce((acc, exp) => acc + (exp.amount || 0), 0);
+                               .reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
       const mNet = mRev - mCost - mExp;
       return {
         monthName: mName,
@@ -471,7 +471,7 @@ export const Branches = () => {
 
     // Filter fixed expenses for this date
     const dayExpenses = fixedExpensesList.filter(exp => getIsoDate(exp.date) === datePrefix);
-    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
+    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -666,7 +666,7 @@ export const Branches = () => {
               <span>المصاريف الثابتة</span>
             </h2>
             <div className="px-3.5 py-1.5 rounded-full bg-rose-950/70 text-rose-400 border border-rose-800/40 text-xs font-bold font-mono shadow-2xs">
-              إجمالي مصاريف اليومي: {totalFixedExpenses.toLocaleString('en-US', { minimumFractionDigits: 0 })} ج.م
+              إجمالي المصاريف اليومية: {Number(totalFixedExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
             </div>
           </div>
 
@@ -734,7 +734,7 @@ export const Branches = () => {
                         {new Date(exp.date).toLocaleDateString('ar-EG')}
                       </td>
                       <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
-                        {exp.amount.toLocaleString()} ج.م
+                        {Number(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
                       </td>
                       <td className="py-3 px-3 text-center">
                         <button 

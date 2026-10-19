@@ -198,7 +198,10 @@ class StoreService {
       ]);
 
       if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
-        this.state.fixedExpenses = fixedExp.value;
+        this.state.fixedExpenses = fixedExp.value.map(e => ({
+          ...e,
+          amount: Number(e.amount) || 0,
+        }));
       }
 
       if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
@@ -352,7 +355,9 @@ class StoreService {
               splitPayments: sp,
             };
           }),
-          fixedExpenses: Array.isArray(parsed.fixedExpenses) ? parsed.fixedExpenses : [],
+          fixedExpenses: Array.isArray(parsed.fixedExpenses)
+            ? parsed.fixedExpenses.map((e: any) => ({ ...e, amount: Number(e.amount) || 0 }))
+            : [],
           compositions: Array.isArray(parsed.compositions) ? parsed.compositions : [],
           suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
         };
@@ -1001,7 +1006,11 @@ class StoreService {
   }
   public async addFixedExpense(expense: FixedExpense) {
     if (!this.state.fixedExpenses) this.state.fixedExpenses = [];
-    this.state.fixedExpenses.push(expense);
+    const normalizedExpense: FixedExpense = {
+      ...expense,
+      amount: Number(expense.amount) || 0,
+    };
+    this.state.fixedExpenses.push(normalizedExpense);
     this.saveState();
     try {
       await api.createFixedExpense(expense);
