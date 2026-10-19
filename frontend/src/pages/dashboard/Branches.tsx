@@ -730,18 +730,15 @@ export const Branches = () => {
                     <th className="py-2.5 px-3 text-center">التاريخ</th>
                     <th className="py-2.5 px-3 text-center">المبلغ</th>
                     <th className="py-2.5 px-3 text-center">أضيف بواسطة (الحساب)</th>
-                    <th className="py-2.5 px-3 text-center w-16">إجراء</th>
+                    {isAdmin && <th className="py-2.5 px-3 text-center w-16">إجراء</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
                   {fixedExpensesList.map((exp) => {
-                    const canDelete = isAdmin || !exp.userId || exp.userId === user?.id;
                     const displayName = (exp.userName && exp.userName.trim() && exp.userName !== 'الإدارة')
                       ? exp.userName
-                      : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : '')
-                        || user?.name
-                        || user?.username
-                        || 'المستخدم';
+                      : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : null)
+                        || 'موظف الفرع';
 
                     return (
                       <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
@@ -758,8 +755,8 @@ export const Branches = () => {
                             <span>{displayName}</span>
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-center">
-                          {canDelete ? (
+                        {isAdmin && (
+                          <td className="py-3 px-3 text-center">
                             <button 
                               type="button" 
                               onClick={() => handleRemoveExpense(exp.id)}
@@ -768,10 +765,8 @@ export const Branches = () => {
                             >
                               <Trash2 size={16} />
                             </button>
-                          ) : (
-                            <span className="text-muted-foreground/30 text-xs select-none" title="لا يمكنك حذف مصروف أضافه حساب آخر">—</span>
-                          )}
-                        </td>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
