@@ -102,6 +102,7 @@ export interface Invoice {
     vodafone_cash?: number;
     instapay?: number;
   };
+  vodafoneNumber?: string;
   isFavorite?: boolean;
   createdAt?: string;
 }
@@ -176,3 +177,6 @@ export interface SupplierPurchase {
   createdAt: string;
   updatedAt?: string;
 }
+
+export const VODAFONE_CASH_NUMBERS = ['01210866936', '01070722762', '01028514926'] as const;
+export type VodafoneCashNumber = (typeof VODAFONE_CASH_NUMBERS)[number];

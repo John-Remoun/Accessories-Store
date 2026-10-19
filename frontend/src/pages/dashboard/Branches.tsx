@@ -17,7 +17,7 @@ import {
 import vodafoneLogo from '../../assets/vodafone-logo.png';
 import instapayLogo from '../../assets/instapay-logo.png';
 
-import { Invoice } from '../../types';
+import { Invoice, VODAFONE_CASH_NUMBERS } from '../../types';
 
 const MONTH_NAMES_AR = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -163,6 +163,21 @@ export const Branches = () => {
     let vodafoneTotal = 0;
     let remainingTotal = 0;
 
+    const vodafoneNumbersBreakdown: Record<string, number> = {
+      '01210866936': 0,
+      '01070722762': 0,
+      '01028514926': 0,
+    };
+
+    const addVodafoneAmount = (inv: Invoice, val: number) => {
+      const safeV = isNaN(val) ? 0 : val;
+      if (safeV <= 0) return;
+      const targetNum = inv.vodafoneNumber && vodafoneNumbersBreakdown[inv.vodafoneNumber] !== undefined
+        ? inv.vodafoneNumber
+        : '01210866936';
+      vodafoneNumbersBreakdown[targetNum] += safeV;
+    };
+
     bInvs.forEach(inv => {
       const amt = getInvoicePaid(inv);
       const rem = getInvoiceRemaining(inv);
@@ -183,6 +198,9 @@ export const Branches = () => {
         cashTotal += isNaN(c) ? 0 : c;
         vodafoneTotal += isNaN(v) ? 0 : v;
         instapayTotal += isNaN(i) ? 0 : i;
+        if (!isNaN(v) && v > 0) {
+          addVodafoneAmount(inv, v);
+        }
       } else {
         const method = inv.paymentSubMethod || inv.paymentMethod;
         const safeAmt = isNaN(amt) ? 0 : amt;
@@ -190,6 +208,7 @@ export const Branches = () => {
           instapayTotal += safeAmt;
         } else if (method === 'vodafone_cash') {
           vodafoneTotal += safeAmt;
+          addVodafoneAmount(inv, safeAmt);
         } else {
           cashTotal += safeAmt;
         }
@@ -204,7 +223,8 @@ export const Branches = () => {
       cashTotal: isNaN(netCashTotal) ? 0 : netCashTotal, 
       instapayTotal: isNaN(instapayTotal) ? 0 : instapayTotal, 
       vodafoneTotal: isNaN(vodafoneTotal) ? 0 : vodafoneTotal, 
-      remainingTotal: isNaN(remainingTotal) ? 0 : remainingTotal 
+      remainingTotal: isNaN(remainingTotal) ? 0 : remainingTotal,
+      vodafoneNumbersBreakdown
     };
   }, [bInvs, totalFixedExpenses]);
 
@@ -991,18 +1011,41 @@ export const Branches = () => {
               </div>
             </div>
 
-            {/* Vodafone Cash */}
-            <div className="bg-rose-500/10 p-3 sm:p-4 rounded-2xl border border-rose-500/30 flex items-center justify-between shadow-xs">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/90 p-1.5 flex items-center justify-center border border-rose-500/30 shrink-0 shadow-xs">
-                  <img src={vodafoneLogo} alt="Vodafone Cash" className="w-full h-full object-contain rounded-md" />
+            {/* Vodafone Cash with 3 Wallet Numbers Sub-Breakdown */}
+            <div className="bg-rose-500/10 p-3 sm:p-4 rounded-2xl border border-rose-500/30 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/90 p-1.5 flex items-center justify-center border border-rose-500/30 shrink-0 shadow-xs">
+                    <img src={vodafoneLogo} alt="Vodafone Cash" className="w-full h-full object-contain rounded-md" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-sm text-foreground">فودافون كاش (Vodafone Cash)</h4>
+                    <span className="text-[10px] text-muted-foreground font-semibold">توزيع إيرادات المحافظ الثلاث</span>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-foreground">فودافون كاش (Vodafone Cash)</h4>
+                <div className="text-left font-mono font-extrabold text-sm sm:text-base text-rose-600">
+                  {paymentBreakdown.vodafoneTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
                 </div>
               </div>
-              <div className="text-left font-mono font-extrabold text-sm sm:text-base text-rose-600">
-                {paymentBreakdown.vodafoneTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+
+              {/* 3 Wallet Sub-Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-rose-500/20">
+                {VODAFONE_CASH_NUMBERS.map((num) => {
+                  const amount = paymentBreakdown.vodafoneNumbersBreakdown?.[num] || 0;
+                  return (
+                    <div key={num} className="bg-background/80 dark:bg-card/80 p-2.5 rounded-xl border border-rose-500/20 flex flex-col justify-between">
+                      <span className="text-[11px] font-mono font-bold text-foreground text-right" dir="ltr">
+                        {num}
+                      </span>
+                      <div className="text-left font-mono font-bold text-xs text-rose-600 mt-1.5 flex items-center justify-between">
+                        <span className="text-[10px] font-sans text-muted-foreground">الإجمالي:</span>
+                        <span>
+                          {amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-[10px] font-sans">ج.م</span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

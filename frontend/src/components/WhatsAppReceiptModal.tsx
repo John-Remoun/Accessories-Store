@@ -17,6 +17,7 @@ export interface WhatsAppReceiptData {
   paidAmount?: number;
   remainingAmount?: number;
   paymentMethod?: string;
+  vodafoneNumber?: string;
   items: Array<{
     name: string;
     count: number;
@@ -61,7 +62,7 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 ${receiptData.items.map(it => `- ${it.name} (عدد ${it.count}) : ${it.totalPrice.toFixed(2)} ج.م`).join('\n')}
 -----------------------------------
 المجموع الإجمالي: ${receiptData.total.toFixed(2)} ج.م
-${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmount.toFixed(2)} ج.م\n` : ''}${receiptData.remainingAmount !== undefined && receiptData.remainingAmount > 0 ? `المتبقي (آجل): ${receiptData.remainingAmount.toFixed(2)} ج.م\n` : ''}طريقة السداد: ${receiptData.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : receiptData.paymentMethod === 'instapay' ? 'إنستاباي' : receiptData.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
+${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmount.toFixed(2)} ج.م\n` : ''}${receiptData.remainingAmount !== undefined && receiptData.remainingAmount > 0 ? `المتبقي (آجل): ${receiptData.remainingAmount.toFixed(2)} ج.م\n` : ''}طريقة السداد: ${receiptData.paymentMethod === 'vodafone_cash' ? `فودافون كاش${receiptData.vodafoneNumber ? ` (محفظة: ${receiptData.vodafoneNumber})` : ''}` : receiptData.paymentMethod === 'instapay' ? 'إنستاباي' : receiptData.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
 -----------------------------------
 هدفنا إرضاء العميل وليس الربح ❤️
 متجر Salla Bola & Mina للإكسسوارات`;

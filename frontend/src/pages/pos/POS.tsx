@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useStoreSync } from '../../hooks/useStoreSync';
-import { PhysicalItem, Product, ProductBranchData, Customer, Invoice, InternalComponent, ExternalComponent, ProductComposition } from '../../types';
+import { PhysicalItem, Product, ProductBranchData, Customer, Invoice, InternalComponent, ExternalComponent, ProductComposition, VODAFONE_CASH_NUMBERS } from '../../types';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -267,6 +267,8 @@ export const POS = () => {
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'partial' | 'deferred'>('paid');
   // Payment Sub Method: 'cash' | 'vodafone_cash' | 'instapay' | 'multi'
   const [paymentSubMethod, setPaymentSubMethod] = useState<'cash' | 'vodafone_cash' | 'instapay' | 'multi'>('cash');
+  // Selected Vodafone Cash Wallet Number (01210866936 - 01070722762 - 01028514926)
+  const [selectedVodafoneNumber, setSelectedVodafoneNumber] = useState<string>(VODAFONE_CASH_NUMBERS[0]);
   
   // Split payment amounts state
   const [splitCash, setSplitCash] = useState<string>('');
@@ -319,6 +321,7 @@ export const POS = () => {
     setSelectedPriceTier('price1');
     setPaymentStatus('paid');
     setPaymentSubMethod('cash');
+    setSelectedVodafoneNumber(VODAFONE_CASH_NUMBERS[0]);
     setIsDropdownOpen(false);
   }, []);
 
@@ -938,15 +941,16 @@ export const POS = () => {
         msg += `  • نقداً (كاش): ${inv.splitPayments.cash.toFixed(2)} ج.م\n`;
       }
       if (inv.splitPayments.vodafone_cash && inv.splitPayments.vodafone_cash > 0) {
-        msg += `  • فودافون كاش: ${inv.splitPayments.vodafone_cash.toFixed(2)} ج.م\n`;
+        msg += `  • فودافون كاش: ${inv.splitPayments.vodafone_cash.toFixed(2)} ج.م${inv.vodafoneNumber ? ` (محفظة: ${inv.vodafoneNumber})` : ''}\n`;
       }
       if (inv.splitPayments.instapay && inv.splitPayments.instapay > 0) {
         msg += `  • إنستاباي: ${inv.splitPayments.instapay.toFixed(2)} ج.م\n`;
       }
     } else {
+      const vNumLabel = inv.vodafoneNumber ? ` (محفظة: ${inv.vodafoneNumber})` : '';
       const pMethodName = inv.paymentStatus === 'deferred' && (inv.paidAmount === 0 || !inv.paidAmount)
         ? 'آجل بالكامل (لم يدفع)'
-        : inv.paymentSubMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)';
+        : inv.paymentSubMethod === 'vodafone_cash' ? `فودافون كاش${vNumLabel}` : inv.paymentSubMethod === 'instapay' ? 'إنستاباي' : 'نقداً (في اليد)';
       msg += `طريقة السداد: ${pMethodName}\n`;
     }
 
@@ -962,21 +966,19 @@ export const POS = () => {
     // 1. Double-click concurrency guard
     if (isSubmittingRef.current || isSubmitting || cart.length === 0) return;
 
-    // 2. Mandatory Customer Name & Phone check
-    if (!customerName.trim() || !customerPhone.trim()) {
-      const msg = 'اسم العميل ورقم التليفون إجباري لإتمام الفاتورة وإرسالها بالواتساب!';
+    // 2. Customer Phone check (Customer Name is optional!)
+    if (!customerPhone.trim()) {
+      const msg = 'رقم تليفون العميل إجباري لإتمام الفاتورة!';
       setCustomerError(msg);
       toast.error(msg);
-      const nameEl = document.getElementById('pos-customer-name');
       const phoneEl = document.getElementById('pos-customer-phone');
-      if (!customerName.trim() && nameEl) nameEl.focus();
-      else if (phoneEl) phoneEl.focus();
+      if (phoneEl) phoneEl.focus();
       return;
     }
 
     const rawPhoneDigits = customerPhone.replace(/\D/g, '');
     if (rawPhoneDigits.length < 10) {
-      const msg = 'رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل لإرسال إيصال الواتساب)!';
+      const msg = 'رقم التليفون غير صحيح (يجب أن يكون 11 رقماً على الأقل)!';
       setCustomerError(msg);
       toast.error(msg);
       const phoneEl = document.getElementById('pos-customer-phone');
@@ -985,7 +987,7 @@ export const POS = () => {
     }
     setCustomerError('');
 
-    const cName = customerName.trim();
+    const cName = customerName.trim() || 'عميل';
     const cPhone = customerPhone.trim();
     const cashierName = user?.name || 'الكاشير';
     const isMulti = paymentSubMethod === 'multi';
@@ -1078,6 +1080,7 @@ export const POS = () => {
       paidAmount: effectivePaidAmount,
       remainingAmount: remainingDeferredAmount,
       splitPayments: splitPaymentsData,
+      vodafoneNumber: (paymentSubMethod === 'vodafone_cash' || numSplitVodafone > 0) ? selectedVodafoneNumber : undefined,
     };
 
     // Generate verified WhatsApp receipt URL
@@ -1754,23 +1757,22 @@ export const POS = () => {
               </div>
             )}
 
-            {/* Mandatory Customer Name & Phone Fields + Favorite Star Button */}
+            {/* Customer Name (Optional) & Phone Fields (Mandatory) + Favorite Star Button */}
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1">
                 <Label className="text-[11px] font-bold text-foreground flex items-center gap-1">
-                  اسم العميل <span className="text-rose-500 font-bold">*</span>
+                  اسم العميل <span className="text-muted-foreground font-normal text-[10px]">(اختياري)</span>
                 </Label>
                 <div className="relative">
                   <User className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
                   <Input 
                     id="pos-customer-name"
-                    placeholder="اكتب اسم العميل..."
+                    placeholder="اسم العميل (اختياري)..."
                     value={customerName}
                     onChange={(e) => {
                       setCustomerName(e.target.value);
-                      if (e.target.value.trim()) setCustomerError('');
                     }}
-                    className={`pr-8 h-10 text-xs rounded-xl bg-muted/20 ${!customerName.trim() && customerError ? 'border-rose-500 ring-1 ring-rose-500' : ''}`}
+                    className="pr-8 h-10 text-xs rounded-xl bg-muted/20"
                   />
                 </div>
               </div>
@@ -1942,6 +1944,40 @@ export const POS = () => {
                   </button>
 
                 </div>
+
+                {/* Vodafone Cash Wallet Selector for Single Payment */}
+                {paymentSubMethod === 'vodafone_cash' && (
+                  <div className="space-y-2 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 animate-in fade-in-50">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-rose-500 flex items-center gap-1.5">
+                        <img src={vodafoneLogo} alt="Vodafone" className="w-4 h-4 object-contain rounded-full" />
+                        <span>اختر رقم محفظة فودافون كاش المراد التحويل عليها:</span>
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground font-semibold">3 أرقام متاحة</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {VODAFONE_CASH_NUMBERS.map((num) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setSelectedVodafoneNumber(num)}
+                          className={`py-2 px-3 rounded-xl text-xs font-mono font-bold transition-all border flex items-center justify-between ${
+                            selectedVodafoneNumber === num
+                              ? 'bg-rose-500 text-white border-rose-500 shadow-sm ring-1 ring-rose-400'
+                              : 'bg-background/90 text-foreground border-border/80 hover:bg-muted'
+                          }`}
+                        >
+                          <span dir="ltr">{num}</span>
+                          {selectedVodafoneNumber === num ? (
+                            <span className="w-4 h-4 rounded-full bg-white text-rose-600 flex items-center justify-center text-[10px] font-extrabold">✓</span>
+                          ) : (
+                            <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* SPLIT PAYMENT BREAKDOWN CONTAINER */}
                 {paymentSubMethod === 'multi' && (
@@ -2132,6 +2168,30 @@ export const POS = () => {
                               —
                             </span>
                           )}
+                        </div>
+
+                        {/* Wallet Number Selection in Split */}
+                        <div className="pt-2 border-t border-border/40 space-y-1">
+                          <span className="text-[10px] font-bold text-rose-500/90 block">
+                            محفظة التحويل:
+                          </span>
+                          <div className="grid grid-cols-3 gap-1">
+                            {VODAFONE_CASH_NUMBERS.map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => setSelectedVodafoneNumber(num)}
+                                className={`py-1 px-1 rounded-lg text-[9px] font-mono font-bold transition-all border text-center truncate ${
+                                  selectedVodafoneNumber === num
+                                    ? 'bg-rose-500 text-white border-rose-500 font-extrabold shadow-2xs'
+                                    : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                                }`}
+                                title={num}
+                              >
+                                {num.slice(-4)}..
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </div>
 

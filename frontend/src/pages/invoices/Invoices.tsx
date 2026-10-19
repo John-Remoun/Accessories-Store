@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useStoreSync } from '../../hooks/useStoreSync';
@@ -79,7 +79,7 @@ export const Invoices = () => {
   }, [userInvoices, activeBranchId]);
 
   // State Management
-  const [activeTab, setActiveTab] = useState<'all' | 'unpaid' | 'paid' | 'favorites'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'unpaid' | 'partial' | 'paid' | 'favorites'>('all');
   const [search, setSearch] = useState<string>('');
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
@@ -192,12 +192,44 @@ export const Invoices = () => {
     return 0;
   };
 
+  const isInvoicePartiallyPaid = (inv: Invoice) => {
+    const paid = getInvoicePaid(inv);
+    const remaining = getInvoiceRemaining(inv);
+    return (inv.paymentStatus === 'partial' || (paid > 0 && remaining > 0)) && remaining > 0 && paid > 0;
+  };
+
+  const isInvoiceStrictlyUnpaid = (inv: Invoice) => {
+    const paid = getInvoicePaid(inv);
+    const remaining = getInvoiceRemaining(inv);
+    return (inv.paymentStatus === 'deferred' || remaining > 0) && paid === 0;
+  };
+
+  const isInvoiceFullyPaid = (inv: Invoice) => {
+    return getInvoiceRemaining(inv) === 0 || (inv.paymentStatus === 'paid' && getInvoiceRemaining(inv) === 0);
+  };
+
   const isInvoiceUnpaid = (inv: Invoice) => {
     return inv.paymentStatus === 'deferred' || inv.paymentStatus === 'partial' || getInvoiceRemaining(inv) > 0;
   };
 
-  // Filtered Lists
-  const filteredInvoices = useMemo(() => {
+  const favCusts = useMemo(() => store.getCustomers(), [refreshKey]);
+  const isFavCustomerInvoice = useCallback((inv: Invoice) => {
+    if (inv.isFavorite) return true;
+    const cPhone = (inv.customerPhone || '').replace(/\D/g, '');
+    const cName = (inv.customerName || '').trim().toLowerCase();
+    return favCusts.some(fc => {
+      const fcPhone = (fc.phone || '').replace(/\D/g, '');
+      const fcName = (fc.name || '').trim().toLowerCase();
+      return (
+        (fc.id && inv.customerId && fc.id === inv.customerId) ||
+        (cPhone && fcPhone && (cPhone === fcPhone || cPhone.endsWith(fcPhone) || fcPhone.endsWith(cPhone))) ||
+        (cName && fcName && cName === fcName)
+      );
+    });
+  }, [favCusts]);
+
+  // Invoices filtered by active time period and search query
+  const periodInvoices = useMemo(() => {
     let list = branchInvoices;
 
     // Calendar day filter or month filter
@@ -208,31 +240,6 @@ export const Invoices = () => {
         const d = new Date(inv.date);
         return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
       });
-    }
-
-    const favCusts = store.getCustomers();
-    const isFavCustomerInvoice = (inv: Invoice) => {
-      if (inv.isFavorite) return true;
-      const cPhone = (inv.customerPhone || '').replace(/\D/g, '');
-      const cName = (inv.customerName || '').trim().toLowerCase();
-      return favCusts.some(fc => {
-        const fcPhone = (fc.phone || '').replace(/\D/g, '');
-        const fcName = (fc.name || '').trim().toLowerCase();
-        return (
-          (fc.id && inv.customerId && fc.id === inv.customerId) ||
-          (cPhone && fcPhone && (cPhone === fcPhone || cPhone.endsWith(fcPhone) || fcPhone.endsWith(cPhone))) ||
-          (cName && fcName && cName === fcName)
-        );
-      });
-    };
-
-    // Filter by tab
-    if (activeTab === 'unpaid') {
-      list = list.filter(inv => isInvoiceUnpaid(inv));
-    } else if (activeTab === 'paid') {
-      list = list.filter(inv => !isInvoiceUnpaid(inv));
-    } else if (activeTab === 'favorites') {
-      list = list.filter(inv => isFavCustomerInvoice(inv));
     }
 
     // Filter by search term
@@ -246,16 +253,31 @@ export const Invoices = () => {
     }
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [branchInvoices, selectedDate, currentYear, currentMonth, activeTab, search, refreshKey]);
+  }, [branchInvoices, selectedDate, currentYear, currentMonth, search, refreshKey]);
 
-  // Dual Column Categorized Lists for Main View
+  // Tab Badge Counts (computed from current periodInvoices)
+  const allCount = periodInvoices.length;
+  const unpaidCount = useMemo(() => periodInvoices.filter(isInvoiceStrictlyUnpaid).length, [periodInvoices]);
+  const partialCount = useMemo(() => periodInvoices.filter(isInvoicePartiallyPaid).length, [periodInvoices]);
+  const paidCount = useMemo(() => periodInvoices.filter(isInvoiceFullyPaid).length, [periodInvoices]);
+  const favoritesCount = useMemo(() => periodInvoices.filter(isFavCustomerInvoice).length, [periodInvoices, isFavCustomerInvoice]);
+
+  // Dual Column Categorized Lists for Main View based on activeTab
   const unpaidInvoicesList = useMemo(() => {
-    return filteredInvoices.filter(inv => isInvoiceUnpaid(inv));
-  }, [filteredInvoices]);
+    if (activeTab === 'paid') return [];
+    if (activeTab === 'unpaid') return periodInvoices.filter(isInvoiceStrictlyUnpaid);
+    if (activeTab === 'partial') return periodInvoices.filter(isInvoicePartiallyPaid);
+    if (activeTab === 'favorites') return periodInvoices.filter(inv => isFavCustomerInvoice(inv) && (isInvoiceStrictlyUnpaid(inv) || isInvoicePartiallyPaid(inv)));
+    // activeTab === 'all'
+    return periodInvoices.filter(inv => isInvoiceStrictlyUnpaid(inv) || isInvoicePartiallyPaid(inv));
+  }, [periodInvoices, activeTab, isFavCustomerInvoice]);
 
   const paidInvoicesList = useMemo(() => {
-    return filteredInvoices.filter(inv => !isInvoiceUnpaid(inv));
-  }, [filteredInvoices]);
+    if (activeTab === 'unpaid' || activeTab === 'partial') return [];
+    if (activeTab === 'favorites') return periodInvoices.filter(inv => isFavCustomerInvoice(inv) && isInvoiceFullyPaid(inv));
+    // activeTab === 'all' || activeTab === 'paid'
+    return periodInvoices.filter(isInvoiceFullyPaid);
+  }, [periodInvoices, activeTab, isFavCustomerInvoice]);
 
   const totalUnpaidAmount = useMemo(() => {
     return unpaidInvoicesList.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
@@ -265,23 +287,7 @@ export const Invoices = () => {
     return paidInvoicesList.reduce((acc, inv) => acc + (inv.total || 0), 0);
   }, [paidInvoicesList]);
 
-  const favoritesCount = useMemo(() => {
-    const favCusts = store.getCustomers();
-    return branchInvoices.filter(inv => {
-      if (inv.isFavorite) return true;
-      const cPhone = (inv.customerPhone || '').replace(/\D/g, '');
-      const cName = (inv.customerName || '').trim().toLowerCase();
-      return favCusts.some(fc => {
-        const fcPhone = (fc.phone || '').replace(/\D/g, '');
-        const fcName = (fc.name || '').trim().toLowerCase();
-        return (
-          (fc.id && inv.customerId && fc.id === inv.customerId) ||
-          (cPhone && fcPhone && (cPhone === fcPhone || cPhone.endsWith(fcPhone) || fcPhone.endsWith(cPhone))) ||
-          (cName && fcName && cName === fcName)
-        );
-      });
-    }).length;
-  }, [branchInvoices, refreshKey]);
+  const filteredInvoices = periodInvoices;
 
   // Handlers
   const handleToggleFavorite = (invId: string) => {
@@ -1118,7 +1124,7 @@ Salla Bola & Mina`;
             {/* Tab: الكل */}
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'all'
                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                   : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1128,29 +1134,44 @@ Salla Bola & Mina`;
               <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold ${
                 activeTab === 'all' ? 'bg-white/20 text-white' : 'bg-background text-muted-foreground'
               }`}>
-                {filteredInvoices.length}
+                {allCount}
               </span>
             </button>
 
             {/* Tab: غير مدفوعة / آجلة */}
             <button
               onClick={() => setActiveTab('unpaid')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'unpaid'
                   ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
                   : 'bg-muted/50 text-rose-400 hover:bg-rose-500/10'
               }`}
             >
-              <span>غير مدفوعة / آجلة</span>
+              <span>غير مدفوعة</span>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                {unpaidInvoicesList.length}
+                {unpaidCount}
+              </span>
+            </button>
+
+            {/* Tab: دفع جزئي */}
+            <button
+              onClick={() => setActiveTab('partial')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+                activeTab === 'partial'
+                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20 ring-1 ring-amber-400/50'
+                  : 'bg-muted/50 text-amber-400 hover:bg-amber-500/10'
+              }`}
+            >
+              <span>دفع جزئي</span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {partialCount}
               </span>
             </button>
 
             {/* Tab: مدفوعة بالكامل */}
             <button
               onClick={() => setActiveTab('paid')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'paid'
                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
                   : 'bg-muted/50 text-emerald-400 hover:bg-emerald-500/10'
@@ -1158,14 +1179,14 @@ Salla Bola & Mina`;
             >
               <span>مدفوعة بالكامل</span>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {paidInvoicesList.length}
+                {paidCount}
               </span>
             </button>
 
             {/* Tab: المفضلة */}
             <button
               onClick={() => setActiveTab('favorites')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 whitespace-nowrap ${
                 activeTab === 'favorites'
                   ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20'
                   : 'bg-muted/50 text-amber-400 hover:bg-amber-500/10'
@@ -1186,7 +1207,7 @@ Salla Bola & Mina`;
 
       {/* DUAL COLUMNS CARDS LAYOUT (Auto full width when single tab is selected) */}
       <div className={`grid gap-6 ${
-        activeTab === 'paid' || activeTab === 'unpaid' 
+        activeTab === 'paid' || activeTab === 'unpaid' || activeTab === 'partial'
           ? 'grid-cols-1' 
           : 'grid-cols-1 lg:grid-cols-2'
       }`}>
@@ -1348,16 +1369,31 @@ Salla Bola & Mina`;
         {/* ========================================================= */}
         {/* COLUMN 2: UNPAID / DEFERRED INVOICES SECTION (Now Second / Left Side) */}
         {/* ========================================================= */}
-        {(activeTab === 'all' || activeTab === 'unpaid' || activeTab === 'favorites') && (
+        {(activeTab === 'all' || activeTab === 'unpaid' || activeTab === 'partial' || activeTab === 'favorites') && (
           <div className="space-y-4">
             
-            {/* Dark Red Column Banner Header */}
-            <div className="bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-rose-950/80 border border-rose-800/40 p-4 rounded-2xl flex items-center justify-between shadow-lg">
-              <div className="flex items-center gap-2 text-rose-200">
-                <AlertTriangle size={18} className="text-rose-400" />
-                <h2 className="text-base font-bold">الفواتير غير المدفوعة والأجلة ({unpaidInvoicesList.length})</h2>
+            {/* Column Banner Header */}
+            <div className={`border p-4 rounded-2xl flex items-center justify-between shadow-lg ${
+              activeTab === 'partial'
+                ? 'bg-gradient-to-r from-amber-950/80 via-amber-900/60 to-amber-950/80 border-amber-800/40 text-amber-200'
+                : 'bg-gradient-to-r from-rose-950/80 via-rose-900/60 to-rose-950/80 border-rose-800/40 text-rose-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={18} className={activeTab === 'partial' ? 'text-amber-400' : 'text-rose-400'} />
+                <h2 className="text-base font-bold">
+                  {activeTab === 'partial'
+                    ? `فواتير الدفع الجزئي (${unpaidInvoicesList.length})`
+                    : activeTab === 'unpaid'
+                    ? `الفواتير غير المدفوعة (${unpaidInvoicesList.length})`
+                    : `الفواتير غير المدفوعة والآجلة والدفع الجزئي (${unpaidInvoicesList.length})`
+                  }
+                </h2>
               </div>
-              <div className="text-xs font-bold text-rose-300 font-mono bg-rose-900/40 border border-rose-700/40 px-3 py-1 rounded-xl">
+              <div className={`text-xs font-bold font-mono border px-3 py-1 rounded-xl ${
+                activeTab === 'partial'
+                  ? 'text-amber-300 bg-amber-900/40 border-amber-700/40'
+                  : 'text-rose-300 bg-rose-900/40 border-rose-700/40'
+              }`}>
                 إجمالي المستحقات: {totalUnpaidAmount.toFixed(2)} ج.م
               </div>
             </div>
@@ -1365,7 +1401,10 @@ Salla Bola & Mina`;
             {/* Unpaid Cards List */}
             {unpaidInvoicesList.length === 0 ? (
               <div className="bg-card border border-border/60 rounded-2xl p-8 text-center text-muted-foreground text-xs font-bold">
-                لا توجد فواتير غير مدفوعة أو آجلة حالياً.
+                {activeTab === 'partial'
+                  ? 'لا توجد فواتير ذات دفع جزئي حالياً.'
+                  : 'لا توجد فواتير غير مدفوعة أو آجلة حالياً.'
+                }
               </div>
             ) : (
               <div className="space-y-3.5">
@@ -1382,11 +1421,15 @@ Salla Bola & Mina`;
                       {/* Card Top Row: Invoice Number, Date/Time, Badge, Actions */}
                       <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
                         
-                        {/* Right: Date Badge & Red Status Pill */}
+                        {/* Right: Date Badge & Status Pill */}
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-rose-950/80 text-rose-400 border border-rose-800/50 text-[11px] font-bold flex items-center gap-1">
+                          <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 ${
+                            paid > 0 && remaining > 0
+                              ? 'bg-amber-950/80 text-amber-400 border border-amber-800/50'
+                              : 'bg-rose-950/80 text-rose-400 border border-rose-800/50'
+                          }`}>
                             <Clock size={12} />
-                            <span>آجل / غير مدفوع</span>
+                            <span>{paid > 0 && remaining > 0 ? 'دفع جزئي' : 'آجل / غير مدفوع'}</span>
                           </span>
 
                           <span className="text-[11px] text-muted-foreground font-mono bg-muted/60 px-2.5 py-1 rounded-lg border border-border/50">
