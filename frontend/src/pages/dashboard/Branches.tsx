@@ -114,7 +114,7 @@ export const Branches = () => {
     e.preventDefault();
     if (!expenseTitle.trim() || !expenseAmount || parseFloat(expenseAmount) <= 0) return;
 
-    const currentUserName = user?.name || user?.username || 'الموظف';
+    const currentUserName = user?.name || user?.username || 'المستخدم';
     store.addFixedExpense({
       id: `exp-${Date.now()}`,
       branchId: branch.id,
@@ -505,19 +505,20 @@ export const Branches = () => {
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground flex items-center justify-center gap-1.5 font-medium">
           <MapPin size={14} className="text-primary shrink-0" />
-          <span>لوحة التحكم والأرباح والمخزن بالفرع</span>
+          <span>{isAdmin ? 'لوحة التحكم والأرباح والمخزن بالفرع' : 'المصاريف الثابتة بالفرع'}</span>
         </p>
       </div>
 
-      {/* 2. DASHBOARD SECTION FOR THIS BRANCH */}
-      <div className="space-y-4">
-        <div className="flex justify-between items-center border-b border-border/60 pb-2">
-          <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-            <Layers className="text-primary" size={20} />
-            <span>لوحة التحكم</span>
-          </h2>
-          <span className="text-xs font-semibold text-muted-foreground">لوحة تحكم الفرع</span>
-        </div>
+      {/* 2. DASHBOARD SECTION FOR THIS BRANCH (Admin Only) */}
+      {isAdmin && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center border-b border-border/60 pb-2">
+            <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+              <Layers className="text-primary" size={20} />
+              <span>لوحة التحكم</span>
+            </h2>
+            <span className="text-xs font-semibold text-muted-foreground">لوحة تحكم الفرع</span>
+          </div>
 
         {/* TOP ROW: 3 Inventory KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -658,9 +659,11 @@ export const Branches = () => {
           </Card>
 
         </div>
+        </div>
+      )}
 
-        {/* 3. FIXED EXPENSES SECTION FOR THIS BRANCH */}
-        <div className="space-y-4 pt-4 mt-10">
+      {/* 3. FIXED EXPENSES SECTION FOR THIS BRANCH (Available to Admin and Employees) */}
+      <div className={`space-y-4 ${isAdmin ? 'pt-4 mt-8' : 'pt-2'}`}>
           
           {/* Section Header Line Matching 'لوحة التحكم' Header */}
           <div className="flex justify-between items-center border-b border-border/60 pb-2">
@@ -733,6 +736,13 @@ export const Branches = () => {
                 <tbody className="divide-y divide-border/40">
                   {fixedExpensesList.map((exp) => {
                     const canDelete = isAdmin || !exp.userId || exp.userId === user?.id;
+                    const displayName = (exp.userName && exp.userName.trim() && exp.userName !== 'الإدارة')
+                      ? exp.userName
+                      : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : '')
+                        || user?.name
+                        || user?.username
+                        || 'المستخدم';
+
                     return (
                       <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
                         <td className="py-3 px-3 font-bold text-foreground">{exp.title}</td>
@@ -745,7 +755,7 @@ export const Branches = () => {
                         <td className="py-3 px-3 text-center">
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold text-xs">
                             <User size={13} className="shrink-0" />
-                            <span>{exp.userName || 'الإدارة'}</span>
+                            <span>{displayName}</span>
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center">
@@ -771,9 +781,10 @@ export const Branches = () => {
           )}
 
         </div>
-        </div>
+      </div>
 
-        {/* 4. CALENDAR & PERFORMANCE TRACKING SECTION */}
+      {/* 4. CALENDAR & PERFORMANCE TRACKING SECTION (Admin Only) */}
+      {isAdmin && (
         <div className="bg-card border border-border/80 p-4 sm:p-5 rounded-3xl shadow-sm space-y-4 mt-8">
           
           {/* Calendar Header Bar */}
@@ -984,7 +995,7 @@ export const Branches = () => {
             })}
           </div>
         </div>
-      </div>
+      )}
 
       {/* REVENUE BREAKDOWN POPUP MODAL (Kash, InstaPay, Vodafone Cash) */}
       <Dialog open={isRevenueModalOpen} onOpenChange={setIsRevenueModalOpen}>
