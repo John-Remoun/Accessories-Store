@@ -83,7 +83,6 @@ export const Branches = () => {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseType] = useState<'daily' | 'monthly'>('daily');
   const [expensesVersion, setExpensesVersion] = useState(0);
-  const [expensesViewFilter, setExpensesViewFilter] = useState<'today' | 'all'>('today');
 
   if (!user) {
     return (
@@ -122,10 +121,6 @@ export const Branches = () => {
   }, [todayFixedExpensesList]);
 
   const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0), [fixedExpensesList]);
-
-  // Which list and total to display in Section 3:
-  const displayedFixedExpenses = expensesViewFilter === 'today' ? todayFixedExpensesList : fixedExpensesList;
-  const displayedTotalFixedExpenses = expensesViewFilter === 'today' ? todayTotalFixedExpenses : totalFixedExpenses;
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -693,43 +688,13 @@ export const Branches = () => {
       <div className={`space-y-4 ${isAdmin ? 'pt-4 mt-8' : 'pt-2'}`}>
           
           {/* Section Header Line Matching 'لوحة التحكم' Header */}
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-border/60 pb-2">
+          <div className="flex justify-between items-center border-b border-border/60 pb-2">
             <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <Receipt className="text-rose-500" size={20} />
               <span>المصاريف الثابتة</span>
             </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Filter Toggle: Today vs All */}
-              <div className="bg-muted/40 p-1 rounded-xl border border-border/60 flex items-center gap-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setExpensesViewFilter('today')}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                    expensesViewFilter === 'today'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  مصاريف اليوم ({todayFixedExpensesList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpensesViewFilter('all')}
-                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                    expensesViewFilter === 'all'
-                      ? 'bg-rose-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  جميع المصاريف ({fixedExpensesList.length})
-                </button>
-              </div>
-
-              {/* Total Badge */}
-              <div className="px-3.5 py-1.5 rounded-full bg-rose-950/70 text-rose-400 border border-rose-800/40 text-xs font-bold font-mono shadow-2xs">
-                {expensesViewFilter === 'today' ? 'إجمالي مصاريف اليوم: ' : 'إجمالي جميع المصاريف: '}
-                {Number(displayedTotalFixedExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
-              </div>
+            <div className="px-3.5 py-1.5 rounded-full bg-rose-950/70 text-rose-400 border border-rose-800/40 text-xs font-bold font-mono shadow-2xs">
+              إجمالي المصاريف اليومية: {Number(todayTotalFixedExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
             </div>
           </div>
 
@@ -778,7 +743,7 @@ export const Branches = () => {
           </form>
 
           {/* List of Added Fixed Expenses Table */}
-          {displayedFixedExpenses.length > 0 ? (
+          {todayFixedExpensesList.length > 0 ? (
             <div className="pt-2 overflow-x-auto">
               <table className="w-full text-xs text-right border-collapse">
                 <thead>
@@ -791,7 +756,7 @@ export const Branches = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {displayedFixedExpenses.map((exp) => {
+                  {todayFixedExpensesList.map((exp) => {
                     const displayName = (exp.userName && exp.userName.trim() && exp.userName !== 'الإدارة')
                       ? exp.userName
                       : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : null)
@@ -832,11 +797,7 @@ export const Branches = () => {
             </div>
           ) : (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              {expensesViewFilter === 'today' ? (
-                <span>لا توجد مصاريف ثابتة مسجلة لليوم حتى الآن. يمكنك إضافة مصروف جديد أعلاه أو الضغط على "جميع المصاريف".</span>
-              ) : (
-                <span>لا توجد أي مصاريف ثابتة مسجلة في هذا الفرع.</span>
-              )}
+              لا توجد مصاريف ثابتة مسجلة لليوم حتى الآن.
             </div>
           )}
 
@@ -1062,7 +1023,7 @@ export const Branches = () => {
 
       {/* REVENUE BREAKDOWN POPUP MODAL (Kash, InstaPay, Vodafone Cash) - TODAY */}
       <Dialog open={isRevenueModalOpen} onOpenChange={setIsRevenueModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-5 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-5 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-3">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <TrendingUp size={20} className="text-emerald-500" />
@@ -1167,7 +1128,7 @@ export const Branches = () => {
 
       {/* DAY PERFORMANCE DETAILS MODAL */}
       <Dialog open={selectedDayModalData !== null} onOpenChange={(open) => !open && setSelectedDayModalData(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
           {selectedDayModalData && (
             <>
               <DialogHeader className="border-b border-border/60 pb-2.5">
@@ -1300,12 +1261,15 @@ export const Branches = () => {
                         <Receipt size={18} className="sm:w-[22px] sm:h-[22px]" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-muted-foreground block">المصاريف الثابتة اليومية</span>
-                          <span className="text-[10px] bg-rose-950 text-rose-400 border border-rose-800/40 font-bold px-1.5 py-0.5 rounded-md group-hover:scale-105 transition-transform">
-                            اضغط لمعرفة ما تم صرفه 🔍
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <span className="text-xs font-bold text-muted-foreground">المصاريف الثابتة</span>
+                          <span className="text-[9px] sm:text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap">
+                            {selectedDayModalData.metrics.dayExpenses?.length || 0} مصروف
                           </span>
                         </div>
+                        <span className="text-[10px] text-rose-400/90 font-medium block mt-0.5 group-hover:text-rose-300 transition-colors">
+                          اضغط لعرض تفاصيل المنصرف 🔍
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1382,7 +1346,7 @@ export const Branches = () => {
 
       {/* MONTH PERFORMANCE DETAILS MODAL */}
       <Dialog open={isMonthModalOpen} onOpenChange={setIsMonthModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-2.5">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Calendar size={18} className="text-cyan-500 shrink-0" />
