@@ -93,4 +93,41 @@ export function broadcastInvoiceUpdated(invoice: any): void {
   }
 }
 
+export function broadcastExpenseCreated(expense: any): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting expense created: ${expense?.id}`);
+  io.emit('expense:created', expense);
+  if (expense?.branchId) {
+    io.to(`branch:${expense.branchId}`).emit('expense:created', expense);
+  }
+}
+
+export function broadcastExpenseDeleted(id: string, branchId?: string): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting expense deleted: ${id}`);
+  io.emit('expense:deleted', { id, branchId, timestamp: new Date().toISOString() });
+  if (branchId) {
+    io.to(`branch:${branchId}`).emit('expense:deleted', { id, branchId, timestamp: new Date().toISOString() });
+  }
+}
+
+export function broadcastProductCreated(product: any, branchData?: any[]): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting product created: ${product?.nameAr || product?.id}`);
+  io.emit('product:created', { product, branchData, timestamp: new Date().toISOString() });
+}
+
+export function broadcastProductUpdated(product: any): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting product updated: ${product?.nameAr || product?.id}`);
+  io.emit('product:updated', product);
+}
+
+export function broadcastProductDeleted(id: string): void {
+  if (!io) return;
+  console.log(`📡 [Socket.io] Broadcasting product deleted: ${id}`);
+  io.emit('product:deleted', { id, timestamp: new Date().toISOString() });
+}
+
+
 

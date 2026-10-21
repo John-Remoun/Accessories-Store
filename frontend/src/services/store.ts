@@ -56,20 +56,49 @@ class StoreService {
               if (!this.state.invoices) this.state.invoices = [];
               if (!this.state.invoices.some(i => i.id === payload.id || i.invoiceNumber === payload.invoiceNumber)) {
                 this.state.invoices.unshift(payload);
-                this.saveState(false);
+                this.saveState(true);
               }
             } else if (type === 'INVOICE_UPDATED' && payload) {
               if (!this.state.invoices) this.state.invoices = [];
               const idx = this.state.invoices.findIndex(i => i.id === payload.id || i.invoiceNumber === payload.invoiceNumber);
               if (idx !== -1) {
                 this.state.invoices[idx] = { ...this.state.invoices[idx], ...payload };
-                this.saveState(false);
+                this.saveState(true);
               }
             } else if (type === 'INVOICES_DELETED' && payload && Array.isArray(payload.ids)) {
               const delSet = new Set(payload.ids);
               payload.ids.forEach((id: string) => this.tombstonedInvoiceIds.add(id));
               this.state.invoices = (this.state.invoices || []).filter(i => !delSet.has(i.id) && !delSet.has(i.invoiceNumber));
-              this.saveState(false);
+              this.saveState(true);
+            } else if (type === 'EXPENSE_CREATED' && payload) {
+              if (!this.state.fixedExpenses) this.state.fixedExpenses = [];
+              if (!this.state.fixedExpenses.some(e => e.id === payload.id)) {
+                this.state.fixedExpenses.unshift(payload);
+                this.saveState(true);
+              }
+            } else if (type === 'EXPENSE_DELETED' && payload) {
+              this.state.fixedExpenses = (this.state.fixedExpenses || []).filter(e => e.id !== payload.id);
+              this.saveState(true);
+            } else if (type === 'PRODUCT_CREATED' && payload) {
+              if (!this.state.products) this.state.products = [];
+              if (!this.state.products.some(p => p.id === payload.product?.id)) {
+                this.state.products.unshift(payload.product);
+                if (Array.isArray(payload.branchData)) {
+                  this.state.productBranchData = [...(this.state.productBranchData || []), ...payload.branchData];
+                }
+                this.saveState(true);
+              }
+            } else if (type === 'PRODUCT_UPDATED' && payload) {
+              if (!this.state.products) this.state.products = [];
+              const pIdx = this.state.products.findIndex(p => p.id === payload.id);
+              if (pIdx !== -1) {
+                this.state.products[pIdx] = { ...this.state.products[pIdx], ...payload };
+                this.saveState(true);
+              }
+            } else if (type === 'PRODUCT_DELETED' && payload) {
+              this.state.products = (this.state.products || []).filter(p => p.id !== payload.id);
+              this.state.productBranchData = (this.state.productBranchData || []).filter(bd => bd.productId !== payload.id);
+              this.saveState(true);
             }
           };
         } catch (bcErr) {
@@ -84,11 +113,11 @@ class StoreService {
         }
       });
 
-      // Throttle focus sync: only sync if tab is visible and >= 90s elapsed
+      // Throttle focus sync: only light quick-sync when window is focused and socket is not active or 3 minutes passed
       window.addEventListener('focus', () => {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-        if (Date.now() - this.lastFullSyncTimestamp > 90000) {
-          this.syncWithBackend();
+        if (!this.isSocketConnected || Date.now() - this.lastFullSyncTimestamp > 180000) {
+          this.quickSyncStockAndInvoices();
         }
       });
 
@@ -100,17 +129,17 @@ class StoreService {
         }
       }, 45000);
 
-      // Periodic sanity check every 3 minutes (180,000ms)
+      // Periodic light stock/invoice sync every 3 minutes (180,000ms)
       setInterval(() => {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
         this.quickSyncStockAndInvoices();
       }, 180000);
 
-      // Full sync every 5 minutes (300,000ms)
+      // Full database sync every 7 minutes (420,000ms) to ensure consistency while reducing database queries
       setInterval(() => {
         if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
         this.syncWithBackend();
-      }, 300000);
+      }, 420000);
     }
   }
 
@@ -197,7 +226,7 @@ class StoreService {
       }
 
       if (stateChanged) {
-        this.saveState(false);
+        this.saveState(true);
       }
     } catch {
       // quiet fail on quick sync
@@ -343,7 +372,7 @@ class StoreService {
       }
 
       this.lastFullSyncTimestamp = Date.now();
-      this.saveState(false);
+      this.saveState(true);
     } catch (e) {
       console.warn('Backend sync warning:', e);
     } finally {
@@ -485,7 +514,6 @@ class StoreService {
     this.saveState();
     try {
       await api.createUser(sanitizedUser);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createUser):', err);
     }
@@ -495,10 +523,9 @@ class StoreService {
     const idx = users.findIndex(u => u?.id === id);
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates };
-      this.saveState();
+      this.saveState(true);
       try {
         await api.updateUser(id, updates);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (updateUser):', err);
       }
@@ -506,10 +533,9 @@ class StoreService {
   }
   public async deleteUser(id: string) {
     this.state.users = (this.state.users || []).filter(u => u?.id !== id);
-    this.saveState();
+    this.saveState(true);
     try {
       await api.deleteUser(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteUser):', err);
     }
@@ -529,10 +555,9 @@ class StoreService {
   public async addBranch(branch: Branch) {
     if (!this.state.branches) this.state.branches = [];
     this.state.branches.push(branch);
-    this.saveState();
+    this.saveState(true);
     try {
       await api.createBranch(branch);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createBranch):', err);
     }
@@ -542,10 +567,9 @@ class StoreService {
     const idx = branches.findIndex(b => b?.id === id);
     if (idx !== -1) {
       branches[idx] = { ...branches[idx], ...updates };
-      this.saveState();
+      this.saveState(true);
       try {
         await api.updateBranch(id, updates);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (updateBranch):', err);
       }
@@ -553,10 +577,9 @@ class StoreService {
   }
   public async deleteBranch(id: string) {
     this.state.branches = (this.state.branches || []).filter(b => b?.id !== id);
-    this.saveState();
+    this.saveState(true);
     try {
       await api.deleteBranch(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteBranch):', err);
     }
@@ -567,10 +590,9 @@ class StoreService {
   public async addCategory(cat: Category) {
     if (!this.state.categories) this.state.categories = [];
     this.state.categories.push(cat);
-    this.saveState();
+    this.saveState(true);
     try {
       await api.createCategory(cat);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createCategory):', err);
     }
@@ -580,10 +602,9 @@ class StoreService {
     if (cat) {
       cat.nameAr = nameAr;
       cat.nameEn = nameAr;
-      this.saveState();
+      this.saveState(true);
       try {
         await api.updateCategory(id, nameAr);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (updateCategory):', err);
       }
@@ -595,10 +616,9 @@ class StoreService {
       throw new Error(`لا يمكن حذف هذه الفئة لأنها تحتوي على ${linkedProductsCount} منتج مرتبط بها! يرجى نقل أو حذف المنتجات أولاً.`);
     }
     this.state.categories = (this.state.categories || []).filter(c => c?.id !== id);
-    this.saveState();
+    this.saveState(true);
     try {
       await api.deleteCategory(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteCategory):', err);
     }
@@ -612,31 +632,74 @@ class StoreService {
     if (!this.state.productBranchData) this.state.productBranchData = [];
     this.state.products.push(product);
     this.state.productBranchData.push(...branchDataList);
-    this.saveState();
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'PRODUCT_CREATED',
+          payload: { product, branchData: branchDataList }
+        });
+      } catch {}
+    }
+
     try {
       await api.createProduct(product, branchDataList);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createProduct):', err);
     }
   }
+
+  public addProductFromSocket(product: any, branchData?: any[]) {
+    if (!product || !product.id) return;
+    if (!this.state.products) this.state.products = [];
+    if (!this.state.products.some(p => p.id === product.id)) {
+      this.state.products.unshift(product);
+      if (Array.isArray(branchData)) {
+        this.state.productBranchData = [...(this.state.productBranchData || []), ...branchData];
+      }
+      this.saveState(true);
+    }
+  }
+
   public async updateProduct(id: string, updates: Partial<Product>) {
     const prods = this.getProducts();
     const idx = prods.findIndex(p => p?.id === id);
     if (idx !== -1) {
       prods[idx] = { ...prods[idx], ...updates };
-      this.saveState();
+      this.saveState(true);
+
+      if (this.broadcastChannel) {
+        try {
+          this.broadcastChannel.postMessage({
+            type: 'PRODUCT_UPDATED',
+            payload: prods[idx]
+          });
+        } catch {}
+      }
+
       try {
         await api.updateProduct(id, updates);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (updateProduct):', err);
       }
     }
   }
+
+  public updateProductFromSocket(product: any) {
+    if (!product || !product.id) return;
+    if (!this.state.products) this.state.products = [];
+    const idx = this.state.products.findIndex(p => p.id === product.id);
+    if (idx !== -1) {
+      this.state.products[idx] = { ...this.state.products[idx], ...product };
+      this.saveState(true);
+    }
+  }
+
   public getProductBranchData(productId: string, branchId: string) {
     return (this.state?.productBranchData || []).find(d => d?.productId === productId && d?.branchId === branchId);
   }
+
   public async updateProductBranchData(data: ProductBranchData) {
     if (!this.state.productBranchData) this.state.productBranchData = [];
     const idx = this.state.productBranchData.findIndex(d => d?.productId === data.productId && d?.branchId === data.branchId);
@@ -666,10 +729,9 @@ class StoreService {
       };
       this.state.productBranchData.push(updatedData);
     }
-    this.saveState();
+    this.saveState(true);
     try {
       await api.updateBranchData(updatedData);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (updateProductBranchData):', err);
     }
@@ -693,7 +755,7 @@ class StoreService {
       }
     }
     if (hasChanges) {
-      this.saveState(false);
+      this.saveState(true);
       if (broadcast && this.broadcastChannel) {
         try {
           this.broadcastChannel.postMessage({
@@ -702,7 +764,6 @@ class StoreService {
           });
         } catch {}
       }
-      this.notifyListeners();
     }
   }
 
@@ -710,13 +771,29 @@ class StoreService {
     this.state.products = (this.state.products || []).filter(p => p?.id !== id);
     this.state.productBranchData = (this.state.productBranchData || []).filter(d => d?.productId !== id);
     this.state.physicalItems = (this.state.physicalItems || []).filter(i => i?.productId !== id);
-    this.saveState();
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'PRODUCT_DELETED',
+          payload: { id }
+        });
+      } catch {}
+    }
+
     try {
       await api.deleteProduct(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteProduct):', err);
     }
+  }
+
+  public deleteProductFromSocket(id: string) {
+    if (!id) return;
+    this.state.products = (this.state.products || []).filter(p => p.id !== id);
+    this.state.productBranchData = (this.state.productBranchData || []).filter(bd => bd.productId !== id);
+    this.saveState(true);
   }
 
   public async adjustProductBranchQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
@@ -745,7 +822,6 @@ class StoreService {
     this.generatePhysicalItems(productId, branchId, qty, prefix);
     try {
       await api.adjustStock(productId, branchId, qty, prefix);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (adjustStock):', err);
     }
@@ -926,7 +1002,6 @@ class StoreService {
       this.saveState();
       try {
         await api.payInvoice(id, amount);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (payInvoice):', err);
       }
@@ -954,7 +1029,6 @@ class StoreService {
     this.saveState();
     try {
       await api.payCustomerDebt(term, amount);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (payCustomerDebt):', err);
     }
@@ -1015,7 +1089,6 @@ class StoreService {
     this.saveState();
     try {
       await api.saveCustomer(customer);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (saveCustomer):', err);
     }
@@ -1028,7 +1101,6 @@ class StoreService {
     this.saveState();
     try {
       await api.deleteCustomer(term);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteCustomer):', err);
     }
@@ -1048,25 +1120,63 @@ class StoreService {
       ...expense,
       amount: Number(expense.amount) || 0,
     };
-    this.state.fixedExpenses.push(normalizedExpense);
-    this.saveState();
+    this.state.fixedExpenses = this.state.fixedExpenses.filter(e => e.id !== expense.id);
+    this.state.fixedExpenses.unshift(normalizedExpense);
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'EXPENSE_CREATED',
+          payload: normalizedExpense,
+        });
+      } catch {}
+    }
+
     try {
       await api.createFixedExpense(expense);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createFixedExpense):', err);
     }
   }
+
   public async removeFixedExpense(id: string) {
     if (!this.state.fixedExpenses) return;
     this.state.fixedExpenses = this.state.fixedExpenses.filter(e => e?.id !== id);
-    this.saveState();
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'EXPENSE_DELETED',
+          payload: { id },
+        });
+      } catch {}
+    }
+
     try {
       await api.deleteFixedExpense(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteFixedExpense):', err);
     }
+  }
+
+  public addExpenseFromSocket(expense: any) {
+    if (!expense || !expense.id) return;
+    if (!this.state.fixedExpenses) this.state.fixedExpenses = [];
+    if (!this.state.fixedExpenses.some(e => e.id === expense.id)) {
+      this.state.fixedExpenses.unshift({
+        ...expense,
+        amount: Number(expense.amount) || 0,
+      });
+      this.saveState(true);
+    }
+  }
+
+  public removeExpenseFromSocket(id: string) {
+    if (!id || !this.state.fixedExpenses) return;
+    this.state.fixedExpenses = this.state.fixedExpenses.filter(e => e.id !== id);
+    this.saveState(true);
   }
 
   // --- Product Compositions ---
@@ -1081,7 +1191,6 @@ class StoreService {
     this.saveState();
     try {
       await api.createComposition(comp);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (createComposition):', err);
     }
@@ -1093,7 +1202,6 @@ class StoreService {
     this.saveState();
     try {
       await api.deleteComposition(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteComposition):', err);
     }
@@ -1120,7 +1228,6 @@ class StoreService {
     this.saveState();
     try {
       await api.saveSupplierPurchase(purchase);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (addSupplierPurchase):', err);
     }
@@ -1138,7 +1245,6 @@ class StoreService {
       this.saveState();
       try {
         await api.updateSupplierPurchase(id, updates);
-        await this.syncWithBackend();
       } catch (err) {
         console.warn('DB sync warning (updateSupplierPurchase):', err);
       }
@@ -1151,7 +1257,6 @@ class StoreService {
     this.saveState();
     try {
       await api.deleteSupplierPurchase(id);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (deleteSupplierPurchase):', err);
     }
@@ -1199,7 +1304,6 @@ class StoreService {
 
     try {
       await api.updateSupplierPurchase(id, updates);
-      await this.syncWithBackend();
     } catch (err) {
       console.warn('DB sync warning (recordSupplierPayment):', err);
     }

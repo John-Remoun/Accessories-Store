@@ -2,6 +2,7 @@ import { AppDataSource } from '../../config/data-source';
 import { FixedExpenseEntity } from './fixed-expense.entity';
 import { AppError } from '../../common/exceptions/app-error';
 import { memoryCache } from '../../common/cache/cache.service';
+import { broadcastExpenseCreated, broadcastExpenseDeleted } from '../../common/socket/socket.service';
 
 export class FixedExpenseService {
   private expenseRepo = AppDataSource.getRepository(FixedExpenseEntity);
@@ -37,7 +38,13 @@ export class FixedExpenseService {
       date,
     });
 
-    return this.expenseRepo.save(expense);
+    const saved = await this.expenseRepo.save(expense);
+    try {
+      broadcastExpenseCreated(saved);
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after expense create:', bErr);
+    }
+    return saved;
   }
 
   public async deleteExpense(id: string) {
@@ -46,7 +53,13 @@ export class FixedExpenseService {
     if (!expense) {
       throw new AppError('Expense record not found', 404);
     }
+    const branchId = expense.branchId;
     await this.expenseRepo.remove(expense);
+    try {
+      broadcastExpenseDeleted(id, branchId);
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after expense delete:', bErr);
+    }
     return { success: true };
   }
 }

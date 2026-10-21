@@ -4,6 +4,7 @@ import { ProductBranchDataEntity } from './product-branch-data.entity';
 import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
 import { AppError } from '../../common/exceptions/app-error';
 import { memoryCache } from '../../common/cache/cache.service';
+import { broadcastProductCreated, broadcastProductUpdated, broadcastProductDeleted, broadcastStockUpdate } from '../../common/socket/socket.service';
 
 export class ProductService {
   private productRepo = AppDataSource.getRepository(ProductEntity);
@@ -55,8 +56,9 @@ export class ProductService {
 
     await this.productRepo.save(product);
 
+    let entities: ProductBranchDataEntity[] = [];
     if (branchDataList.length > 0) {
-      const entities = branchDataList.map((bd) =>
+      entities = branchDataList.map((bd) =>
         this.branchDataRepo.create({
           ...bd,
           productId: id,
@@ -84,6 +86,12 @@ export class ProductService {
       }
     }
 
+    try {
+      broadcastProductCreated(product, entities);
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after product create:', bErr);
+    }
+
     return product;
   }
 
@@ -91,7 +99,13 @@ export class ProductService {
     memoryCache.invalidate('products');
     const product = await this.getProductById(id);
     Object.assign(product, updates);
-    return this.productRepo.save(product);
+    const updated = await this.productRepo.save(product);
+    try {
+      broadcastProductUpdated(updated);
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after product update:', bErr);
+    }
+    return updated;
   }
 
   public async updateBranchData(data: Partial<ProductBranchDataEntity>) {
@@ -110,7 +124,23 @@ export class ProductService {
       existing = this.branchDataRepo.create(data);
     }
 
-    return this.branchDataRepo.save(existing);
+    const saved = await this.branchDataRepo.save(existing);
+    if (saved && data.quantity !== undefined) {
+      try {
+        broadcastStockUpdate({
+          branchId: data.branchId,
+          items: [{
+            productId: data.productId,
+            productName: '',
+            newQuantity: Number(data.quantity),
+            isOutOfStock: Number(data.quantity) <= 0
+          }]
+        });
+      } catch (bErr) {
+        console.warn('⚠️ [Socket.io] Broadcast error after branch data update:', bErr);
+      }
+    }
+    return saved;
   }
 
   public async deleteProduct(id: string) {
@@ -121,6 +151,12 @@ export class ProductService {
     await this.branchDataRepo.delete({ productId: id });
     await this.physicalItemRepo.delete({ productId: id });
     await this.productRepo.remove(product);
+
+    try {
+      broadcastProductDeleted(id);
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after product delete:', bErr);
+    }
 
     return { success: true };
   }
@@ -166,6 +202,20 @@ export class ProductService {
       } catch (e) {
         console.warn('Physical item save notice:', e);
       }
+    }
+
+    try {
+      broadcastStockUpdate({
+        branchId,
+        items: [{
+          productId,
+          productName: '',
+          newQuantity: Number(targetQuantity),
+          isOutOfStock: Number(targetQuantity) <= 0
+        }]
+      });
+    } catch (bErr) {
+      console.warn('⚠️ [Socket.io] Broadcast error after adjustStockQuantity:', bErr);
     }
 
     return { success: true, quantity: Number(targetQuantity) };

@@ -76,6 +76,41 @@ export function initSocketClient(): Socket {
     }
   });
 
+  socket.on('expense:created', (expense: any) => {
+    console.log('⚡ [Socket.io Client] Real-time expense:created received:', expense?.id);
+    if (expense) {
+      store.addExpenseFromSocket(expense);
+    }
+  });
+
+  socket.on('expense:deleted', (data: { id: string }) => {
+    console.log('⚡ [Socket.io Client] Real-time expense:deleted received:', data?.id);
+    if (data && data.id) {
+      store.removeExpenseFromSocket(data.id);
+    }
+  });
+
+  socket.on('product:created', (data: { product: any; branchData?: any[] }) => {
+    console.log('⚡ [Socket.io Client] Real-time product:created received:', data?.product?.nameAr);
+    if (data && data.product) {
+      store.addProductFromSocket(data.product, data.branchData);
+    }
+  });
+
+  socket.on('product:updated', (product: any) => {
+    console.log('⚡ [Socket.io Client] Real-time product:updated received:', product?.nameAr);
+    if (product) {
+      store.updateProductFromSocket(product);
+    }
+  });
+
+  socket.on('product:deleted', (data: { id: string }) => {
+    console.log('⚡ [Socket.io Client] Real-time product:deleted received:', data?.id);
+    if (data && data.id) {
+      store.deleteProductFromSocket(data.id);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('⚠️ [Socket.io Client] Disconnected from server.');
     store.setSocketConnected(false);
