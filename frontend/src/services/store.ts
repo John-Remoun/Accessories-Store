@@ -156,13 +156,23 @@ class StoreService {
     });
   }
 
+  private getActiveBranchId(): string | undefined {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('last_active_branch') || undefined;
+      } catch {}
+    }
+    return undefined;
+  }
+
   public async quickSyncStockAndInvoices() {
     if (this.isSyncing) return;
     this.isSyncing = true;
     try {
+      const activeBranch = this.getActiveBranchId();
       const [branchDataList, invs] = await Promise.allSettled([
-        api.getProductBranchDataList(),
-        api.getPaginatedInvoices({ page: 1, limit: 20 }),
+        api.getProductBranchDataList(activeBranch),
+        api.getPaginatedInvoices({ page: 1, limit: 20, branchId: activeBranch }),
       ]);
 
       let stateChanged = false;
@@ -249,6 +259,7 @@ class StoreService {
     if (this.isSyncing) return;
     this.isSyncing = true;
     try {
+      const activeBranch = this.getActiveBranchId();
       const [
         fixedExp,
         invs,
@@ -262,9 +273,9 @@ class StoreService {
         supplierList
       ] = await Promise.allSettled([
         api.getFixedExpenses(),
-        api.getPaginatedInvoices({ page: 1, limit: 50 }),
+        api.getPaginatedInvoices({ page: 1, limit: 50, branchId: activeBranch }),
         api.getProducts(),
-        api.getProductBranchDataList(),
+        api.getProductBranchDataList(activeBranch),
         api.getCategories(),
         api.getPhysicalItems(),
         api.getBranches(),

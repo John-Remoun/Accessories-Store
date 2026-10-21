@@ -30,12 +30,57 @@ export class ProductService {
     return product;
   }
 
-  public async getAllBranchData() {
-    const cached = memoryCache.get<ProductBranchDataEntity[]>('products:branchData:all');
+  public async getAllBranchData(branchId?: string, includeCost: boolean = false) {
+    const targetBranch = branchId?.trim();
+    const branchCacheKey = targetBranch
+      ? `products:branchData:${targetBranch}:${includeCost ? 'withCost' : 'noCost'}`
+      : `products:branchData:all:${includeCost ? 'withCost' : 'noCost'}`;
+
+    const cached = memoryCache.get<ProductBranchDataEntity[]>(branchCacheKey);
     if (cached) return cached;
 
-    const data = await this.branchDataRepo.find();
-    memoryCache.set('products:branchData:all', data, 30);
+    // Check pre-warmed products:branchData:all if populated in memoryCache
+    const legacyAll = memoryCache.get<ProductBranchDataEntity[]>('products:branchData:all');
+    if (legacyAll && Array.isArray(legacyAll)) {
+      let filtered = targetBranch ? legacyAll.filter(item => item.branchId === targetBranch) : legacyAll;
+      if (!includeCost) {
+        filtered = filtered.map((item: any) => {
+          const { cost, ...safeData } = item;
+          return safeData as any;
+        });
+      }
+      return filtered;
+    }
+
+    const selectColumns: (keyof ProductBranchDataEntity)[] = [
+      'id',
+      'productId',
+      'branchId',
+      'price1',
+      'price1Label',
+      'price2',
+      'price2Label',
+      'price3',
+      'price3Label',
+      'price4',
+      'price4Label',
+      'minStock',
+      'quantity',
+      'updatedAt',
+    ];
+    if (includeCost) {
+      selectColumns.push('cost');
+    }
+
+    const whereClause = targetBranch ? { branchId: targetBranch } : {};
+
+    const data = await this.branchDataRepo.find({
+      where: whereClause,
+      select: selectColumns,
+      take: 500,
+    });
+
+    memoryCache.set(branchCacheKey, data, 30);
     return data;
   }
 

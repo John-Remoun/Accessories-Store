@@ -97,7 +97,8 @@ export const api = {
 
   // Products
   getProducts: () => request<any[]>('/products'),
-  getProductBranchDataList: () => request<any[]>('/products/branch-data/all'),
+  getProductBranchDataList: (branchId?: string) =>
+    request<any[]>(branchId ? `/products/branch-data/all?branchId=${encodeURIComponent(branchId)}` : '/products/branch-data/all'),
   createProduct: (product: any, branchDataList: any[]) =>
     request<any>('/products', { method: 'POST', body: JSON.stringify({ ...product, branchDataList }) }),
   updateProduct: (id: string, updates: any) => request<any>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),

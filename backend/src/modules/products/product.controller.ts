@@ -28,16 +28,11 @@ export class ProductController {
   public async getAllBranchData(req: Request, res: Response, next: NextFunction) {
     try {
       const scope = await resolveBranchScope(req, req.query.branchId as string | undefined);
-      let list = await productService.getAllBranchData();
+      const isGlobalAdmin = scope.isGlobalAdmin;
+      const targetBranchId = isGlobalAdmin ? (req.query.branchId as string | undefined) : scope.branchId;
 
-      if (!scope.isGlobalAdmin) {
-        // Non-administrators can only see data for their assigned branch, with cost redacted
-        list = list.filter((item: any) => item.branchId === scope.branchId);
-        list = list.map((item: any) => {
-          const { cost, ...safeData } = item;
-          return safeData as any;
-        });
-      }
+      // Direct SQL-level branch filtering and cost redaction with 30s cache
+      const list = await productService.getAllBranchData(targetBranchId, isGlobalAdmin);
 
       return sendResponse(res, 200, 'Product branch data list retrieved', list);
     } catch (error) {
