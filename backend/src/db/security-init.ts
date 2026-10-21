@@ -43,6 +43,7 @@ export async function applySecurityHardening(dataSource: DataSource): Promise<vo
 
       ALTER TABLE IF EXISTS public.fixed_expenses ADD COLUMN IF NOT EXISTS "userName" character varying(150);
       ALTER TABLE IF EXISTS public.fixed_expenses ADD COLUMN IF NOT EXISTS "userId" character varying(100);
+      ALTER TABLE IF EXISTS public.invoices ADD COLUMN IF NOT EXISTS "vodafoneNumber" character varying(50);
     `);
 
     // 1. Enable Row Level Security (RLS) on all eleven audited tables plus suppliers

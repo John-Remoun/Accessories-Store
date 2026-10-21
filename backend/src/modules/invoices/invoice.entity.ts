@@ -64,6 +64,9 @@ export class InvoiceEntity {
   @Column({ type: 'varchar', length: 50, nullable: true })
   paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay' | 'multi';
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  vodafoneNumber?: string;
+
   @Column({ type: 'jsonb', nullable: true })
   splitPayments?: {
     cash?: number;

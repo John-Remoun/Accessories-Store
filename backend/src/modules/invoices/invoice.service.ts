@@ -113,7 +113,7 @@ export class InvoiceService {
 
   public async getInvoiceById(id: string) {
     const invoice = await this.invoiceRepo.findOne({
-      where: { id },
+      where: [{ id }, { invoiceNumber: id }],
       relations: ['invoiceItems'],
     });
     if (!invoice) {
@@ -138,7 +138,8 @@ export class InvoiceService {
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const qb = this.invoiceRepo.createQueryBuilder('invoice');
+    const qb = this.invoiceRepo.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.invoiceItems', 'invoiceItems');
 
     if (options.branchId) {
       qb.andWhere('invoice.branchId = :branchId', { branchId: options.branchId });
@@ -220,6 +221,7 @@ export class InvoiceService {
     paymentMethod?: 'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi';
     paymentStatus?: 'paid' | 'partial' | 'deferred';
     paymentSubMethod?: 'cash' | 'vodafone_cash' | 'instapay' | 'multi';
+    vodafoneNumber?: string;
     splitPayments?: {
       cash?: number;
       vodafone_cash?: number;
@@ -420,6 +422,7 @@ export class InvoiceService {
         paymentMethod: data.paymentMethod || 'cash',
         paymentStatus: data.paymentStatus || 'paid',
         paymentSubMethod: data.paymentSubMethod,
+        vodafoneNumber: data.vodafoneNumber,
         splitPayments: data.splitPayments,
         paidAmount: data.paidAmount !== undefined ? data.paidAmount : total,
         remainingAmount: data.remainingAmount !== undefined ? data.remainingAmount : 0,
@@ -946,7 +949,7 @@ export class InvoiceService {
       }
 
       // Delete old invoice items
-      await transactionalEntityManager.delete(InvoiceItemEntity, { invoice: { id: invoice.id } });
+      await transactionalEntityManager.delete(InvoiceItemEntity, { invoiceId: invoice.id });
 
       // Re-create items and calculate totals
       let computedSubtotal = 0;
@@ -1007,6 +1010,7 @@ export class InvoiceService {
       if (data.customerPhone !== undefined) invoice.customerPhone = data.customerPhone;
       if (data.paymentMethod !== undefined) invoice.paymentMethod = data.paymentMethod;
       if (data.paymentSubMethod !== undefined) invoice.paymentSubMethod = data.paymentSubMethod;
+      if (data.vodafoneNumber !== undefined) invoice.vodafoneNumber = data.vodafoneNumber;
       if (data.paymentStatus !== undefined) invoice.paymentStatus = data.paymentStatus;
       if (data.splitPayments !== undefined) invoice.splitPayments = data.splitPayments;
 
@@ -1088,6 +1092,7 @@ export class InvoiceService {
       paymentMethod: invoice.paymentMethod,
       paymentStatus: invoice.paymentStatus,
       paymentSubMethod: invoice.paymentSubMethod,
+      vodafoneNumber: invoice.vodafoneNumber,
       splitPayments: invoice.splitPayments,
       paidAmount: Number(invoice.paidAmount),
       remainingAmount: Number(invoice.remainingAmount),

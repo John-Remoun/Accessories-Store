@@ -995,6 +995,7 @@ class StoreService {
 
   public async updateInvoice(updatedInvoice: Invoice, returnedStock?: Array<{ productId: string; quantity: number }>) {
     if (!this.state.invoices) this.state.invoices = [];
+    const targetId = updatedInvoice.id || updatedInvoice.invoiceNumber;
     const idx = this.state.invoices.findIndex(i => i.id === updatedInvoice.id || i.invoiceNumber === updatedInvoice.invoiceNumber);
     if (idx !== -1) {
       this.state.invoices[idx] = { ...this.state.invoices[idx], ...updatedInvoice };
@@ -1014,8 +1015,7 @@ class StoreService {
       }
     }
 
-    this.saveState(false);
-    this.notifyListeners();
+    this.saveState(true);
 
     if (this.broadcastChannel) {
       try {
@@ -1026,24 +1026,22 @@ class StoreService {
       } catch {}
     }
 
-    try {
-      const serverRes = await api.updateInvoice(updatedInvoice.id, updatedInvoice);
-      if (serverRes && Array.isArray(serverRes.updatedStock) && serverRes.updatedStock.length > 0) {
-        this.applyRealtimeStockUpdate(updatedInvoice.branchId, serverRes.updatedStock, true);
-      }
-      if (serverRes && serverRes.id) {
-        const finalIdx = this.state.invoices.findIndex(i => i.id === serverRes.id || i.invoiceNumber === serverRes.invoiceNumber);
-        if (finalIdx !== -1) {
-          this.state.invoices[finalIdx] = { ...this.state.invoices[finalIdx], ...serverRes };
-          this.saveState(false);
-          this.notifyListeners();
-        }
-      }
-      return serverRes;
-    } catch (err) {
-      console.warn('API updateInvoice warning:', err);
-      return updatedInvoice;
+    const serverRes = await api.updateInvoice(targetId, updatedInvoice);
+    const formatted = serverRes?.formattedInvoice || (serverRes?.id ? serverRes : updatedInvoice);
+    const stockItems = serverRes?.updatedStockItems || serverRes?.updatedStock || [];
+
+    if (Array.isArray(stockItems) && stockItems.length > 0) {
+      this.applyRealtimeStockUpdate(updatedInvoice.branchId, stockItems, true);
     }
+    if (formatted && (formatted.id || formatted.invoiceNumber)) {
+      const finalIdx = this.state.invoices.findIndex(i => i.id === formatted.id || i.invoiceNumber === formatted.invoiceNumber);
+      if (finalIdx !== -1) {
+        this.state.invoices[finalIdx] = { ...this.state.invoices[finalIdx], ...formatted };
+      }
+    }
+
+    this.saveState(true);
+    return formatted;
   }
 
   public deleteInvoicesFromSocket(ids: string[]) {

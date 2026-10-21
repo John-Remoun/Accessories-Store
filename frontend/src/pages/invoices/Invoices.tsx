@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { api } from '../../services/api';
 import { useStoreSync } from '../../hooks/useStoreSync';
-import { Invoice } from '../../types';
+import { Invoice, VODAFONE_CASH_NUMBERS } from '../../types';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
@@ -834,6 +834,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const [editSplitCash, setEditSplitCash] = useState<number>(0);
   const [editSplitVodafone, setEditSplitVodafone] = useState<number>(0);
   const [editSplitInstapay, setEditSplitInstapay] = useState<number>(0);
+  const [editVodafoneNumber, setEditVodafoneNumber] = useState<string>(VODAFONE_CASH_NUMBERS[0]);
   const [editItems, setEditItems] = useState<Array<{
     physicalItemId?: string;
     productId: string;
@@ -847,15 +848,13 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
 
   const handleOpenEditModal = async (inv: Invoice) => {
     let fullInv = inv;
-    if (!inv.items || inv.items.length === 0) {
-      try {
-        const fetched = await api.getInvoiceById(inv.id);
-        if (fetched && fetched.items && fetched.items.length > 0) {
-          fullInv = fetched;
-        }
-      } catch (err) {
-        console.warn('Could not load full invoice items for edit modal:', err);
+    try {
+      const fetched = await api.getInvoiceById(inv.id || inv.invoiceNumber);
+      if (fetched && fetched.items && fetched.items.length > 0) {
+        fullInv = fetched;
       }
+    } catch (err) {
+      console.warn('Could not load full invoice items for edit modal:', err);
     }
 
     setEditingInvoice(fullInv);
@@ -863,6 +862,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     setEditCustomerPhone(fullInv.customerPhone || '');
     const initialMethod = (fullInv.paymentSubMethod || fullInv.paymentMethod || 'cash') as any;
     setEditPaymentMethod(initialMethod);
+    setEditVodafoneNumber(fullInv.vodafoneNumber || VODAFONE_CASH_NUMBERS[0]);
     const isPartial = (fullInv.remainingAmount && fullInv.remainingAmount > 0) || fullInv.paymentStatus === 'partial' || fullInv.paymentStatus === 'deferred';
     setEditPaymentStatus(isPartial ? 'partial' : 'paid');
     setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
@@ -911,6 +911,27 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
       }
       return updated;
+    });
+  };
+
+  const handleSetEditItemQuantity = (idx: number, newQty: number) => {
+    const safeQty = Math.max(1, newQty);
+    setEditItems(prev => {
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], quantity: safeQty };
+
+      const newSub = copy.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
+      const newTot = Math.max(0, newSub - (Number(editDiscount) || 0));
+
+      if (editPaymentStatus === 'paid') {
+        setEditPaidAmount(newTot);
+        if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
+        else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
+        else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else {
+        setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
+      }
+      return copy;
     });
   };
 
@@ -1189,6 +1210,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         paymentMethod: editPaymentMethod,
         paymentSubMethod: (isMulti ? 'multi' : editPaymentMethod === 'vodafone_cash' ? 'vodafone_cash' : editPaymentMethod === 'instapay' ? 'instapay' : 'cash') as any,
         splitPayments: finalSplitPayments,
+        vodafoneNumber: (editPaymentMethod === 'vodafone_cash' || (isMulti && splitVoda > 0)) ? editVodafoneNumber : undefined,
         paymentStatus: effectiveStatus,
         paidAmount: effectivePaid,
         remainingAmount: effectiveRemaining,
@@ -2795,7 +2817,7 @@ Salla Bola & Mina`;
 
       {/* SUPER ADMIN EDIT INVOICE & RETURNS MODAL */}
       <Dialog open={!!editingInvoice} onOpenChange={(open) => !open && !isSubmittingEdit && setEditingInvoice(null)}>
-        <DialogContent className="max-w-3xl w-[95vw] sm:w-full max-h-[90vh] flex flex-col bg-card border-border overflow-hidden p-0 rounded-3xl shadow-2xl" dir="rtl">
+        <DialogContent showCloseButton={false} className="max-w-3xl w-[95vw] sm:w-full max-h-[90vh] flex flex-col bg-card border-border overflow-hidden p-0 rounded-3xl shadow-2xl" dir="rtl">
           
           {/* Modal Header */}
           <DialogHeader className="p-5 border-b border-border/80 bg-muted/20 shrink-0">
@@ -3007,15 +3029,39 @@ Salla Bola & Mina`;
                         </button>
                       </div>
 
-                      {/* Custom Theme Dropdown for selecting any method */}
-                      <div className="pt-1">
-                        <CustomSelect
-                          value={editPaymentMethod}
-                          onChange={(val) => setEditPaymentMethod(val as any)}
-                          options={paymentMethodOptions}
-                          placeholder="أو اختر من قائمة وسائل الدفع..."
-                        />
-                      </div>
+                      {/* Vodafone Cash Wallet Selector for Single Payment */}
+                      {editPaymentMethod === 'vodafone_cash' && (
+                        <div className="space-y-2 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 animate-in fade-in-50">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-rose-500 flex items-center gap-1.5">
+                              <img src={vodafoneLogo} alt="Vodafone" className="w-4 h-4 object-contain rounded-full" />
+                              <span>اختر رقم محفظة فودافون كاش المراد التحويل عليها:</span>
+                            </label>
+                            <span className="text-[10px] text-muted-foreground font-semibold">3 أرقام متاحة</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {VODAFONE_CASH_NUMBERS.map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => setEditVodafoneNumber(num)}
+                                className={`py-2 px-3 rounded-xl text-xs font-mono font-bold transition-all border flex items-center justify-between ${
+                                  editVodafoneNumber === num
+                                    ? 'bg-rose-500 text-white border-rose-500 shadow-sm ring-1 ring-rose-400'
+                                    : 'bg-background/90 text-foreground border-border/80 hover:bg-muted'
+                                }`}
+                              >
+                                <span dir="ltr">{num}</span>
+                                {editVodafoneNumber === num ? (
+                                  <span className="w-4 h-4 rounded-full bg-white text-rose-600 flex items-center justify-center text-[10px] font-extrabold">✓</span>
+                                ) : (
+                                  <span className="w-3.5 h-3.5 rounded-full border border-muted-foreground/30" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Split Breakdown when multi */}
@@ -3060,6 +3106,29 @@ Salla Bola & Mina`;
                                 className="h-8 text-xs font-mono font-bold text-left pl-8 rounded-lg bg-background"
                               />
                               <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">ج.م</span>
+                            </div>
+                            {/* Wallet Selection in Split */}
+                            <div className="pt-2 border-t border-border/40 space-y-1">
+                              <span className="text-[10px] font-bold text-rose-500/90 block">
+                                محفظة التحويل:
+                              </span>
+                              <div className="grid grid-cols-3 gap-1">
+                                {VODAFONE_CASH_NUMBERS.map((num) => (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => setEditVodafoneNumber(num)}
+                                    className={`py-1 px-1 rounded-lg text-[9px] font-mono font-bold transition-all border text-center truncate ${
+                                      editVodafoneNumber === num
+                                        ? 'bg-rose-500 text-white border-rose-500 font-extrabold shadow-2xs'
+                                        : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                                    }`}
+                                    title={num}
+                                  >
+                                    {num.slice(-4)}..
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           </div>
 
@@ -3161,7 +3230,16 @@ Salla Bola & Mina`;
                                   >
                                     <Minus size={12} />
                                   </button>
-                                  <span className="font-mono font-bold text-xs w-6 text-center">{item.quantity}</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const v = parseInt(e.target.value, 10);
+                                      handleSetEditItemQuantity(idx, isNaN(v) || v < 1 ? 1 : v);
+                                    }}
+                                    className="font-mono font-bold text-xs w-10 text-center bg-transparent border-0 outline-none"
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateEditItemQuantity(idx, 1)}
