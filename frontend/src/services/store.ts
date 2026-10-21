@@ -24,6 +24,21 @@ class StoreService {
   private isSyncing = false;
   private tombstonedInvoiceIds: Set<string> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
+  private isSocketConnected = false;
+  private lastFullSyncTimestamp = 0;
+
+  public setSocketConnected(connected: boolean) {
+    const wasConnected = this.isSocketConnected;
+    this.isSocketConnected = connected;
+    if (connected && !wasConnected) {
+      // Re-sync changes that might have happened during disconnect
+      this.quickSyncStockAndInvoices();
+    }
+  }
+
+  public isSocketActive(): boolean {
+    return this.isSocketConnected;
+  }
 
   constructor() {
     this.state = this.loadState();
@@ -69,11 +84,33 @@ class StoreService {
         }
       });
 
-      window.addEventListener('focus', () => this.syncWithBackend());
-      // High-speed lightweight check every 2.5s for inventory & invoices
-      setInterval(() => this.quickSyncStockAndInvoices(), 2500);
-      // Full sync every 45s
-      setInterval(() => this.syncWithBackend(), 45000);
+      // Throttle focus sync: only sync if tab is visible and >= 90s elapsed
+      window.addEventListener('focus', () => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (Date.now() - this.lastFullSyncTimestamp > 90000) {
+          this.syncWithBackend();
+        }
+      });
+
+      // Fallback check when Socket.io is disconnected (every 45s, tab visible only)
+      setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!this.isSocketConnected) {
+          this.quickSyncStockAndInvoices();
+        }
+      }, 45000);
+
+      // Periodic sanity check every 3 minutes (180,000ms)
+      setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        this.quickSyncStockAndInvoices();
+      }, 180000);
+
+      // Full sync every 5 minutes (300,000ms)
+      setInterval(() => {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        this.syncWithBackend();
+      }, 300000);
     }
   }
 
@@ -305,6 +342,7 @@ class StoreService {
         }));
       }
 
+      this.lastFullSyncTimestamp = Date.now();
       this.saveState(false);
     } catch (e) {
       console.warn('Backend sync warning:', e);

@@ -9,23 +9,35 @@ import { UserEntity } from '../users/user.entity';
 import { AppError } from '../../common/exceptions/app-error';
 import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, broadcastInvoiceUpdated, StockUpdateItem } from '../../common/socket/socket.service';
 import { whatsappService } from '../whatsapp/whatsapp.service';
+import { memoryCache } from '../../common/cache/cache.service';
 
 export class InvoiceService {
   private invoiceRepo = AppDataSource.getRepository(InvoiceEntity);
 
   public async getAllInvoices() {
+    const cached = memoryCache.get<any[]>('invoices:all');
+    if (cached) return cached;
+
     const invoices = await this.invoiceRepo.find({
       order: { createdAt: 'DESC' },
     });
-    return invoices.map(this.formatInvoiceResponse);
+    const formatted = invoices.map(this.formatInvoiceResponse);
+    memoryCache.set('invoices:all', formatted, 15);
+    return formatted;
   }
 
   public async getInvoicesByBranch(branchId: string) {
+    const cacheKey = `invoices:branch:${branchId}`;
+    const cached = memoryCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     const invoices = await this.invoiceRepo.find({
       where: { branchId },
       order: { createdAt: 'DESC' },
     });
-    return invoices.map(this.formatInvoiceResponse);
+    const formatted = invoices.map(this.formatInvoiceResponse);
+    memoryCache.set(cacheKey, formatted, 15);
+    return formatted;
   }
 
   public async getInvoiceById(id: string) {
@@ -60,6 +72,8 @@ export class InvoiceService {
     paidAmount?: number;
     remainingAmount?: number;
   }) {
+    memoryCache.invalidate('invoices');
+    memoryCache.invalidate('products');
     if (!data.items || data.items.length === 0) {
       throw new AppError('Invoice must contain at least one item', 400);
     }
@@ -333,6 +347,8 @@ export class InvoiceService {
 
   public async deleteInvoicesByIds(ids: string[]) {
     if (!ids || !Array.isArray(ids) || ids.length === 0) return { success: true };
+    memoryCache.invalidate('invoices');
+    memoryCache.invalidate('products');
 
     await AppDataSource.transaction(async (transactionalEntityManager) => {
       // Find invoices to adjust salesCount for employees
@@ -376,6 +392,7 @@ export class InvoiceService {
   }
 
   public async toggleFavorite(id: string) {
+    memoryCache.invalidate('invoices');
     const invoice = await this.invoiceRepo.findOne({ where: { id } });
     if (!invoice) {
       throw new AppError('Invoice not found', 404);
@@ -389,6 +406,7 @@ export class InvoiceService {
     if (amount <= 0) {
       throw new AppError('Payment amount must be greater than zero', 400);
     }
+    memoryCache.invalidate('invoices');
 
     const invoice = await this.invoiceRepo.findOne({ where: { id } });
     if (!invoice) {
@@ -413,6 +431,7 @@ export class InvoiceService {
     if (amount <= 0) {
       throw new AppError('Payment amount must be greater than zero', 400);
     }
+    memoryCache.invalidate('invoices');
 
     const invoices = await this.invoiceRepo.find({
       where: [
@@ -443,6 +462,8 @@ export class InvoiceService {
   }
 
   public async updateInvoice(id: string, data: any) {
+    memoryCache.invalidate('invoices');
+    memoryCache.invalidate('products');
     const result = await AppDataSource.transaction(async (transactionalEntityManager) => {
       const invoice = await transactionalEntityManager.findOne(InvoiceEntity, {
         where: [{ id }, { invoiceNumber: id }],

@@ -34,6 +34,7 @@ export function initSocketClient(): Socket {
 
   socket.on('connect', () => {
     console.log('⚡ [Socket.io Client] Connected to real-time server. ID:', socket?.id);
+    store.setSocketConnected(true);
     const lastActiveBranch = localStorage.getItem('last_active_branch') || 'b1';
     socket?.emit('join:branch', lastActiveBranch);
   });
@@ -77,6 +78,7 @@ export function initSocketClient(): Socket {
 
   socket.on('disconnect', () => {
     console.log('⚠️ [Socket.io Client] Disconnected from server.');
+    store.setSocketConnected(false);
   });
 
   return socket;

@@ -2,15 +2,21 @@ import { AppDataSource } from '../../config/data-source';
 import { CategoryEntity } from './category.entity';
 import { ProductEntity } from '../products/product.entity';
 import { AppError } from '../../common/exceptions/app-error';
+import { memoryCache } from '../../common/cache/cache.service';
 
 export class CategoryService {
   private categoryRepo = AppDataSource.getRepository(CategoryEntity);
   private productRepo = AppDataSource.getRepository(ProductEntity);
 
   public async getAllCategories() {
-    return this.categoryRepo.find({
+    const cached = memoryCache.get<CategoryEntity[]>('categories:all');
+    if (cached) return cached;
+
+    const categories = await this.categoryRepo.find({
       order: { createdAt: 'ASC' },
     });
+    memoryCache.set('categories:all', categories, 300);
+    return categories;
   }
 
   public async getCategoryById(id: string) {
@@ -22,6 +28,7 @@ export class CategoryService {
   }
 
   public async createCategory(data: { id?: string; nameAr: string; nameEn?: string }) {
+    memoryCache.invalidate('categories');
     const id = data.id || `c_${Date.now()}`;
     const nameEn = data.nameEn || data.nameAr;
     const category = this.categoryRepo.create({
@@ -33,6 +40,7 @@ export class CategoryService {
   }
 
   public async updateCategory(id: string, nameAr: string) {
+    memoryCache.invalidate('categories');
     const category = await this.getCategoryById(id);
     category.nameAr = nameAr;
     category.nameEn = nameAr;
@@ -40,6 +48,7 @@ export class CategoryService {
   }
 
   public async deleteCategory(id: string) {
+    memoryCache.invalidate('categories');
     const category = await this.getCategoryById(id);
     
     // Block deletion if category has associated products

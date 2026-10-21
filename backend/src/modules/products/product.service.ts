@@ -3,6 +3,7 @@ import { ProductEntity } from './product.entity';
 import { ProductBranchDataEntity } from './product-branch-data.entity';
 import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
 import { AppError } from '../../common/exceptions/app-error';
+import { memoryCache } from '../../common/cache/cache.service';
 
 export class ProductService {
   private productRepo = AppDataSource.getRepository(ProductEntity);
@@ -10,9 +11,14 @@ export class ProductService {
   private physicalItemRepo = AppDataSource.getRepository(PhysicalItemEntity);
 
   public async getAllProducts() {
-    return this.productRepo.find({
+    const cached = memoryCache.get<ProductEntity[]>('products:all');
+    if (cached) return cached;
+
+    const products = await this.productRepo.find({
       order: { createdAt: 'DESC' },
     });
+    memoryCache.set('products:all', products, 60);
+    return products;
   }
 
   public async getProductById(id: string) {
@@ -24,7 +30,12 @@ export class ProductService {
   }
 
   public async getAllBranchData() {
-    return this.branchDataRepo.find();
+    const cached = memoryCache.get<ProductBranchDataEntity[]>('products:branchData:all');
+    if (cached) return cached;
+
+    const data = await this.branchDataRepo.find();
+    memoryCache.set('products:branchData:all', data, 30);
+    return data;
   }
 
   public async getBranchData(productId: string, branchId: string) {
@@ -34,6 +45,7 @@ export class ProductService {
   }
 
   public async createProduct(productData: Partial<ProductEntity>, branchDataList: Partial<ProductBranchDataEntity>[] = []) {
+    memoryCache.invalidate('products');
     const id = productData.id || `p_${Date.now()}`;
     const product = this.productRepo.create({
       ...productData,
@@ -76,12 +88,14 @@ export class ProductService {
   }
 
   public async updateProduct(id: string, updates: Partial<ProductEntity>) {
+    memoryCache.invalidate('products');
     const product = await this.getProductById(id);
     Object.assign(product, updates);
     return this.productRepo.save(product);
   }
 
   public async updateBranchData(data: Partial<ProductBranchDataEntity>) {
+    memoryCache.invalidate('products');
     if (!data.productId || !data.branchId) {
       throw new AppError('productId and branchId are required', 400);
     }
@@ -100,6 +114,7 @@ export class ProductService {
   }
 
   public async deleteProduct(id: string) {
+    memoryCache.invalidate('products');
     const product = await this.getProductById(id);
 
     // Delete associated branch data and physical items
@@ -111,6 +126,7 @@ export class ProductService {
   }
 
   public async adjustStockQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
+    memoryCache.invalidate('products');
     let bd = await this.branchDataRepo.findOne({ where: { productId, branchId } });
     if (bd) {
       bd.quantity = Number(targetQuantity);
