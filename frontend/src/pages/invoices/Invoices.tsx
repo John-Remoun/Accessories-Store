@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
 import { useStoreSync } from '../../hooks/useStoreSync';
@@ -38,6 +38,137 @@ const getIsoDate = (dateStr: string) => {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+interface InvoicePaginationProps {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
+  accentColor?: 'emerald' | 'rose' | 'amber';
+}
+
+const InvoicePagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+  accentColor = 'emerald'
+}: InvoicePaginationProps) => {
+  if (totalItems <= itemsPerPage && totalPages <= 1) return null;
+
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+  // Generate page numbers to show (e.g., 1, 2, 3 ... totalPages)
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  const pages = getPageNumbers();
+
+  const activeStyles = {
+    emerald: 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-950/40 font-black',
+    rose: 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-950/40 font-black',
+    amber: 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-950/40 font-black',
+  }[accentColor];
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 pb-1 border-t border-border/50 text-xs">
+      {/* Information text */}
+      <div className="text-muted-foreground font-medium flex items-center gap-1.5 select-none">
+        <span>عرض</span>
+        <span className="font-mono font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
+          {startItem} - {endItem}
+        </span>
+        <span>من إجمالي</span>
+        <span className="font-mono font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
+          {totalItems}
+        </span>
+        <span>فاتورة</span>
+        <span className="text-[11px] text-muted-foreground/70 font-mono">
+          (صفحة {currentPage} من {totalPages})
+        </span>
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex items-center gap-1.5 select-none" dir="rtl">
+        {/* Previous Page Button */}
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-foreground font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-xs"
+          title="الصفحة السابقة"
+        >
+          <ChevronRight size={14} className="shrink-0" />
+          <span>السابق</span>
+        </button>
+
+        {/* Number Buttons */}
+        <div className="flex items-center gap-1">
+          {pages.map((p, idx) => {
+            if (p === '...') {
+              return (
+                <span key={`dots-${idx}`} className="px-1.5 text-muted-foreground/60 font-bold font-mono">
+                  ...
+                </span>
+              );
+            }
+
+            const pageNum = Number(p);
+            const isActive = pageNum === currentPage;
+
+            return (
+              <button
+                key={`page-${pageNum}`}
+                type="button"
+                onClick={() => onPageChange(pageNum)}
+                className={`w-8 h-8 rounded-xl font-mono text-xs transition-all flex items-center justify-center border ${
+                  isActive
+                    ? `${activeStyles} scale-105`
+                    : 'bg-card border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground font-semibold'
+                } active:scale-95 shadow-xs`}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Next Page Button */}
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-foreground font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-xs"
+          title="الصفحة التالية"
+        >
+          <span>التالي</span>
+          <ChevronLeft size={14} className="shrink-0" />
+        </button>
+      </div>
+    </div>
+  );
 };
 
 export const Invoices = () => {
@@ -286,6 +417,33 @@ export const Invoices = () => {
   const totalPaidAmount = useMemo(() => {
     return paidInvoicesList.reduce((acc, inv) => acc + (inv.total || 0), 0);
   }, [paidInvoicesList]);
+
+  // Pagination Settings (8 invoices per page)
+  const ITEMS_PER_PAGE = 8;
+  const [paidPage, setPaidPage] = useState<number>(1);
+  const [unpaidPage, setUnpaidPage] = useState<number>(1);
+
+  // Reset pagination on filter or tab change
+  useEffect(() => {
+    setPaidPage(1);
+    setUnpaidPage(1);
+  }, [search, selectedDate, currentYear, currentMonth, activeTab, activeBranchId]);
+
+  const totalPagesPaid = Math.max(1, Math.ceil(paidInvoicesList.length / ITEMS_PER_PAGE));
+  const totalPagesUnpaid = Math.max(1, Math.ceil(unpaidInvoicesList.length / ITEMS_PER_PAGE));
+
+  const safePaidPage = Math.min(paidPage, totalPagesPaid);
+  const safeUnpaidPage = Math.min(unpaidPage, totalPagesUnpaid);
+
+  const paginatedPaidInvoices = useMemo(() => {
+    const start = (safePaidPage - 1) * ITEMS_PER_PAGE;
+    return paidInvoicesList.slice(start, start + ITEMS_PER_PAGE);
+  }, [paidInvoicesList, safePaidPage]);
+
+  const paginatedUnpaidInvoices = useMemo(() => {
+    const start = (safeUnpaidPage - 1) * ITEMS_PER_PAGE;
+    return unpaidInvoicesList.slice(start, start + ITEMS_PER_PAGE);
+  }, [unpaidInvoicesList, safeUnpaidPage]);
 
   const filteredInvoices = periodInvoices;
 
@@ -1236,7 +1394,7 @@ Salla Bola & Mina`;
               </div>
             ) : (
               <div className="space-y-3.5">
-                {paidInvoicesList.map((inv) => {
+                {paginatedPaidInvoices.map((inv) => {
                   const cashier = store.getUsers().find(u => u.id === inv.employeeId)?.name || 'الكاشير';
 
                   return (
@@ -1360,6 +1518,16 @@ Salla Bola & Mina`;
                     </div>
                   );
                 })}
+
+                {/* Pagination Controls for Paid Invoices */}
+                <InvoicePagination
+                  currentPage={safePaidPage}
+                  totalPages={totalPagesPaid}
+                  totalItems={paidInvoicesList.length}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={(p) => setPaidPage(p)}
+                  accentColor="emerald"
+                />
               </div>
             )}
 
@@ -1408,7 +1576,7 @@ Salla Bola & Mina`;
               </div>
             ) : (
               <div className="space-y-3.5">
-                {unpaidInvoicesList.map((inv) => {
+                {paginatedUnpaidInvoices.map((inv) => {
                   const remaining = getInvoiceRemaining(inv);
                   const paid = getInvoicePaid(inv);
                   const cashier = store.getUsers().find(u => u.id === inv.employeeId)?.name || 'الكاشير';
@@ -1551,6 +1719,16 @@ Salla Bola & Mina`;
                     </div>
                   );
                 })}
+
+                {/* Pagination Controls for Unpaid Invoices */}
+                <InvoicePagination
+                  currentPage={safeUnpaidPage}
+                  totalPages={totalPagesUnpaid}
+                  totalItems={unpaidInvoicesList.length}
+                  itemsPerPage={ITEMS_PER_PAGE}
+                  onPageChange={(p) => setUnpaidPage(p)}
+                  accentColor={activeTab === 'partial' ? 'amber' : 'rose'}
+                />
               </div>
             )}
 
