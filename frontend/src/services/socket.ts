@@ -122,3 +122,12 @@ export function initSocketClient(): Socket {
 export function getSocketClient(): Socket | null {
   return socket;
 }
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+export function debouncedRefetch(fn: () => void, delayMs = 2000): void {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    fn();
+  }, delayMs);
+}

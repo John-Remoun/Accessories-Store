@@ -59,6 +59,7 @@ export const invalidateInvoiceCache = (id?: string) => {
 
 export const api = {
   invalidateInvoiceCache,
+  getSyncVersion: () => request<{ version: string; timestamp: string }>('/sync/version'),
   // Auth
   login: async (username: string, password?: string) => {
     const cleanUsername = username.trim();

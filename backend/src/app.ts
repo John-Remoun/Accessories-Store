@@ -71,11 +71,18 @@ const corsOptions: cors.CorsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 };
 
+import { egressMonitor } from './common/middleware/egress-monitor.middleware';
+import { getSyncVersion, bumpSyncVersion } from './common/sync/sync-version';
+
+export { bumpSyncVersion as updateSyncVersion };
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false, // Managed by frontend hosting
 }));
+app.set('etag', 'strong');
 app.use(cors(corsOptions));
+app.use(egressMonitor);
 app.use(apiLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -124,6 +131,19 @@ app.use(ensureDbConnected);
 
 // API Router
 const apiRouter = express.Router();
+
+// Lightweight sync version endpoint to avoid repeated full database downloads
+apiRouter.get('/sync/version', (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  return res.json({
+    success: true,
+    data: {
+      version: getSyncVersion(),
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/branches', branchRoutes);

@@ -21,17 +21,22 @@ export interface AppState {
 class StoreService {
   private state: AppState;
   private listeners: Set<() => void> = new Set();
-  private isSyncing = false;
   private tombstonedInvoiceIds: Set<string> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
   private isSocketConnected = false;
   private lastFullSyncTimestamp = 0;
+  private lastQuickSyncTimestamp = 0;
+  private syncWithBackendPromise: Promise<void> | null = null;
+  private quickSyncPromise: Promise<void> | null = null;
+  private lastSyncedVersion: string | null = null;
+  private consecutiveSyncFailures = 0;
+  private nextAllowedSyncTime = 0;
 
   public setSocketConnected(connected: boolean) {
     const wasConnected = this.isSocketConnected;
     this.isSocketConnected = connected;
-    if (connected && !wasConnected) {
-      // Re-sync changes that might have happened during disconnect
+    // Only re-sync on reconnect if at least 5 minutes (300,000ms) have elapsed since last full sync
+    if (connected && !wasConnected && Date.now() - this.lastFullSyncTimestamp > 300000) {
       this.quickSyncStockAndInvoices();
     }
   }
@@ -113,33 +118,25 @@ class StoreService {
         }
       });
 
-      // Throttle focus sync: only light quick-sync when window is focused and socket is not active or 3 minutes passed
+      // Window focus: only light sync if at least 5 minutes have elapsed and tab is active
       window.addEventListener('focus', () => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-        if (!this.isSocketConnected || Date.now() - this.lastFullSyncTimestamp > 180000) {
+        if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || document.hidden)) return;
+        if (Date.now() - this.lastFullSyncTimestamp > 300000) {
           this.quickSyncStockAndInvoices();
         }
       });
 
-      // Fallback check when Socket.io is disconnected (every 45s, tab visible only)
+      // Periodic light stock/invoice sync every 5 minutes (300,000ms), paused when tab is hidden
       setInterval(() => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-        if (!this.isSocketConnected) {
-          this.quickSyncStockAndInvoices();
-        }
-      }, 45000);
-
-      // Periodic light stock/invoice sync every 3 minutes (180,000ms)
-      setInterval(() => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || document.hidden)) return;
         this.quickSyncStockAndInvoices();
-      }, 180000);
+      }, 300000);
 
-      // Full database sync every 7 minutes (420,000ms) to ensure consistency while reducing database queries
+      // Full database sync every 15 minutes (900,000ms), paused when tab is hidden
       setInterval(() => {
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (typeof document !== 'undefined' && (document.visibilityState === 'hidden' || document.hidden)) return;
         this.syncWithBackend();
-      }, 420000);
+      }, 900000);
     }
   }
 
@@ -165,39 +162,232 @@ class StoreService {
     return undefined;
   }
 
-  public async quickSyncStockAndInvoices() {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
-    try {
-      const activeBranch = this.getActiveBranchId();
-      const [branchDataList, invs] = await Promise.allSettled([
-        api.getProductBranchDataList(activeBranch),
-        api.getPaginatedInvoices({ page: 1, limit: 20, branchId: activeBranch }),
-      ]);
+  public async quickSyncStockAndInvoices(): Promise<void> {
+    if (this.quickSyncPromise) return this.quickSyncPromise;
 
-      let stateChanged = false;
+    const now = Date.now();
+    if (now - this.lastQuickSyncTimestamp < 30000) {
+      // Cooldown enforced (at least 30s between quick syncs)
+      return;
+    }
+    this.lastQuickSyncTimestamp = now;
 
-      // 1. Check stock changes
-      if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
-        const previousData = this.state.productBranchData || [];
-        const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
+    this.quickSyncPromise = (async () => {
+      try {
+        const activeBranch = this.getActiveBranchId();
+        const [branchDataList, invs] = await Promise.allSettled([
+          api.getProductBranchDataList(activeBranch),
+          api.getPaginatedInvoices({ page: 1, limit: 20, branchId: activeBranch }),
+        ]);
 
-        branchDataList.value.forEach(newBd => {
-          const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
-          if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
-            const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
-            const nQty = Number(newBd.quantity || 0);
-            changedItems.push({
-              productId: newBd.productId,
-              productName: prod?.nameAr || prod?.nameEn || 'منتج',
-              newQuantity: nQty,
-              isOutOfStock: nQty <= 0
-            });
-            stateChanged = true;
+        let stateChanged = false;
+
+        // 1. Check stock changes
+        if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
+          const previousData = this.state.productBranchData || [];
+          const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
+
+          branchDataList.value.forEach(newBd => {
+            const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
+            if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
+              const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
+              const nQty = Number(newBd.quantity || 0);
+              changedItems.push({
+                productId: newBd.productId,
+                productName: prod?.nameAr || prod?.nameEn || 'منتج',
+                newQuantity: nQty,
+                isOutOfStock: nQty <= 0
+              });
+              stateChanged = true;
+            }
+          });
+
+          if (stateChanged || previousData.length === 0) {
+            this.state.productBranchData = branchDataList.value.map(bd => ({
+              ...bd,
+              cost: Number(bd.cost || 0),
+              price1: Number(bd.price1 || 0),
+              price2: Number(bd.price2 || 0),
+              price3: Number(bd.price3 || 0),
+              price4: Number(bd.price4 || 0),
+              minStock: Number(bd.minStock ?? 10),
+              quantity: Number(bd.quantity || 0)
+            }));
+
+            if (changedItems.length > 0 && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
+                detail: {
+                  branchId: branchDataList.value[0]?.branchId || 'b4',
+                  items: changedItems,
+                  timestamp: new Date().toISOString()
+                }
+              }));
+            }
           }
-        });
+        }
 
-        if (stateChanged || previousData.length === 0) {
+        // 2. Reconcile recent invoices without full-table download
+        if (invs.status === 'fulfilled' && invs.value) {
+          const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
+          if (rawInvs.length > 0) {
+            const existingMap = new Map((this.state.invoices || []).map(i => [i.id, i]));
+            let invoicesChanged = false;
+            rawInvs.forEach(freshInv => {
+              if (!this.tombstonedInvoiceIds.has(freshInv.id) && !this.tombstonedInvoiceIds.has(freshInv.invoiceNumber)) {
+                const old = existingMap.get(freshInv.id);
+                if (!old || old.paymentStatus !== freshInv.paymentStatus || old.paidAmount !== freshInv.paidAmount) {
+                  existingMap.set(freshInv.id, { ...(old || {}), ...freshInv });
+                  invoicesChanged = true;
+                }
+              }
+            });
+            if (invoicesChanged) {
+              this.state.invoices = Array.from(existingMap.values())
+                .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
+                .slice(0, 100);
+              stateChanged = true;
+            }
+          }
+        }
+
+        if (stateChanged) {
+          this.saveState(true);
+        }
+      } catch {
+        // quiet fail on quick sync
+      } finally {
+        this.quickSyncPromise = null;
+      }
+    })();
+
+    return this.quickSyncPromise;
+  }
+
+  public async syncWithBackend(): Promise<void> {
+    if (this.syncWithBackendPromise) return this.syncWithBackendPromise;
+
+    const now = Date.now();
+    if (now < this.nextAllowedSyncTime) {
+      console.warn('Backend sync deferred due to exponential backoff');
+      return;
+    }
+
+    this.syncWithBackendPromise = (async () => {
+      try {
+        // Lightweight sync version check: skip heavy downloads if backend data hasn't changed
+        let serverVersion: string | null = null;
+        if (this.state.products && this.state.products.length > 0) {
+          try {
+            const verRes = await api.getSyncVersion();
+            serverVersion = (verRes as any)?.data?.version || (verRes as any)?.version || null;
+            if (serverVersion && serverVersion === this.lastSyncedVersion) {
+              // Version unchanged, skip downloading full tables
+              this.consecutiveSyncFailures = 0;
+              return;
+            }
+          } catch {
+            // Version check fallback: proceed to sync
+          }
+        }
+
+        const activeBranch = this.getActiveBranchId();
+        const [
+          fixedExp,
+          invs,
+          prodList,
+          branchDataList,
+          catList,
+          physItems,
+          branchList,
+          customerList,
+          userList,
+          supplierList
+        ] = await Promise.allSettled([
+          api.getFixedExpenses(),
+          api.getPaginatedInvoices({ page: 1, limit: 50, branchId: activeBranch }),
+          api.getProducts(),
+          api.getProductBranchDataList(activeBranch),
+          api.getCategories(),
+          api.getPhysicalItems(),
+          api.getBranches(),
+          api.getCustomers(),
+          api.getUsers(),
+          api.getSuppliers(),
+        ]);
+
+        if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
+          this.state.fixedExpenses = fixedExp.value.map(e => ({
+            ...e,
+            amount: Number(e.amount) || 0,
+          }));
+        }
+
+        if (invs.status === 'fulfilled' && invs.value) {
+          const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
+          if (rawInvs.length > 0) {
+            this.state.invoices = rawInvs
+              .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
+              .sort(
+                (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+              );
+          }
+        }
+
+        if (branchList.status === 'fulfilled' && Array.isArray(branchList.value) && branchList.value.length > 0) {
+          this.state.branches = branchList.value;
+        }
+
+        if (customerList.status === 'fulfilled' && Array.isArray(customerList.value)) {
+          this.state.customers = customerList.value;
+        }
+
+        if (userList.status === 'fulfilled' && Array.isArray(userList.value) && userList.value.length > 0) {
+          const backendUsers = userList.value;
+          const currentUsers = this.state.users || mockUsers;
+          this.state.users = backendUsers.map(bUser => {
+            const existing = currentUsers.find(
+              u => u && (u.id === bUser.id || (u.username || '').trim().toLowerCase() === (bUser.username || '').trim().toLowerCase())
+            );
+            const isSuper = ['bola', 'mina', 'test'].includes((bUser.username || '').trim().toLowerCase()) ||
+                            (bUser.id && bUser.id.startsWith('admin_') && !bUser.branchId && !bUser.branch_id);
+            const resolvedBranchId = isSuper ? undefined : (bUser.branch_id || bUser.branchId || existing?.branchId);
+            return {
+              ...bUser,
+              role: isSuper ? ('admin' as const) : ('employee' as const),
+              branchId: resolvedBranchId,
+              password: bUser.password || existing?.password || '00000000',
+            };
+          });
+        }
+
+        // Sync Categories
+        if (catList.status === 'fulfilled' && Array.isArray(catList.value)) {
+          this.state.categories = catList.value;
+        }
+
+        // Sync Products & Branch Data
+        if (prodList.status === 'fulfilled' && Array.isArray(prodList.value)) {
+          this.state.products = prodList.value;
+        }
+
+        if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
+          const previousData = this.state.productBranchData || [];
+          const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
+
+          branchDataList.value.forEach(newBd => {
+            const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
+            if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
+              const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
+              const nQty = Number(newBd.quantity || 0);
+              changedItems.push({
+                productId: newBd.productId,
+                productName: prod?.nameAr || prod?.nameEn || 'منتج',
+                newQuantity: nQty,
+                isOutOfStock: nQty <= 0
+              });
+            }
+          });
+
           this.state.productBranchData = branchDataList.value.map(bd => ({
             ...bd,
             cost: Number(bd.cost || 0),
@@ -219,189 +409,46 @@ class StoreService {
             }));
           }
         }
-      }
 
-      // 2. Reconcile recent invoices without full-table download
-      if (invs.status === 'fulfilled' && invs.value) {
-        const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
-        if (rawInvs.length > 0) {
-          const existingMap = new Map((this.state.invoices || []).map(i => [i.id, i]));
-          let invoicesChanged = false;
-          rawInvs.forEach(freshInv => {
-            if (!this.tombstonedInvoiceIds.has(freshInv.id) && !this.tombstonedInvoiceIds.has(freshInv.invoiceNumber)) {
-              const old = existingMap.get(freshInv.id);
-              if (!old || old.paymentStatus !== freshInv.paymentStatus || old.paidAmount !== freshInv.paidAmount) {
-                existingMap.set(freshInv.id, { ...(old || {}), ...freshInv });
-                invoicesChanged = true;
-              }
-            }
-          });
-          if (invoicesChanged) {
-            this.state.invoices = Array.from(existingMap.values())
-              .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
-              .slice(0, 100);
-            stateChanged = true;
-          }
+        // Sync Physical Items
+        if (physItems.status === 'fulfilled' && Array.isArray(physItems.value)) {
+          this.state.physicalItems = physItems.value;
         }
-      }
 
-      if (stateChanged) {
-        this.saveState(true);
-      }
-    } catch {
-      // quiet fail on quick sync
-    } finally {
-      this.isSyncing = false;
-    }
-  }
-
-  public async syncWithBackend() {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
-    try {
-      const activeBranch = this.getActiveBranchId();
-      const [
-        fixedExp,
-        invs,
-        prodList,
-        branchDataList,
-        catList,
-        physItems,
-        branchList,
-        customerList,
-        userList,
-        supplierList
-      ] = await Promise.allSettled([
-        api.getFixedExpenses(),
-        api.getPaginatedInvoices({ page: 1, limit: 50, branchId: activeBranch }),
-        api.getProducts(),
-        api.getProductBranchDataList(activeBranch),
-        api.getCategories(),
-        api.getPhysicalItems(),
-        api.getBranches(),
-        api.getCustomers(),
-        api.getUsers(),
-        api.getSuppliers(),
-      ]);
-
-      if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
-        this.state.fixedExpenses = fixedExp.value.map(e => ({
-          ...e,
-          amount: Number(e.amount) || 0,
-        }));
-      }
-
-      if (invs.status === 'fulfilled' && invs.value) {
-        const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
-        if (rawInvs.length > 0) {
-          this.state.invoices = rawInvs
-            .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
-            .sort(
-              (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
-            );
-        }
-      }
-
-      if (branchList.status === 'fulfilled' && Array.isArray(branchList.value) && branchList.value.length > 0) {
-        this.state.branches = branchList.value;
-      }
-
-      if (customerList.status === 'fulfilled' && Array.isArray(customerList.value)) {
-        this.state.customers = customerList.value;
-      }
-
-      if (userList.status === 'fulfilled' && Array.isArray(userList.value) && userList.value.length > 0) {
-        const backendUsers = userList.value;
-        const currentUsers = this.state.users || mockUsers;
-        this.state.users = backendUsers.map(bUser => {
-          const existing = currentUsers.find(
-            u => u && (u.id === bUser.id || (u.username || '').trim().toLowerCase() === (bUser.username || '').trim().toLowerCase())
-          );
-          const isSuper = ['bola', 'mina', 'test'].includes((bUser.username || '').trim().toLowerCase()) ||
-                          (bUser.id && bUser.id.startsWith('admin_') && !bUser.branchId && !bUser.branch_id);
-          const resolvedBranchId = isSuper ? undefined : (bUser.branch_id || bUser.branchId || existing?.branchId);
-          return {
-            ...bUser,
-            role: isSuper ? ('admin' as const) : ('employee' as const),
-            branchId: resolvedBranchId,
-            password: bUser.password || existing?.password || '00000000',
-          };
-        });
-      }
-
-      // Sync Categories
-      if (catList.status === 'fulfilled' && Array.isArray(catList.value)) {
-        this.state.categories = catList.value;
-      }
-
-      // Sync Products & Branch Data
-      if (prodList.status === 'fulfilled' && Array.isArray(prodList.value)) {
-        this.state.products = prodList.value;
-      }
-
-      if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
-        const previousData = this.state.productBranchData || [];
-        const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
-
-        branchDataList.value.forEach(newBd => {
-          const oldBd = previousData.find(o => o && o.productId === newBd.productId && o.branchId === newBd.branchId);
-          if (oldBd && Number(oldBd.quantity || 0) !== Number(newBd.quantity || 0)) {
-            const prod = (this.state.products || []).find(p => p && p.id === newBd.productId);
-            const nQty = Number(newBd.quantity || 0);
-            changedItems.push({
-              productId: newBd.productId,
-              productName: prod?.nameAr || prod?.nameEn || 'منتج',
-              newQuantity: nQty,
-              isOutOfStock: nQty <= 0
-            });
-          }
-        });
-
-        this.state.productBranchData = branchDataList.value.map(bd => ({
-          ...bd,
-          cost: Number(bd.cost || 0),
-          price1: Number(bd.price1 || 0),
-          price2: Number(bd.price2 || 0),
-          price3: Number(bd.price3 || 0),
-          price4: Number(bd.price4 || 0),
-          minStock: Number(bd.minStock ?? 10),
-          quantity: Number(bd.quantity || 0)
-        }));
-
-        if (changedItems.length > 0 && typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
-            detail: {
-              branchId: branchDataList.value[0]?.branchId || 'b4',
-              items: changedItems,
-              timestamp: new Date().toISOString()
-            }
+        // Sync Suppliers
+        if (supplierList.status === 'fulfilled' && Array.isArray(supplierList.value)) {
+          this.state.suppliers = supplierList.value.map(s => ({
+            ...s,
+            totalAmount: Number(s.totalAmount || 0),
+            paidAmount: Number(s.paidAmount || 0),
+            remainingAmount: Number(s.remainingAmount || 0),
+            paymentHistory: Array.isArray(s.paymentHistory) ? s.paymentHistory : [],
           }));
         }
-      }
 
-      // Sync Physical Items
-      if (physItems.status === 'fulfilled' && Array.isArray(physItems.value)) {
-        this.state.physicalItems = physItems.value;
+        this.lastFullSyncTimestamp = Date.now();
+        this.consecutiveSyncFailures = 0;
+        this.nextAllowedSyncTime = 0;
+        if (serverVersion) {
+          this.lastSyncedVersion = serverVersion;
+        } else {
+          try {
+            const verRes = await api.getSyncVersion();
+            this.lastSyncedVersion = (verRes as any)?.data?.version || (verRes as any)?.version || null;
+          } catch {}
+        }
+        this.saveState(true);
+      } catch (e) {
+        this.consecutiveSyncFailures++;
+        const backoffDelay = Math.min(300000, 2000 * Math.pow(2, this.consecutiveSyncFailures));
+        this.nextAllowedSyncTime = Date.now() + backoffDelay;
+        console.warn(`Backend sync warning (consecutive failures: ${this.consecutiveSyncFailures}, backoff: ${backoffDelay}ms):`, e);
+      } finally {
+        this.syncWithBackendPromise = null;
       }
+    })();
 
-      // Sync Suppliers
-      if (supplierList.status === 'fulfilled' && Array.isArray(supplierList.value)) {
-        this.state.suppliers = supplierList.value.map(s => ({
-          ...s,
-          totalAmount: Number(s.totalAmount || 0),
-          paidAmount: Number(s.paidAmount || 0),
-          remainingAmount: Number(s.remainingAmount || 0),
-          paymentHistory: Array.isArray(s.paymentHistory) ? s.paymentHistory : [],
-        }));
-      }
-
-      this.lastFullSyncTimestamp = Date.now();
-      this.saveState(true);
-    } catch (e) {
-      console.warn('Backend sync warning:', e);
-    } finally {
-      this.isSyncing = false;
-    }
+    return this.syncWithBackendPromise;
   }
 
   private loadState(): AppState {
