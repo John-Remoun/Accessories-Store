@@ -17,6 +17,7 @@ export class ProductService {
 
     const products = await this.productRepo.find({
       order: { createdAt: 'DESC' },
+      take: 500,
     });
     memoryCache.set('products:all', products, 60);
     return products;
@@ -74,11 +75,18 @@ export class ProductService {
 
     const whereClause = targetBranch ? { branchId: targetBranch } : {};
 
-    const data = await this.branchDataRepo.find({
+    const rawData = await this.branchDataRepo.find({
       where: whereClause,
       select: selectColumns,
       take: 500,
     });
+
+    const data = !includeCost
+      ? rawData.map((item: any) => {
+          const { cost, ...rest } = item;
+          return rest as ProductBranchDataEntity;
+        })
+      : rawData;
 
     memoryCache.set(branchCacheKey, data, 30);
     return data;

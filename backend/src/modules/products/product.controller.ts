@@ -8,6 +8,7 @@ const productService = new ProductService();
 export class ProductController {
   public async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
       const products = await productService.getAllProducts();
       return sendResponse(res, 200, 'Products retrieved successfully', products);
     } catch (error) {
@@ -17,6 +18,7 @@ export class ProductController {
 
   public async getOne(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
       const id = req.params.id as string;
       const product = await productService.getProductById(id);
       return sendResponse(res, 200, 'Product retrieved successfully', product);
@@ -27,6 +29,7 @@ export class ProductController {
 
   public async getAllBranchData(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
       const scope = await resolveBranchScope(req, req.query.branchId as string | undefined);
       const isGlobalAdmin = scope.isGlobalAdmin;
       const targetBranchId = isGlobalAdmin ? (req.query.branchId as string | undefined) : scope.branchId;

@@ -10,6 +10,8 @@ import { memoryCache } from '../common/cache/cache.service';
 import { AppDataSource } from '../config/data-source';
 import { invoiceService, getCustomerIdentityConditions, getCairoDateParts, InvoiceService } from '../modules/invoices/invoice.service';
 import { InvoiceEntity } from '../modules/invoices/invoice.entity';
+import { ProductService } from '../modules/products/product.service';
+import { egressMonitor } from '../common/middleware/egress-monitor.middleware';
 
 async function runSecurityTests() {
   console.log('🧪 Starting Independent Comprehensive Security & Concurrency Verification...\n');
@@ -1440,6 +1442,165 @@ async function runSecurityTests() {
       const isPhysical = checkItemPhysical('QR-VALID-12345');
       assert.strictEqual(isPhysical, true, 'Real serialized item must be recognized for physical piece validation');
       assert.strictEqual(physicalQueryExecuted, true, 'Database query must be executed for real physical item');
+    });
+
+    // =========================================================================
+    // SECTION 13: SUPABASE EGRESS PROTECTION & LIST LIMIT VERIFICATION
+    // =========================================================================
+    console.log('\n--- Section 13: Supabase Egress Protection & List Limit Verification ---');
+
+    await test('1. invoiceService.getAllInvoices strictly enforces take: 100 limit and omits invoiceItems relation', async () => {
+      memoryCache.clear();
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      let capturedFindOptions: any = null;
+
+      (invoiceService as any).invoiceRepo = {
+        find: async (options: any) => {
+          capturedFindOptions = options;
+          return [{ id: 'inv-test-1', invoiceNumber: 'INV-001', branchId: 'b_main' }];
+        },
+      };
+
+      try {
+        const invoices = await invoiceService.getAllInvoices();
+        assert.ok(capturedFindOptions, 'find options must be passed to repository');
+        assert.strictEqual(capturedFindOptions.take, 100, 'take limit must be strictly 100');
+        assert.strictEqual(capturedFindOptions.relations, undefined, 'invoiceItems relation must NOT be queried in getAllInvoices');
+        assert.strictEqual(invoices.length, 1);
+        assert.deepStrictEqual((invoices[0] as any).items, [], 'invoices list items array must be empty');
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+        memoryCache.clear();
+      }
+    });
+
+    await test('2. invoiceService.getInvoicesByBranch strictly enforces take: 100 limit and omits invoiceItems relation', async () => {
+      memoryCache.clear();
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      let capturedFindOptions: any = null;
+
+      (invoiceService as any).invoiceRepo = {
+        find: async (options: any) => {
+          capturedFindOptions = options;
+          return [{ id: 'inv-test-2', invoiceNumber: 'INV-002', branchId: 'b_test' }];
+        },
+      };
+
+      try {
+        const invoices = await invoiceService.getInvoicesByBranch('b_test');
+        assert.ok(capturedFindOptions, 'find options must be passed to repository');
+        assert.strictEqual(capturedFindOptions.where.branchId, 'b_test', 'where clause must isolate branch');
+        assert.strictEqual(capturedFindOptions.take, 100, 'take limit must be strictly 100');
+        assert.strictEqual(capturedFindOptions.relations, undefined, 'invoiceItems relation must NOT be queried in getInvoicesByBranch');
+        assert.strictEqual(invoices.length, 1);
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+        memoryCache.clear();
+      }
+    });
+
+    await test('3. invoiceService.getInvoiceById loads items only on single-invoice lookup', async () => {
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      let capturedFindOptions: any = null;
+
+      (invoiceService as any).invoiceRepo = {
+        findOne: async (options: any) => {
+          capturedFindOptions = options;
+          return {
+            id: 'inv-test-3',
+            invoiceNumber: 'INV-003',
+            branchId: 'b_main',
+            invoiceItems: [{ id: 'item-1', productName: 'Cover', quantity: 1, unitPrice: 50 }],
+          };
+        },
+      };
+
+      try {
+        const invoice = await invoiceService.getInvoiceById('inv-test-3');
+        assert.ok(capturedFindOptions, 'findOne options must be passed');
+        assert.deepStrictEqual(capturedFindOptions.relations, ['invoiceItems'], 'getInvoiceById must include invoiceItems relation');
+        assert.ok(invoice.items && invoice.items.length === 1, 'items must be populated on single invoice');
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+      }
+    });
+
+    await test('4. ProductService.getAllBranchData filters by branch at SQL level, redacts cost for staff, and caps at 500', async () => {
+      const prodService = new ProductService();
+      memoryCache.clear();
+
+      let capturedOptions: any = null;
+      (prodService as any).branchDataRepo = {
+        find: async (options: any) => {
+          capturedOptions = options;
+          return [
+            { id: 'bd-1', productId: 'p1', branchId: 'b4', quantity: 10, price1: 100, cost: 60 },
+          ];
+        },
+      };
+
+      try {
+        // Staff request (includeCost: false)
+        const staffList = await prodService.getAllBranchData('b4', false);
+        assert.ok(capturedOptions, 'find options must be passed');
+        assert.deepStrictEqual(capturedOptions.where, { branchId: 'b4' }, 'SQL level WHERE branchId must be applied');
+        assert.strictEqual(capturedOptions.take, 500, 'take limit must be capped at 500');
+        assert.ok(!capturedOptions.select.includes('cost'), 'cost column must not be selected for staff');
+        assert.strictEqual((staffList[0] as any).cost, undefined, 'cost must be undefined for staff');
+      } finally {
+        memoryCache.clear();
+      }
+    });
+
+    await test('5. ProductService.getAllProducts strictly caps at 500 rows', async () => {
+      const prodService = new ProductService();
+      memoryCache.clear();
+
+      let capturedOptions: any = null;
+      (prodService as any).productRepo = {
+        find: async (options: any) => {
+          capturedOptions = options;
+          return [{ id: 'p1', nameAr: 'جراب' }];
+        },
+      };
+
+      try {
+        await prodService.getAllProducts();
+        assert.ok(capturedOptions, 'find options must be passed');
+        assert.strictEqual(capturedOptions.take, 500, 'take limit must be strictly 500');
+      } finally {
+        memoryCache.clear();
+      }
+    });
+
+    await test('6. egressMonitor middleware tracks response size and emits warning when payload exceeds 200 KB', async () => {
+      let warningEmitted = false;
+      const originalWarn = console.warn;
+      console.warn = (msg: string) => {
+        if (msg && msg.includes('[EGRESS WARNING]')) {
+          warningEmitted = true;
+        }
+      };
+
+      try {
+        const fakeReq: any = { method: 'GET', originalUrl: '/api/v1/invoices' };
+        const fakeRes: any = {
+          write: () => true,
+          end: () => {},
+        };
+        let nextCalled = false;
+        egressMonitor(fakeReq, fakeRes, () => { nextCalled = true; });
+        assert.strictEqual(nextCalled, true, 'egressMonitor must call next()');
+
+        // Simulate a huge chunk > 200 KB
+        const bigPayload = Buffer.alloc(205 * 1024, 'a');
+        fakeRes.write(bigPayload);
+        fakeRes.end();
+
+        assert.strictEqual(warningEmitted, true, 'egressMonitor must log a warning for responses > 200 KB');
+      } finally {
+        console.warn = originalWarn;
+      }
     });
 
   } finally {

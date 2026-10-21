@@ -9,6 +9,7 @@ const invoiceService = new InvoiceService();
 export class InvoiceController {
   public async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
       const scope = await resolveBranchScope(req, req.query.branchId as string);
       const effectiveBranchId = scope.isGlobalAdmin ? (req.query.branchId as string) : scope.branchId;
 
@@ -39,6 +40,7 @@ export class InvoiceController {
 
   public async getByBranch(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
       const branchId = req.params.branchId as string;
       await resolveBranchScope(req, branchId);
       const invoices = await invoiceService.getInvoicesByBranch(branchId);
@@ -50,6 +52,7 @@ export class InvoiceController {
 
   public async getOne(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
       const id = req.params.id as string;
       const invoice = await invoiceService.getInvoiceById(id);
       // Strictly verify that the invoice belongs to the user's permitted branch
