@@ -6,6 +6,7 @@ import path from 'path';
 import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env.config';
+import { AppDataSource } from './config/data-source';
 import { errorHandler } from './common/middleware/error.middleware';
 import { ensureDbConnected } from './common/middleware/db.middleware';
 
@@ -86,9 +87,36 @@ if (env.nodeEnv === 'development') {
 // Serve Static Uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Health Check Endpoint
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'UP', message: 'Accessories Store Backend API is healthy' });
+// Robust Health Check Endpoint (Distinguishes Application and Database Health)
+app.get('/health', async (req: Request, res: Response) => {
+  let dbStatus = 'DISCONNECTED';
+  try {
+    if (AppDataSource.isInitialized) {
+      await AppDataSource.query('SELECT 1');
+      dbStatus = 'CONNECTED';
+    } else {
+      await AppDataSource.initialize();
+      await AppDataSource.query('SELECT 1');
+      dbStatus = 'CONNECTED';
+    }
+  } catch (dbErr: any) {
+    dbStatus = 'DISCONNECTED';
+  }
+
+  const isHealthy = dbStatus === 'CONNECTED';
+  const statusCode = isHealthy ? 200 : 503;
+
+  res.status(statusCode).json({
+    status: isHealthy ? 'UP' : 'DEGRADED',
+    timestamp: new Date().toISOString(),
+    services: {
+      server: 'UP',
+      database: dbStatus,
+    },
+    message: isHealthy
+      ? 'Accessories Store Backend API is fully healthy'
+      : 'Accessories Store Backend API is degraded: Database is unreachable',
+  });
 });
 
 // Database connection middleware for Serverless / Express

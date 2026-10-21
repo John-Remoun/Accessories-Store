@@ -37,3 +37,19 @@ export const createInvoiceSchema = z.object({
   cashierName: z.string().optional().nullable(),
   whatsappConfirmationToken: z.string().optional().nullable(),
 });
+
+export const payCustomerDebtSchema = z.object({
+  customerPhone: z.string().min(1, 'Customer phone or ID is required'),
+  amount: z.number().finite('Payment amount must be a finite number').positive('Payment amount must be greater than zero')
+    .refine((val) => Number(val.toFixed(2)) === val, {
+      message: 'Payment amount cannot have more than 2 decimal places',
+    }),
+  branchId: z.string().optional().nullable(),
+});
+
+export const paySingleInvoiceSchema = z.object({
+  amount: z.number().finite('Payment amount must be a finite number').positive('Payment amount must be greater than zero')
+    .refine((val) => Number(val.toFixed(2)) === val, {
+      message: 'Payment amount cannot have more than 2 decimal places',
+    }),
+});

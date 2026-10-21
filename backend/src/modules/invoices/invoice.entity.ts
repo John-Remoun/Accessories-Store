@@ -37,7 +37,7 @@ export class InvoiceEntity {
   @Column({ type: 'varchar', length: 100 })
   date!: string;
 
-  @OneToMany(() => InvoiceItemEntity, (item) => item.invoice, { cascade: true, eager: true })
+  @OneToMany(() => InvoiceItemEntity, (item) => item.invoice, { cascade: true })
   invoiceItems!: InvoiceItemEntity[];
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
+import { api } from '../../services/api';
 import { useStoreSync } from '../../hooks/useStoreSync';
 import { Invoice } from '../../types';
 import { Button } from '../../components/ui/button';
@@ -205,9 +206,64 @@ export const Invoices = () => {
 
   // Selected Modals State
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  // On-demand lazy-loading of invoice items: only fetch items when receipt modal is opened
+  useEffect(() => {
+    if (selectedInvoice && (!selectedInvoice.items || selectedInvoice.items.length === 0)) {
+      api.getInvoiceById(selectedInvoice.id)
+        .then((fullInv) => {
+          if (fullInv && Array.isArray(fullInv.items) && fullInv.items.length > 0) {
+            setSelectedInvoice(prev => (prev && prev.id === fullInv.id ? { ...prev, items: fullInv.items } : prev));
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not load invoice items on-demand:', err);
+        });
+    }
+  }, [selectedInvoice?.id]);
+
   const [statementCustomerPhone, setStatementCustomerPhone] = useState<string | null>(null);
   const [statementCustomerName, setStatementCustomerName] = useState<string>('');
   const [statementModalTab, setStatementModalTab] = useState<'unpaid' | 'paid'>('unpaid');
+  const [serverStatement, setServerStatement] = useState<any>(null);
+  const [isLoadingStatement, setIsLoadingStatement] = useState<boolean>(false);
+  const [statementError, setStatementError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!statementCustomerPhone && !statementCustomerName) {
+      setServerStatement(null);
+      setStatementError(null);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingStatement(true);
+    setStatementError(null);
+
+    const effBranch = (!isAdmin && user?.branchId) ? user.branchId : activeBranchId;
+    api.getCustomerStatement({
+      phone: statementCustomerPhone || undefined,
+      name: statementCustomerName || undefined,
+      branchId: effBranch,
+    })
+      .then(res => {
+        if (active && res) {
+          setServerStatement(res);
+        }
+      })
+      .catch(err => {
+        if (active) {
+          console.error('Failed to load customer statement:', err);
+          setStatementError('تعذر تحميل كشف الحساب الكامل من السيرفر.');
+          toast.error('تعذر تحميل كشف الحساب من السيرفر');
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingStatement(false);
+      });
+
+    return () => { active = false; };
+  }, [statementCustomerPhone, statementCustomerName, activeBranchId, user?.branchId, isAdmin, refreshKey]);
 
   // Payment Settlement Modal State
   const [paymentModalInvoice, setPaymentModalInvoice] = useState<Invoice | null>(null);
@@ -404,6 +460,14 @@ export const Invoices = () => {
   const [paidPage, setPaidPage] = useState<number>(1);
   const [unpaidPage, setUnpaidPage] = useState<number>(1);
 
+  // Server-side paginated state
+  const [serverPaidInvoices, setServerPaidInvoices] = useState<Invoice[]>([]);
+  const [serverUnpaidInvoices, setServerUnpaidInvoices] = useState<Invoice[]>([]);
+  const [serverPaidTotal, setServerPaidTotal] = useState<number>(0);
+  const [serverUnpaidTotal, setServerUnpaidTotal] = useState<number>(0);
+  const [isServerPaginationActive, setIsServerPaginationActive] = useState<boolean>(false);
+  const [isLoadingServerInvoices, setIsLoadingServerInvoices] = useState<boolean>(false);
+
   // Reset pagination on filter or tab change
   useEffect(() => {
     setPaidPage(1);
@@ -413,8 +477,109 @@ export const Invoices = () => {
   const totalPagesPaid = Math.max(1, Math.ceil(paidInvoicesList.length / ITEMS_PER_PAGE));
   const totalPagesUnpaid = Math.max(1, Math.ceil(unpaidInvoicesList.length / ITEMS_PER_PAGE));
 
-  const safePaidPage = Math.min(paidPage, totalPagesPaid);
-  const safeUnpaidPage = Math.min(unpaidPage, totalPagesUnpaid);
+  const safePaidPage = Math.min(paidPage, isServerPaginationActive && serverPaidTotal > 0 ? Math.max(1, Math.ceil(serverPaidTotal / ITEMS_PER_PAGE)) : totalPagesPaid);
+  const safeUnpaidPage = Math.min(unpaidPage, isServerPaginationActive && serverUnpaidTotal > 0 ? Math.max(1, Math.ceil(serverUnpaidTotal / ITEMS_PER_PAGE)) : totalPagesUnpaid);
+
+  // Fetch paginated invoices from backend
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchServerPaginated = async () => {
+      setIsLoadingServerInvoices(true);
+      try {
+        let startDate: string | undefined;
+        let endDate: string | undefined;
+
+        if (selectedDate) {
+          const [sY, sM, sD] = selectedDate.split('-').map(Number);
+          startDate = new Date(sY, sM - 1, sD, 0, 0, 0, 0).toISOString();
+          endDate = new Date(sY, sM - 1, sD, 23, 59, 59, 999).toISOString();
+        } else {
+          startDate = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0).toISOString();
+          endDate = new Date(currentYear, currentMonth, daysInMonth, 23, 59, 59, 999).toISOString();
+        }
+
+        const effectiveBranch = (!isAdmin && user?.branchId) ? user.branchId : activeBranchId;
+
+        // Fetch paid invoices if needed by current tab
+        const shouldFetchPaid = activeTab === 'all' || activeTab === 'paid' || activeTab === 'favorites';
+        const shouldFetchUnpaid = activeTab === 'all' || activeTab === 'unpaid' || activeTab === 'partial' || activeTab === 'favorites';
+
+        const promises: [Promise<any> | null, Promise<any> | null] = [
+          shouldFetchPaid ? api.getPaginatedInvoices({
+            page: safePaidPage,
+            limit: ITEMS_PER_PAGE,
+            search: search.trim() || undefined,
+            branchId: effectiveBranch,
+            startDate,
+            endDate,
+            paymentStatus: 'paid',
+            isFavorite: activeTab === 'favorites' ? true : undefined,
+          }) : null,
+          shouldFetchUnpaid ? api.getPaginatedInvoices({
+            page: safeUnpaidPage,
+            limit: ITEMS_PER_PAGE,
+            search: search.trim() || undefined,
+            branchId: effectiveBranch,
+            startDate,
+            endDate,
+            paymentStatus: activeTab === 'partial' ? 'partial' : 'unpaid',
+            isFavorite: activeTab === 'favorites' ? true : undefined,
+          }) : null
+        ];
+
+        const [paidRes, unpaidRes] = await Promise.all([
+          promises[0] ? promises[0].catch(err => { console.warn('Server paid invoices fetch failed:', err); return null; }) : null,
+          promises[1] ? promises[1].catch(err => { console.warn('Server unpaid invoices fetch failed:', err); return null; }) : null,
+        ]);
+
+        if (isCancelled) return;
+
+        if (paidRes && Array.isArray(paidRes.data)) {
+          setServerPaidInvoices(paidRes.data);
+          setServerPaidTotal(paidRes.total || 0);
+          setIsServerPaginationActive(true);
+        } else if (!shouldFetchPaid) {
+          setServerPaidInvoices([]);
+          setServerPaidTotal(0);
+        }
+
+        if (unpaidRes && Array.isArray(unpaidRes.data)) {
+          setServerUnpaidInvoices(unpaidRes.data);
+          setServerUnpaidTotal(unpaidRes.total || 0);
+          setIsServerPaginationActive(true);
+        } else if (!shouldFetchUnpaid) {
+          setServerUnpaidInvoices([]);
+          setServerUnpaidTotal(0);
+        }
+      } catch (err) {
+        console.warn('Error fetching server paginated invoices, using local fallback:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingServerInvoices(false);
+        }
+      }
+    };
+
+    fetchServerPaginated();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    safePaidPage,
+    safeUnpaidPage,
+    search,
+    selectedDate,
+    currentYear,
+    currentMonth,
+    activeTab,
+    activeBranchId,
+    refreshKey,
+    user?.id,
+    isAdmin,
+    daysInMonth
+  ]);
 
   const paginatedPaidInvoices = useMemo(() => {
     const start = (safePaidPage - 1) * ITEMS_PER_PAGE;
@@ -425,6 +590,20 @@ export const Invoices = () => {
     const start = (safeUnpaidPage - 1) * ITEMS_PER_PAGE;
     return unpaidInvoicesList.slice(start, start + ITEMS_PER_PAGE);
   }, [unpaidInvoicesList, safeUnpaidPage]);
+
+  // Display lists prioritizing server pagination
+  const displayPaidInvoices = isServerPaginationActive ? serverPaidInvoices : paginatedPaidInvoices;
+  const displayUnpaidInvoices = isServerPaginationActive ? serverUnpaidInvoices : paginatedUnpaidInvoices;
+
+  const displayPaidCount = isServerPaginationActive ? serverPaidTotal : paidInvoicesList.length;
+  const displayUnpaidCount = isServerPaginationActive ? serverUnpaidTotal : unpaidInvoicesList.length;
+
+  const displayTotalPagesPaid = isServerPaginationActive
+    ? Math.max(1, Math.ceil(serverPaidTotal / ITEMS_PER_PAGE))
+    : totalPagesPaid;
+  const displayTotalPagesUnpaid = isServerPaginationActive
+    ? Math.max(1, Math.ceil(serverUnpaidTotal / ITEMS_PER_PAGE))
+    : totalPagesUnpaid;
 
   const filteredInvoices = periodInvoices;
 
@@ -475,23 +654,48 @@ export const Invoices = () => {
   };
 
   // Submit Payment Settlement
-  const handleConfirmSubmitPayment = () => {
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+  const handleConfirmSubmitPayment = async () => {
     const amt = parseFloat(paymentAmountInput);
     if (isNaN(amt) || amt <= 0) {
       toast.error('يرجى إدخال مبلغ صحيح أكبر من الصفر.');
       return;
     }
 
-    if (paymentModalInvoice) {
-      store.payInvoice(paymentModalInvoice.id, amt);
-      setPaymentModalInvoice(null);
-    } else if (paymentModalCustomerPhone) {
-      store.payCustomerDebt(paymentModalCustomerPhone, amt);
-      setPaymentModalCustomerPhone(null);
-    }
+    const effBranch = (!isAdmin && user?.branchId) ? user.branchId : activeBranchId;
+    setIsSubmittingPayment(true);
+    try {
+      if (paymentModalInvoice) {
+        await store.payInvoice(paymentModalInvoice.id, amt);
+        setPaymentModalInvoice(null);
+        toast.success('تم تسجيل سداد الفاتورة بنجاح');
+      } else if (paymentModalCustomerPhone) {
+        await store.payCustomerDebt(paymentModalCustomerPhone, amt, effBranch);
+        setPaymentModalCustomerPhone(null);
+        toast.success('تم تسجيل سداد مديونية العميل بنجاح');
+      }
+      setRefreshKey(prev => prev + 1);
 
-    toast.success('تم تسجيل سداد المبلغ بنجاح');
-    setRefreshKey(prev => prev + 1);
+      // Refresh authoritative statement if statement modal is active
+      if (statementCustomerPhone || statementCustomerName) {
+        try {
+          const res = await api.getCustomerStatement({
+            phone: statementCustomerPhone || undefined,
+            name: statementCustomerName || undefined,
+            branchId: effBranch,
+          });
+          setServerStatement(res);
+        } catch (e) {
+          console.warn('Could not refresh statement after payment:', e);
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'فشل تسجيل السداد. يرجى المحاولة مرة أخرى.';
+      toast.error(msg);
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
 
   // WhatsApp Recipient Selection Modal State
@@ -641,30 +845,42 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   }>>([]);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
 
-  const handleOpenEditModal = (inv: Invoice) => {
-    setEditingInvoice(inv);
-    setEditCustomerName(inv.customerName || '');
-    setEditCustomerPhone(inv.customerPhone || '');
-    const initialMethod = (inv.paymentSubMethod || inv.paymentMethod || 'cash') as any;
-    setEditPaymentMethod(initialMethod);
-    const isPartial = (inv.remainingAmount && inv.remainingAmount > 0) || inv.paymentStatus === 'partial' || inv.paymentStatus === 'deferred';
-    setEditPaymentStatus(isPartial ? 'partial' : 'paid');
-    setEditPaidAmount(inv.paidAmount !== undefined ? inv.paidAmount : inv.total);
-    setEditDiscount(inv.discount || 0);
-
-    // Populate split payments
-    if (inv.splitPayments) {
-      setEditSplitCash(Number(inv.splitPayments.cash || 0));
-      setEditSplitVodafone(Number(inv.splitPayments.vodafone_cash || 0));
-      setEditSplitInstapay(Number(inv.splitPayments.instapay || 0));
-    } else {
-      setEditSplitCash(initialMethod === 'cash' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
-      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
-      setEditSplitInstapay(initialMethod === 'instapay' ? (inv.paidAmount !== undefined ? inv.paidAmount : inv.total) : 0);
+  const handleOpenEditModal = async (inv: Invoice) => {
+    let fullInv = inv;
+    if (!inv.items || inv.items.length === 0) {
+      try {
+        const fetched = await api.getInvoiceById(inv.id);
+        if (fetched && fetched.items && fetched.items.length > 0) {
+          fullInv = fetched;
+        }
+      } catch (err) {
+        console.warn('Could not load full invoice items for edit modal:', err);
+      }
     }
 
-    const cloned = (inv.items || []).map(it => {
-      const bd = store.getProductBranchData(it.productId, inv.branchId);
+    setEditingInvoice(fullInv);
+    setEditCustomerName(fullInv.customerName || '');
+    setEditCustomerPhone(fullInv.customerPhone || '');
+    const initialMethod = (fullInv.paymentSubMethod || fullInv.paymentMethod || 'cash') as any;
+    setEditPaymentMethod(initialMethod);
+    const isPartial = (fullInv.remainingAmount && fullInv.remainingAmount > 0) || fullInv.paymentStatus === 'partial' || fullInv.paymentStatus === 'deferred';
+    setEditPaymentStatus(isPartial ? 'partial' : 'paid');
+    setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
+    setEditDiscount(fullInv.discount || 0);
+
+    // Populate split payments
+    if (fullInv.splitPayments) {
+      setEditSplitCash(Number(fullInv.splitPayments.cash || 0));
+      setEditSplitVodafone(Number(fullInv.splitPayments.vodafone_cash || 0));
+      setEditSplitInstapay(Number(fullInv.splitPayments.instapay || 0));
+    } else {
+      setEditSplitCash(initialMethod === 'cash' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
+      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
+      setEditSplitInstapay(initialMethod === 'instapay' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
+    }
+
+    const cloned = (fullInv.items || []).map(it => {
+      const bd = store.getProductBranchData(it.productId, fullInv.branchId);
       const pr = Number(it.unitPrice);
       const q = Number(it.quantity);
       return {
@@ -1014,6 +1230,15 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
 
   // WhatsApp Statement Reminder
   const handleSendWhatsAppStatementReminder = (customerName: string, customerPhone: string, invoices: Invoice[], totalDebt: number) => {
+    if (isLoadingStatement) {
+      toast.error('يرجى الانتظار حتى اكتمال تحميل كشف الحساب.');
+      return;
+    }
+    if (statementError || !serverStatement) {
+      toast.error('تعذر إرسال التذكير بسبب فشل تحميل كشف الحساب الدقيق من السيرفر. يرجى إعادة المحاولة.');
+      return;
+    }
+
     const msg = `*تذكير بكشف الحساب والديون المستحقة - Salla Bola & Mina*
 ------------------------------
 العميل المحترم: ${customerName} (${customerPhone})
@@ -1032,30 +1257,40 @@ Salla Bola & Mina`;
   };
 
   // Customer Statement Calculation (Image 4 Data)
-  const statementInvoices = useMemo(() => {
-    if (!statementCustomerPhone && !statementCustomerName) return [];
-    const term = statementCustomerPhone ? statementCustomerPhone.trim() : statementCustomerName.trim();
-    return branchInvoices.filter(i => 
-      (i.customerPhone && i.customerPhone.trim() === term) ||
-      (i.customerName && i.customerName.trim() === term)
-    );
-  }, [branchInvoices, statementCustomerPhone, statementCustomerName, refreshKey]);
+  const statementInvoices: Invoice[] = useMemo(() => {
+    if (serverStatement && Array.isArray(serverStatement.invoices)) {
+      return serverStatement.invoices as Invoice[];
+    }
+    return [];
+  }, [serverStatement]);
 
-  const statementUnpaidInvoices = useMemo(() => {
-    return statementInvoices.filter(inv => isInvoiceUnpaid(inv));
-  }, [statementInvoices]);
+  const statementUnpaidInvoices: Invoice[] = useMemo(() => {
+    if (serverStatement && Array.isArray(serverStatement.unpaidInvoices)) {
+      return serverStatement.unpaidInvoices as Invoice[];
+    }
+    return [];
+  }, [serverStatement]);
 
-  const statementPaidInvoices = useMemo(() => {
-    return statementInvoices.filter(inv => !isInvoiceUnpaid(inv));
-  }, [statementInvoices]);
+  const statementPaidInvoices: Invoice[] = useMemo(() => {
+    if (serverStatement && Array.isArray(serverStatement.paidInvoices)) {
+      return serverStatement.paidInvoices as Invoice[];
+    }
+    return [];
+  }, [serverStatement]);
 
   const statementTotalPurchases = useMemo(() => {
-    return statementInvoices.reduce((acc, i) => acc + i.total, 0);
-  }, [statementInvoices]);
+    if (serverStatement?.totalPurchases !== undefined) {
+      return Number(serverStatement.totalPurchases || 0);
+    }
+    return 0;
+  }, [serverStatement]);
 
   const statementTotalDebt = useMemo(() => {
-    return statementInvoices.reduce((acc, i) => acc + getInvoiceRemaining(i), 0);
-  }, [statementInvoices]);
+    if (serverStatement?.totalDebt !== undefined) {
+      return Number(serverStatement.totalDebt || 0);
+    }
+    return 0;
+  }, [serverStatement]);
 
   return (
     <div className="space-y-6 pb-20 md:pb-6 animate-in fade-in" dir="rtl">
@@ -1361,7 +1596,8 @@ Salla Bola & Mina`;
             <div className="bg-gradient-to-r from-emerald-950/80 via-emerald-900/60 to-emerald-950/80 border border-emerald-800/40 p-4 rounded-2xl flex items-center justify-between shadow-lg">
               <div className="flex items-center gap-2 text-emerald-200">
                 <CheckCircle2 size={18} className="text-emerald-400" />
-                <h2 className="text-base font-bold">الفواتير المدفوعة بالكامل ({paidInvoicesList.length})</h2>
+                <h2 className="text-base font-bold">الفواتير المدفوعة بالكامل ({displayPaidCount})</h2>
+                {isLoadingServerInvoices && <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping ml-1" title="جاري التحديث..." />}
               </div>
               <div className="text-xs font-bold text-emerald-300 font-mono bg-emerald-900/40 border border-emerald-700/40 px-3 py-1 rounded-xl">
                 إجمالي المحصل: {totalPaidAmount.toFixed(2)} ج.م
@@ -1369,13 +1605,13 @@ Salla Bola & Mina`;
             </div>
 
             {/* Paid Cards List */}
-            {paidInvoicesList.length === 0 ? (
+            {displayPaidInvoices.length === 0 ? (
               <div className="bg-card border border-border/60 rounded-2xl p-8 text-center text-muted-foreground text-xs font-bold">
-                لا توجد فواتير مدفوعة بالكامل حالياً.
+                {isLoadingServerInvoices ? 'جاري تحميل الفواتير...' : 'لا توجد فواتير مدفوعة بالكامل حالياً.'}
               </div>
             ) : (
               <div className="space-y-3.5">
-                {paginatedPaidInvoices.map((inv) => {
+                {displayPaidInvoices.map((inv) => {
                   const cashier = store.getUsers().find(u => u.id === inv.employeeId)?.name || 'الكاشير';
 
                   return (
@@ -1503,8 +1739,8 @@ Salla Bola & Mina`;
                 {/* Pagination Controls for Paid Invoices */}
                 <InvoicePagination
                   currentPage={safePaidPage}
-                  totalPages={totalPagesPaid}
-                  totalItems={paidInvoicesList.length}
+                  totalPages={displayTotalPagesPaid}
+                  totalItems={displayPaidCount}
                   itemsPerPage={ITEMS_PER_PAGE}
                   onPageChange={(p) => setPaidPage(p)}
                   accentColor="emerald"
@@ -1529,13 +1765,16 @@ Salla Bola & Mina`;
             }`}>
               <div className="flex items-center gap-2">
                 <AlertTriangle size={18} className={activeTab === 'partial' ? 'text-amber-400' : 'text-rose-400'} />
-                <h2 className="text-base font-bold">
-                  {activeTab === 'partial'
-                    ? `فواتير الدفع الجزئي (${unpaidInvoicesList.length})`
-                    : activeTab === 'unpaid'
-                    ? `الفواتير غير المدفوعة (${unpaidInvoicesList.length})`
-                    : `الفواتير غير المدفوعة والآجلة والدفع الجزئي (${unpaidInvoicesList.length})`
-                  }
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <span>
+                    {activeTab === 'partial'
+                      ? `فواتير الدفع الجزئي (${displayUnpaidCount})`
+                      : activeTab === 'unpaid'
+                      ? `الفواتير غير المدفوعة (${displayUnpaidCount})`
+                      : `الفواتير غير المدفوعة والآجلة والدفع الجزئي (${displayUnpaidCount})`
+                    }
+                  </span>
+                  {isLoadingServerInvoices && <span className="inline-block w-2 h-2 rounded-full bg-rose-400 animate-ping ml-1" title="جاري التحديث..." />}
                 </h2>
               </div>
               <div className={`text-xs font-bold font-mono border px-3 py-1 rounded-xl ${
@@ -1548,16 +1787,17 @@ Salla Bola & Mina`;
             </div>
 
             {/* Unpaid Cards List */}
-            {unpaidInvoicesList.length === 0 ? (
+            {displayUnpaidInvoices.length === 0 ? (
               <div className="bg-card border border-border/60 rounded-2xl p-8 text-center text-muted-foreground text-xs font-bold">
-                {activeTab === 'partial'
-                  ? 'لا توجد فواتير ذات دفع جزئي حالياً.'
-                  : 'لا توجد فواتير غير مدفوعة أو آجلة حالياً.'
-                }
+                {isLoadingServerInvoices ? 'جاري تحميل الفواتير...' : (
+                  activeTab === 'partial'
+                    ? 'لا توجد فواتير ذات دفع جزئي حالياً.'
+                    : 'لا توجد فواتير غير مدفوعة أو آجلة حالياً.'
+                )}
               </div>
             ) : (
               <div className="space-y-3.5">
-                {paginatedUnpaidInvoices.map((inv) => {
+                {displayUnpaidInvoices.map((inv) => {
                   const remaining = getInvoiceRemaining(inv);
                   const paid = getInvoicePaid(inv);
                   const cashier = store.getUsers().find(u => u.id === inv.employeeId)?.name || 'الكاشير';
@@ -1704,8 +1944,8 @@ Salla Bola & Mina`;
                 {/* Pagination Controls for Unpaid Invoices */}
                 <InvoicePagination
                   currentPage={safeUnpaidPage}
-                  totalPages={totalPagesUnpaid}
-                  totalItems={unpaidInvoicesList.length}
+                  totalPages={displayTotalPagesUnpaid}
+                  totalItems={displayUnpaidCount}
                   itemsPerPage={ITEMS_PER_PAGE}
                   onPageChange={(p) => setUnpaidPage(p)}
                   accentColor={activeTab === 'partial' ? 'amber' : 'rose'}
@@ -1776,17 +2016,34 @@ Salla Bola & Mina`;
 
             </div>
 
+            {/* Loading / Error States for Authoritative Statement */}
+            {isLoadingStatement && (
+              <div className="p-3 rounded-2xl bg-muted/40 border border-border/60 text-center text-xs font-bold text-muted-foreground animate-pulse">
+                جارٍ تحميل كشف الحساب والديون التاريخية من السيرفر...
+              </div>
+            )}
+            {statementError && (
+              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-center text-xs font-bold text-rose-400">
+                ⚠️ {statementError}
+              </div>
+            )}
+
             {/* Top Action Buttons inside Modal */}
             <div className="space-y-2.5">
               
               {/* WhatsApp Reminder Button */}
               {statementCustomerPhone && statementTotalDebt > 0 && (
                 <button
+                  disabled={isLoadingStatement || !!statementError}
                   onClick={() => handleSendWhatsAppStatementReminder(statementCustomerName, statementCustomerPhone, statementUnpaidInvoices, statementTotalDebt)}
-                  className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition-all"
+                  className={`w-full h-11 rounded-2xl text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all ${
+                    isLoadingStatement || !!statementError
+                      ? 'bg-muted cursor-not-allowed text-muted-foreground opacity-60'
+                      : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-950/40'
+                  }`}
                 >
                   <Send size={16} />
-                  <span>إرسال إشعار تذكير بكشف الحساب والديون عبر الواتساب</span>
+                  <span>{isLoadingStatement ? 'جارٍ التحقق من كشف الحساب...' : 'إرسال إشعار تذكير بكشف الحساب والديون عبر الواتساب'}</span>
                 </button>
               )}
 
@@ -1841,9 +2098,9 @@ Salla Bola & Mina`;
                   لا توجد فواتير في هذا القسم لهذا العميل.
                 </div>
               ) : (
-                (statementModalTab === 'unpaid' ? statementUnpaidInvoices : statementPaidInvoices).map((inv) => {
+                (statementModalTab === 'unpaid' ? statementUnpaidInvoices : statementPaidInvoices).map((inv: Invoice) => {
                   const rem = getInvoiceRemaining(inv);
-                  const itemsSummary = inv.items.map(i => {
+                  const itemsSummary = (inv.items || []).map((i: any) => {
                     const p = store.getProduct(i.productId);
                     return p?.nameAr || p?.nameEn || 'منتج';
                   }).join(', ');

@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
 import { store } from '../../services/store';
+import { api } from '../../services/api';
 import { useStoreSync } from '../../hooks/useStoreSync';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -106,7 +107,44 @@ export const MasterDashboard = () => {
 
   useStoreSync();
 
+  const [serverSummary, setServerSummary] = useState<any | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.getReportsSummary({ year: currentYear, month: currentMonth + 1 })
+      .then(res => {
+        if (active && res) {
+          setServerSummary(res);
+        }
+      })
+      .catch(err => {
+        console.warn('Dashboard reports summary failed:', err);
+      });
+    return () => { active = false; };
+  }, [currentYear, currentMonth]);
+
   const getDayMetrics = (dayNum: number) => {
+    const sDay = serverSummary?.dailyMetrics?.find((d: any) => d.dayNum === dayNum);
+    if (sDay) {
+      const dayFixedExp = allFixedExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0) / 30;
+      const grossProfit = Number(sDay.revenue || 0) - Number(sDay.cost || 0);
+      const netProfit = grossProfit - dayFixedExp;
+      const netCashInDrawer = Number(sDay.cash || 0) - dayFixedExp;
+      return {
+        invoicesCount: Number(sDay.invoicesCount || 0),
+        totalRevenue: Number(sDay.revenue || 0),
+        dayRemaining: Number(sDay.remainingDebt || 0),
+        totalCost: Number(sDay.cost || 0),
+        totalFixedExp: dayFixedExp,
+        grossProfit,
+        netProfit,
+        dayCash: Number(sDay.cash || 0),
+        dayInstapay: Number(sDay.instapay || 0),
+        dayVodafone: Number(sDay.vodafone || 0),
+        netCashInDrawer,
+      };
+    }
+
     const dayInvoices = allInvoices.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === dayNum;
@@ -389,15 +427,18 @@ export const MasterDashboard = () => {
   const branchPerformanceData = useMemo(() => {
     return branches.map((b, idx) => {
       const bInvs = store.getInvoicesByBranch(b.id);
-      const bRevenue = bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
-      const bRemaining = bInvs.reduce((acc, inv) => {
+      const sBranch = serverSummary?.branchSummaries?.find((s: any) => s.branchId === b.id);
+
+      const bRevenue = sBranch ? Number(sBranch.revenue || 0) : bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+      const bRemaining = sBranch ? Number(sBranch.remainingDebt || 0) : bInvs.reduce((acc, inv) => {
         if (inv.remainingAmount !== undefined) return acc + inv.remainingAmount;
         if (inv.paymentStatus === 'paid') return acc;
         return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
       }, 0);
-      const bCost = bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
-      const bNetProfit = bRevenue - bCost;
+      const bCost = sBranch ? Number(sBranch.cost || 0) : bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
+      const bNetProfit = sBranch ? Number(sBranch.netProfit || 0) : (bRevenue - bCost);
       const bProfitMargin = bRevenue > 0 ? ((bNetProfit / bRevenue) * 100).toFixed(1) : '0';
+      const bInvoicesCount = sBranch ? Number(sBranch.invoicesCount || 0) : bInvs.length;
       
       let bAvailablePieces = 0;
       allProducts.forEach(p => {
@@ -426,11 +467,11 @@ export const MasterDashboard = () => {
         profitMargin: bProfitMargin,
         availableStock: bAvailablePieces,
         soldCount: bSoldItemsCount,
-        invoicesCount: bInvs.length,
+        invoicesCount: bInvoicesCount,
         staffCount: bStaff.length,
       };
     });
-  }, [branches, allInvoices, allProducts, allUsers]);
+  }, [branches, allInvoices, allProducts, allUsers, serverSummary]);
 
   // Employee Performance & Ranking (Sorted descending by total sales amount)
   const employeeRankings = useMemo(() => {
@@ -438,8 +479,10 @@ export const MasterDashboard = () => {
     
     const ranked = staff.map(emp => {
       const empInvoices = allInvoices.filter(inv => inv.employeeId === emp.id);
-      const totalSalesAmount = empInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
-      const totalInvoicesCount = empInvoices.length;
+      const sEmp = serverSummary?.employeeRankings?.find((e: any) => e.employeeId === emp.id);
+
+      const totalSalesAmount = sEmp ? Number(sEmp.totalSalesAmount || 0) : empInvoices.reduce((acc, inv) => acc + (inv.total || 0), 0);
+      const totalInvoicesCount = sEmp ? Number(sEmp.totalInvoicesCount || 0) : empInvoices.length;
       const empBranch = branches.find(b => b.id === emp.branchId);
 
       return {
@@ -451,7 +494,7 @@ export const MasterDashboard = () => {
     });
 
     return ranked.sort((a, b) => b.totalSalesAmount - a.totalSalesAmount);
-  }, [allUsers, allInvoices, branches]);
+  }, [allUsers, allInvoices, branches, serverSummary]);
 
   // Chart Data
   const chartData = useMemo(() => {

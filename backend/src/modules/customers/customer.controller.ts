@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CustomerService } from './customer.service';
 import { sendResponse } from '../../common/utils/response.utils';
+import { resolveBranchScope } from '../../common/utils/branch-auth.utils';
 
 const customerService = new CustomerService();
 
@@ -36,6 +37,10 @@ export class CustomerController {
   public async delete(req: Request, res: Response, next: NextFunction) {
     try {
       const idOrPhone = req.params.idOrPhone as string;
+      const customer = await customerService.getCustomerById(idOrPhone).catch(() => null);
+      if (customer && customer.branchId) {
+        await resolveBranchScope(req, customer.branchId);
+      }
       const result = await customerService.deleteCustomer(idOrPhone);
       return sendResponse(res, 200, 'Customer deleted successfully', result);
     } catch (error) {

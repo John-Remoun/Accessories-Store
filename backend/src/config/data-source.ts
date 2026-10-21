@@ -14,6 +14,7 @@ import { ProductCompositionEntity } from '../modules/compositions/composition.en
 import { SupplierEntity } from '../modules/suppliers/supplier.entity';
 import { InitialMigration1700000000000 } from '../db/migrations/1700000000000-InitialMigration';
 import { EnableRLSAndHardenPermissions1700000000001 } from '../db/migrations/1700000000001-EnableRLSAndHardenPermissions';
+import { AddPerformanceIndexes1700000000002 } from '../db/migrations/1700000000002-AddPerformanceIndexes';
 
 const dbUrl = env.db.url;
 
@@ -39,6 +40,7 @@ const entities = [
 const migrations = [
   InitialMigration1700000000000,
   EnableRLSAndHardenPermissions1700000000001,
+  AddPerformanceIndexes1700000000002,
 ];
 
 export const AppDataSource = new DataSource(

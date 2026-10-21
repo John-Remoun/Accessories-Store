@@ -5,6 +5,7 @@ export interface JwtPayload {
   userId: string;
   username: string;
   role: string;
+  branchId?: string;
 }
 
 export function generateAccessToken(payload: JwtPayload): string {

@@ -45,7 +45,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   throw error;
 }
 
+// Cache and in-flight deduplication map for invoice details
+const invoiceDetailCache = new Map<string, { data: any; timestamp: number }>();
+const invoiceDetailInFlight = new Map<string, Promise<any>>();
+
+export const invalidateInvoiceCache = (id?: string) => {
+  if (id) {
+    invoiceDetailCache.delete(id.trim());
+  } else {
+    invoiceDetailCache.clear();
+  }
+};
+
 export const api = {
+  invalidateInvoiceCache,
   // Auth
   login: async (username: string, password?: string) => {
     const cleanUsername = username.trim();
@@ -102,11 +115,144 @@ export const api = {
 
   // Invoices
   getInvoices: () => request<any[]>('/invoices'),
-  createInvoice: (invoice: any) => request<any>('/invoices', { method: 'POST', body: JSON.stringify(invoice) }),
-  updateInvoice: (id: string, data: any) => request<any>(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteInvoicesByIds: (ids: string[]) => request<any>('/invoices/delete-many', { method: 'POST', body: JSON.stringify({ ids }) }),
-  payInvoice: (id: string, amount: number) => request<any>(`/invoices/${id}/pay`, { method: 'PATCH', body: JSON.stringify({ amount }) }),
-  payCustomerDebt: (customerPhone: string, amount: number) => request<any>('/invoices/pay-debt', { method: 'POST', body: JSON.stringify({ customerPhone, amount }) }),
+  getInvoiceById: (id: string): Promise<any> => {
+    const cleanId = id.trim();
+    // Return cached invoice if fresh (under 30s)
+    const cached = invoiceDetailCache.get(cleanId);
+    if (cached && Date.now() - cached.timestamp < 30000) {
+      return Promise.resolve(cached.data);
+    }
+    // Deduplicate concurrent in-flight requests for the same invoice ID
+    const inFlight = invoiceDetailInFlight.get(cleanId);
+    if (inFlight) {
+      return inFlight;
+    }
+    const p = request<any>(`/invoices/${cleanId}`)
+      .then((data) => {
+        invoiceDetailCache.set(cleanId, { data, timestamp: Date.now() });
+        invoiceDetailInFlight.delete(cleanId);
+        return data;
+      })
+      .catch((err) => {
+        invoiceDetailInFlight.delete(cleanId);
+        throw err;
+      });
+    invoiceDetailInFlight.set(cleanId, p);
+    return p;
+  },
+  getPaginatedInvoices: (params: {
+    page?: number;
+    limit?: number;
+    branchId?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    paymentStatus?: string;
+    isFavorite?: boolean;
+    customerPhone?: string;
+  }) => {
+    const q = new URLSearchParams();
+    if (params.page) q.set('page', String(params.page));
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.branchId) q.set('branchId', params.branchId);
+    if (params.search) q.set('search', params.search);
+    if (params.startDate) q.set('startDate', params.startDate);
+    if (params.endDate) q.set('endDate', params.endDate);
+    if (params.paymentStatus) q.set('paymentStatus', params.paymentStatus);
+    if (params.isFavorite !== undefined) q.set('isFavorite', String(params.isFavorite));
+    if (params.customerPhone) q.set('customerPhone', params.customerPhone);
+    return request<{ data: any[]; total: number; page: number; limit: number; totalPages: number }>(`/invoices?${q.toString()}`);
+  },
+  getReportsSummary: (params?: { branchId?: string; startDate?: string; endDate?: string; year?: number; month?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.set('branchId', params.branchId);
+    if (params?.startDate) q.set('startDate', params.startDate);
+    if (params?.endDate) q.set('endDate', params.endDate);
+    if (params?.year !== undefined) q.set('year', String(params.year));
+    if (params?.month !== undefined) q.set('month', String(params.month));
+    return request<{
+      branchSummaries: Array<{
+        branchId: string;
+        revenue: number;
+        cost: number;
+        netProfit: number;
+        remainingDebt: number;
+        invoicesCount: number;
+      }>;
+      overall: {
+        revenue: number;
+        cost: number;
+        netProfit: number;
+        remainingDebt: number;
+        invoicesCount: number;
+      };
+      employeeRankings: Array<{
+        employeeId: string;
+        totalSalesAmount: number;
+        totalInvoicesCount: number;
+      }>;
+      dailyMetrics: Array<{
+        dayNum: number;
+        revenue: number;
+        cost: number;
+        netProfit: number;
+        remainingDebt: number;
+        invoicesCount: number;
+        cash: number;
+        vodafone: number;
+        instapay: number;
+      }>;
+    }>(`/invoices/reports-summary?${q.toString()}`);
+  },
+  getCustomerStatement: (params: { phone?: string; name?: string; branchId?: string }) => {
+    const q = new URLSearchParams();
+    if (params.phone) q.set('phone', params.phone);
+    if (params.name) q.set('name', params.name);
+    if (params.branchId) q.set('branchId', params.branchId);
+    return request<{
+      customerPhone: string;
+      customerName: string;
+      totalPurchases: number;
+      totalPaid: number;
+      totalDebt: number;
+      invoices: any[];
+      unpaidInvoices: any[];
+      paidInvoices: any[];
+    }>(`/invoices/customer-statement?${q.toString()}`);
+  },
+  getCustomerSummaries: (params?: { branchId?: string } | string) => {
+    const q = new URLSearchParams();
+    const branchId = typeof params === 'string' ? params : params?.branchId;
+    if (branchId) q.set('branchId', branchId);
+    return request<Array<{
+      phone: string;
+      name: string;
+      invoiceCount: number;
+      totalSpent: number;
+      totalDebt: number;
+      lastVisit: string;
+    }>>(`/invoices/customers-summary?${q.toString()}`);
+  },
+  createInvoice: (invoice: any) => {
+    invalidateInvoiceCache();
+    return request<any>('/invoices', { method: 'POST', body: JSON.stringify(invoice) });
+  },
+  updateInvoice: (id: string, data: any) => {
+    invalidateInvoiceCache(id);
+    return request<any>(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  deleteInvoicesByIds: (ids: string[]) => {
+    if (Array.isArray(ids)) ids.forEach(id => invalidateInvoiceCache(id));
+    return request<any>('/invoices/delete-many', { method: 'POST', body: JSON.stringify({ ids }) });
+  },
+  payInvoice: (id: string, amount: number) => {
+    invalidateInvoiceCache(id);
+    return request<any>(`/invoices/${id}/pay`, { method: 'PATCH', body: JSON.stringify({ amount }) });
+  },
+  payCustomerDebt: (customerPhone: string, amount: number, branchId?: string) => {
+    invalidateInvoiceCache();
+    return request<any>('/invoices/pay-customer-debt', { method: 'POST', body: JSON.stringify({ customerPhone, amount, branchId }) });
+  },
 
   // Customers
   getCustomers: () => request<any[]>('/customers'),

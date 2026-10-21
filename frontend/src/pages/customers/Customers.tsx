@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { store } from '../../services/store';
+import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStoreSync } from '../../hooks/useStoreSync';
 import { Button } from '../../components/ui/button';
@@ -52,6 +53,26 @@ export const Customers = () => {
   const [storeVersion, setStoreVersion] = useState<number>(0);
   const [deletedKeys, setDeletedKeys] = useState<Record<string, boolean>>({});
   const [deleteConfirmCustomer, setDeleteConfirmCustomer] = useState<CustomerRecord | null>(null);
+  const [serverSummaries, setServerSummaries] = useState<any[]>([]);
+  const [isLoadingSummaries, setIsLoadingSummaries] = useState<boolean>(false);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingSummaries(true);
+    api.getCustomerSummaries(activeBranchId)
+      .then(res => {
+        if (active && Array.isArray(res)) {
+          setServerSummaries(res);
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to fetch customer summaries:', err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingSummaries(false);
+      });
+    return () => { active = false; };
+  }, [activeBranchId, storeVersion]);
 
   const handleToggleFavorite = (customer: CustomerRecord) => {
     if (customer.isFavorite) {
@@ -100,7 +121,30 @@ export const Customers = () => {
       });
     };
 
-    // 1. Process Branch Invoices
+    // 1. Process Authoritative Server Summaries (contains all historical records)
+    if (serverSummaries.length > 0) {
+      serverSummaries.forEach(s => {
+        const rawPhone = (s.phone || '').trim();
+        const rawName = (s.name || 'عميل فرع').trim();
+        if (!rawPhone && !rawName) return;
+
+        const key = rawPhone || rawName;
+        if (deletedKeys[key]) return;
+
+        const isFav = isFavCustomer(rawPhone, rawName);
+        customerMap.set(key, {
+          id: `c_${rawPhone || rawName}`,
+          name: rawName,
+          phone: rawPhone,
+          invoiceCount: Number(s.invoiceCount || 0),
+          totalSpent: Number(s.totalSpent || 0),
+          lastVisit: s.lastVisit || new Date().toISOString(),
+          isFavorite: isFav,
+        });
+      });
+    }
+
+    // 2. Process Local Branch Invoices (captures freshly created invoices in current session)
     branchInvoices.forEach(inv => {
       const rawPhone = (inv.customerPhone || '').trim();
       const rawName = (inv.customerName || 'عميل فرع').trim();
@@ -113,10 +157,12 @@ export const Customers = () => {
 
       const existing = customerMap.get(key);
       if (existing) {
-        existing.invoiceCount += 1;
-        existing.totalSpent += (inv.total || 0);
-        if (new Date(inv.date) > new Date(existing.lastVisit)) {
-          existing.lastVisit = inv.date;
+        if (serverSummaries.length === 0) {
+          existing.invoiceCount += 1;
+          existing.totalSpent += (inv.total || 0);
+          if (new Date(inv.date) > new Date(existing.lastVisit)) {
+            existing.lastVisit = inv.date;
+          }
         }
         if (isFav) existing.isFavorite = true;
       } else {

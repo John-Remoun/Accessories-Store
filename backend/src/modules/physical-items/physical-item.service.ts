@@ -46,22 +46,24 @@ export class PhysicalItemService {
     return [item];
   }
 
-  public async markItemStatus(id: string, status: PhysicalItemStatus) {
-    memoryCache.invalidate('physical_items');
+  public async getItemById(id: string) {
     const item = await this.itemRepo.findOne({ where: { id } });
     if (!item) {
       throw new AppError('Physical item not found', 404);
     }
+    return item;
+  }
+
+  public async markItemStatus(id: string, status: PhysicalItemStatus) {
+    memoryCache.invalidate('physical_items');
+    const item = await this.getItemById(id);
     item.status = status;
     return this.itemRepo.save(item);
   }
 
   public async deleteItem(id: string) {
     memoryCache.invalidate('physical_items');
-    const item = await this.itemRepo.findOne({ where: { id } });
-    if (!item) {
-      throw new AppError('Physical item not found', 404);
-    }
+    const item = await this.getItemById(id);
     await this.itemRepo.remove(item);
     return { success: true };
   }

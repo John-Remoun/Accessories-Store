@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { store } from '../../services/store';
+import { api } from '../../services/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { useAuth } from '../../contexts/AuthContext';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -7,8 +9,42 @@ export const Reports = () => {
   const { user } = useAuth();
   if (user?.role !== 'admin') return <div className="p-8 text-center text-red-500 font-bold">غير مصرح لك بالوصول لهذه الصفحة</div>;
 
+  const [serverSummary, setServerSummary] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoading(true);
+    api.getReportsSummary()
+      .then(res => {
+        if (active && res) {
+          setServerSummary(res);
+        }
+      })
+      .catch(err => {
+        if (active) {
+          console.warn('Reports summary error:', err);
+          setError('تعذر الاتصال بالخادم لجلب الإجماليات الشاملة، يتم عرض البيانات المؤقتة');
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
   const branches = store.getBranches();
   const data = branches.map(b => {
+    const sBranch = serverSummary?.branchSummaries?.find((s: any) => s.branchId === b.id);
+    if (sBranch) {
+      return {
+        name: b.nameAr,
+        Revenue: Number(sBranch.revenue || 0),
+        Cost: Number(sBranch.cost || 0),
+        Profit: Number(sBranch.netProfit || 0),
+      };
+    }
     const invs = store.getInvoicesByBranch(b.id);
     const revenue = invs.reduce((acc, i) => {
       const paid = i.paidAmount !== undefined ? Number(i.paidAmount) : (i.paymentStatus === 'paid' ? Number(i.total || 0) : 0);
@@ -30,15 +66,24 @@ export const Reports = () => {
     };
   });
 
-  const totalRev = data.reduce((a, b) => a + b.Revenue, 0);
-  const totalProfit = data.reduce((a, b) => a + b.Profit, 0);
+  const totalRev = serverSummary?.overall?.revenue !== undefined
+    ? Number(serverSummary.overall.revenue || 0)
+    : data.reduce((a, b) => a + b.Revenue, 0);
+
+  const totalProfit = serverSummary?.overall?.netProfit !== undefined
+    ? Number(serverSummary.overall.netProfit || 0)
+    : data.reduce((a, b) => a + b.Profit, 0);
 
   return (
     <div className="space-y-8 animate-in fade-in pb-20 md:pb-0" dir="rtl">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">التقارير المالية</h1>
-          <p className="text-muted-foreground">تفاصيل الإيرادات والتكاليف وصافي الأرباح لجميع الفروع.</p>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+            <span>التقارير المالية</span>
+            {isLoading && <span className="text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground animate-pulse font-normal">جاري التحديث من الخادم...</span>}
+          </h1>
+          <p className="text-muted-foreground">تفاصيل الإيرادات والتكاليف وصافي الأرباح الشاملة لجميع الفروع.</p>
+          {error && <p className="text-xs text-amber-500 font-semibold mt-1">{error}</p>}
         </div>
       </div>
 

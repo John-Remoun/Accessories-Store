@@ -25,11 +25,16 @@ export class CompositionService {
     return this.compositionRepo.save(composition);
   }
 
-  public async deleteComposition(id: string) {
+  public async getCompositionById(id: string) {
     const comp = await this.compositionRepo.findOne({ where: { id } });
     if (!comp) {
       throw new AppError('Composition bundle not found', 404);
     }
+    return comp;
+  }
+
+  public async deleteComposition(id: string) {
+    const comp = await this.getCompositionById(id);
     await this.compositionRepo.remove(comp);
     return { success: true };
   }

@@ -41,7 +41,7 @@ export class AuthService {
       throw new AppError('Invalid username or password', 401);
     }
 
-    const payload = { userId: user.id, username: user.username, role: user.role };
+    const payload = { userId: user.id, username: user.username, role: user.role, branchId: user.branchId || undefined };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
@@ -68,7 +68,7 @@ export class AuthService {
 
     const user = await this.userRepo.findOne({
       where: { id: payload.userId },
-      select: ['id', 'username', 'role', 'refreshToken'],
+      select: ['id', 'username', 'role', 'refreshToken', 'branchId'],
     });
 
     if (!user || !user.refreshToken) {
@@ -80,7 +80,7 @@ export class AuthService {
       throw new AppError('Invalid refresh token', 401);
     }
 
-    const newPayload = { userId: user.id, username: user.username, role: user.role };
+    const newPayload = { userId: user.id, username: user.username, role: user.role, branchId: user.branchId || undefined };
     const newAccessToken = generateAccessToken(newPayload);
     const newRefreshToken = generateRefreshToken(newPayload);
 

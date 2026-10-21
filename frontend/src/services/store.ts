@@ -162,7 +162,7 @@ class StoreService {
     try {
       const [branchDataList, invs] = await Promise.allSettled([
         api.getProductBranchDataList(),
-        api.getInvoices(),
+        api.getPaginatedInvoices({ page: 1, limit: 20 }),
       ]);
 
       let stateChanged = false;
@@ -211,17 +211,27 @@ class StoreService {
         }
       }
 
-      // 2. Check invoice changes
-      if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
-        const filteredInvs = invs.value
-          .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
-          .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
-
-        const currentIds = (this.state.invoices || []).map(i => i.id).join(',');
-        const newIds = filteredInvs.map(i => i.id).join(',');
-        if (currentIds !== newIds) {
-          this.state.invoices = filteredInvs;
-          stateChanged = true;
+      // 2. Reconcile recent invoices without full-table download
+      if (invs.status === 'fulfilled' && invs.value) {
+        const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
+        if (rawInvs.length > 0) {
+          const existingMap = new Map((this.state.invoices || []).map(i => [i.id, i]));
+          let invoicesChanged = false;
+          rawInvs.forEach(freshInv => {
+            if (!this.tombstonedInvoiceIds.has(freshInv.id) && !this.tombstonedInvoiceIds.has(freshInv.invoiceNumber)) {
+              const old = existingMap.get(freshInv.id);
+              if (!old || old.paymentStatus !== freshInv.paymentStatus || old.paidAmount !== freshInv.paidAmount) {
+                existingMap.set(freshInv.id, { ...(old || {}), ...freshInv });
+                invoicesChanged = true;
+              }
+            }
+          });
+          if (invoicesChanged) {
+            this.state.invoices = Array.from(existingMap.values())
+              .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
+              .slice(0, 100);
+            stateChanged = true;
+          }
         }
       }
 
@@ -252,7 +262,7 @@ class StoreService {
         supplierList
       ] = await Promise.allSettled([
         api.getFixedExpenses(),
-        api.getInvoices(),
+        api.getPaginatedInvoices({ page: 1, limit: 50 }),
         api.getProducts(),
         api.getProductBranchDataList(),
         api.getCategories(),
@@ -270,12 +280,15 @@ class StoreService {
         }));
       }
 
-      if (invs.status === 'fulfilled' && Array.isArray(invs.value)) {
-        this.state.invoices = invs.value
-          .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
-          .sort(
-            (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
-          );
+      if (invs.status === 'fulfilled' && invs.value) {
+        const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
+        if (rawInvs.length > 0) {
+          this.state.invoices = rawInvs
+            .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
+            .sort(
+              (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+            );
+        }
       }
 
       if (branchList.status === 'fulfilled' && Array.isArray(branchList.value) && branchList.value.length > 0) {
@@ -992,45 +1005,42 @@ class StoreService {
   }
 
   public async payInvoice(id: string, amount: number) {
-    const inv = (this.state.invoices || []).find(i => i?.id === id);
-    if (inv && amount > 0) {
-      const currentRemaining = inv.remainingAmount !== undefined ? inv.remainingAmount : (inv.total - (inv.paidAmount || 0));
-      const payAmt = Math.min(amount, currentRemaining);
-      inv.paidAmount = (inv.paidAmount || 0) + payAmt;
-      inv.remainingAmount = Math.max(0, currentRemaining - payAmt);
-      inv.paymentStatus = inv.remainingAmount <= 0 ? 'paid' : 'partial';
-      this.saveState();
-      try {
-        await api.payInvoice(id, amount);
-      } catch (err) {
-        console.warn('DB sync warning (payInvoice):', err);
+    if (amount <= 0) return;
+    try {
+      const res = await api.payInvoice(id, amount);
+      const inv = (this.state.invoices || []).find(i => i?.id === id);
+      if (inv) {
+        const currentRemaining = inv.remainingAmount !== undefined ? inv.remainingAmount : (inv.total - (inv.paidAmount || 0));
+        const payAmt = Math.min(amount, currentRemaining);
+        inv.paidAmount = (inv.paidAmount || 0) + payAmt;
+        inv.remainingAmount = Math.max(0, currentRemaining - payAmt);
+        inv.paymentStatus = inv.remainingAmount <= 0 ? 'paid' : 'partial';
+        this.saveState();
       }
+      return res;
+    } catch (err) {
+      console.warn('DB sync warning (payInvoice):', err);
+      throw err;
+    } finally {
+      api.invalidateInvoiceCache(id);
+      await this.quickSyncStockAndInvoices();
+      this.notifyListeners();
     }
   }
 
-  public async payCustomerDebt(customerPhoneOrId: string, amount: number) {
+  public async payCustomerDebt(customerPhoneOrId: string, amount: number, branchId?: string) {
     if (amount <= 0) return;
     const term = customerPhoneOrId.trim();
-    const customerInvoices = (this.state.invoices || [])
-      .filter(i => (i?.customerPhone && i.customerPhone.trim() === term) || i?.customerId === term)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    let remainingToPay = amount;
-    for (const inv of customerInvoices) {
-      const rem = inv.remainingAmount !== undefined ? inv.remainingAmount : (inv.total - (inv.paidAmount || 0));
-      if (rem > 0 && remainingToPay > 0) {
-        const payAmt = Math.min(remainingToPay, rem);
-        inv.paidAmount = (inv.paidAmount || 0) + payAmt;
-        inv.remainingAmount = Math.max(0, rem - payAmt);
-        inv.paymentStatus = inv.remainingAmount <= 0 ? 'paid' : 'partial';
-        remainingToPay -= payAmt;
-      }
-    }
-    this.saveState();
     try {
-      await api.payCustomerDebt(term, amount);
+      const res = await api.payCustomerDebt(term, amount, branchId);
+      return res;
     } catch (err) {
       console.warn('DB sync warning (payCustomerDebt):', err);
+      throw err;
+    } finally {
+      api.invalidateInvoiceCache();
+      await this.quickSyncStockAndInvoices();
+      this.notifyListeners();
     }
   }
 

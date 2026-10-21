@@ -47,12 +47,17 @@ export class FixedExpenseService {
     return saved;
   }
 
-  public async deleteExpense(id: string) {
-    memoryCache.invalidate('fixed_expenses');
+  public async getExpenseById(id: string) {
     const expense = await this.expenseRepo.findOne({ where: { id } });
     if (!expense) {
       throw new AppError('Expense record not found', 404);
     }
+    return expense;
+  }
+
+  public async deleteExpense(id: string) {
+    memoryCache.invalidate('fixed_expenses');
+    const expense = await this.getExpenseById(id);
     const branchId = expense.branchId;
     await this.expenseRepo.remove(expense);
     try {

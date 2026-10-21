@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { store } from '../../services/store';
+import { api } from '../../services/api';
 import { useStoreSync } from '../../hooks/useStoreSync';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -148,12 +149,36 @@ export const Branches = () => {
     setExpensesVersion(v => v + 1);
   };
 
+  // Calendar State for Branch Dashboard
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [isYearModalOpen, setIsYearModalOpen] = useState(false);
+
+  const [serverSummary, setServerSummary] = useState<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.getReportsSummary({ branchId: branch.id, year: currentYear, month: currentMonth + 1 })
+      .then(res => {
+        if (active && res) {
+          setServerSummary(res);
+        }
+      })
+      .catch(err => {
+        console.warn('Branch reports summary failed:', err);
+      });
+    return () => { active = false; };
+  }, [branch.id, currentYear, currentMonth]);
+
   // Branch Specific Financial Stats
   const bInvs = store.getInvoicesByBranch(branch.id);
-  const totalRemainingDebt = bInvs.reduce((acc, inv) => {
-    const val = getInvoiceRemaining(inv);
-    return acc + (isNaN(val) ? 0 : val);
-  }, 0);
+  const totalRemainingDebt = serverSummary?.overall?.remainingDebt !== undefined
+    ? Number(serverSummary.overall.remainingDebt || 0)
+    : bInvs.reduce((acc, inv) => {
+        const val = getInvoiceRemaining(inv);
+        return acc + (isNaN(val) ? 0 : val);
+      }, 0);
 
   // Today's Invoices for Single Day Stats (اليوم بيومه)
   const todayInvs = useMemo(() => {
@@ -281,11 +306,6 @@ export const Branches = () => {
     return { totalInventoryValue: sumValue, availablePiecesCount: sumPieces, lowStockList: lowStock };
   }, [branchProductsList, branch.id]);
 
-  // Calendar State for Branch Dashboard
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
-  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
-  const [isYearModalOpen, setIsYearModalOpen] = useState(false);
 
   const [selectedDayModalData, setSelectedDayModalData] = useState<{
     dateStr: string;
@@ -310,6 +330,47 @@ export const Branches = () => {
 
   // Month Metrics for Active Branch
   const monthMetrics = useMemo(() => {
+    const monthExpenses = fixedExpensesList.filter(exp => {
+      const d = new Date(exp.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+    if (serverSummary?.overall) {
+      const totalRevenue = Number(serverSummary.overall.revenue || 0);
+      const totalRemaining = Number(serverSummary.overall.remainingDebt || 0);
+      const totalCost = Number(serverSummary.overall.cost || 0);
+      let monthCash = 0;
+      let monthInstapay = 0;
+      let monthVodafone = 0;
+
+      if (Array.isArray(serverSummary.dailyMetrics)) {
+        serverSummary.dailyMetrics.forEach((d: any) => {
+          monthCash += Number(d.cash || 0);
+          monthInstapay += Number(d.instapay || 0);
+          monthVodafone += Number(d.vodafone || 0);
+        });
+      }
+
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+      const netCashInDrawer = monthCash - totalFixedExp;
+
+      return {
+        invoicesCount: Number(serverSummary.overall.invoicesCount || 0),
+        totalRevenue,
+        totalRemaining,
+        totalCost,
+        totalFixedExp,
+        grossProfit,
+        netProfit,
+        monthCash,
+        monthInstapay,
+        monthVodafone,
+        netCashInDrawer,
+      };
+    }
+
     const monthInvoices = bInvs.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
@@ -348,11 +409,6 @@ export const Branches = () => {
       }
     });
 
-    const monthExpenses = fixedExpensesList.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-    });
-    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -456,6 +512,36 @@ export const Branches = () => {
 
   const getDayMetrics = (dayNum: number) => {
     const datePrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    const dayExpenses = fixedExpensesList.filter(exp => getIsoDate(exp.date) === datePrefix);
+    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+    const sDay = serverSummary?.dailyMetrics?.find((d: any) => d.dayNum === dayNum);
+    if (sDay) {
+      const totalRevenue = Number(sDay.revenue || 0);
+      const dayRemaining = Number(sDay.remainingDebt || 0);
+      const totalCost = Number(sDay.cost || 0);
+      const dayCash = Number(sDay.cash || 0);
+      const dayInstapay = Number(sDay.instapay || 0);
+      const dayVodafone = Number(sDay.vodafone || 0);
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+      const netCashInDrawer = dayCash - totalFixedExp;
+
+      return {
+        invoicesCount: Number(sDay.invoicesCount || 0),
+        totalRevenue,
+        dayRemaining,
+        totalCost,
+        totalFixedExp,
+        grossProfit,
+        netProfit,
+        dayCash,
+        dayInstapay,
+        dayVodafone,
+        netCashInDrawer,
+        dayExpenses,
+      };
+    }
     
     // Filter branch invoices for this date
     const dayInvoices = bInvs.filter(inv => getIsoDate(inv.date) === datePrefix);
@@ -493,9 +579,6 @@ export const Branches = () => {
       }
     });
 
-    // Filter fixed expenses for this date
-    const dayExpenses = fixedExpensesList.filter(exp => getIsoDate(exp.date) === datePrefix);
-    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
