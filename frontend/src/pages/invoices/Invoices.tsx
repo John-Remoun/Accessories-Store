@@ -59,9 +59,6 @@ const InvoicePagination = ({
 }: InvoicePaginationProps) => {
   if (totalItems <= itemsPerPage && totalPages <= 1) return null;
 
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
-  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-
   // Generate page numbers to show (e.g., 1, 2, 3 ... totalPages)
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -93,23 +90,7 @@ const InvoicePagination = ({
   }[accentColor];
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 pb-1 border-t border-border/50 text-xs">
-      {/* Information text */}
-      <div className="text-muted-foreground font-medium flex items-center gap-1.5 select-none">
-        <span>عرض</span>
-        <span className="font-mono font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
-          {startItem} - {endItem}
-        </span>
-        <span>من إجمالي</span>
-        <span className="font-mono font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border/40">
-          {totalItems}
-        </span>
-        <span>فاتورة</span>
-        <span className="text-[11px] text-muted-foreground/70 font-mono">
-          (صفحة {currentPage} من {totalPages})
-        </span>
-      </div>
-
+    <div className="flex items-center justify-center pt-3 pb-1 border-t border-border/50 text-xs">
       {/* Pagination controls */}
       <div className="flex items-center gap-1.5 select-none" dir="rtl">
         {/* Previous Page Button */}

@@ -12,12 +12,12 @@ import {
   Users, User, Package, QrCode, ShoppingCart, 
   MapPin, TrendingUp, Box, Layers, AlertTriangle, Tag, Sparkles, DollarSign,
   Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar,
-  ChevronLeft, ChevronRight, Clock, FileText
+  ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, FileText
 } from 'lucide-react';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
 import instapayLogo from '../../assets/instapay-logo.png';
 
-import { Invoice, VODAFONE_CASH_NUMBERS } from '../../types';
+import { Invoice, VODAFONE_CASH_NUMBERS, FixedExpense } from '../../types';
 
 const MONTH_NAMES_AR = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -83,6 +83,7 @@ export const Branches = () => {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseType] = useState<'daily' | 'monthly'>('daily');
   const [expensesVersion, setExpensesVersion] = useState(0);
+  const [expensesViewFilter, setExpensesViewFilter] = useState<'today' | 'all'>('today');
 
   if (!user) {
     return (
@@ -106,9 +107,25 @@ export const Branches = () => {
   const branch = store.getBranch(branchId);
   if (!branch) return <div className="p-8 text-center font-bold">الفرع غير موجود.</div>;
 
+  const todayIso = useMemo(() => getIsoDate(new Date().toISOString()), []);
+
   // Fixed Expenses for this branch
   const fixedExpensesList = useMemo(() => store.getFixedExpensesByBranch(branch.id), [branch.id, expensesVersion]);
+  
+  // Today's fixed expenses
+  const todayFixedExpensesList = useMemo(() => {
+    return fixedExpensesList.filter(exp => getIsoDate(exp.date) === todayIso);
+  }, [fixedExpensesList, todayIso]);
+
+  const todayTotalFixedExpenses = useMemo(() => {
+    return todayFixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+  }, [todayFixedExpensesList]);
+
   const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0), [fixedExpensesList]);
+
+  // Which list and total to display in Section 3:
+  const displayedFixedExpenses = expensesViewFilter === 'today' ? todayFixedExpensesList : fixedExpensesList;
+  const displayedTotalFixedExpenses = expensesViewFilter === 'today' ? todayTotalFixedExpenses : totalFixedExpenses;
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,29 +155,36 @@ export const Branches = () => {
 
   // Branch Specific Financial Stats
   const bInvs = store.getInvoicesByBranch(branch.id);
-  const collectedRev = bInvs.reduce((acc, inv) => {
-    const val = getInvoicePaid(inv);
-    return acc + (isNaN(val) ? 0 : val);
-  }, 0);
   const totalRemainingDebt = bInvs.reduce((acc, inv) => {
     const val = getInvoiceRemaining(inv);
     return acc + (isNaN(val) ? 0 : val);
   }, 0);
-  const cost = bInvs.reduce((acc, inv) => {
+
+  // Today's Invoices for Single Day Stats (اليوم بيومه)
+  const todayInvs = useMemo(() => {
+    return bInvs.filter(inv => getIsoDate(inv.date) === todayIso);
+  }, [bInvs, todayIso]);
+
+  const todayCollectedRev = todayInvs.reduce((acc, inv) => {
+    const val = getInvoicePaid(inv);
+    return acc + (isNaN(val) ? 0 : val);
+  }, 0);
+
+  const todayCost = todayInvs.reduce((acc, inv) => {
     const val = getInvoiceRecognizedCost(inv);
     return acc + (isNaN(val) ? 0 : val);
   }, 0);
 
-  // Deduct fixed expenses directly from Total Collected Sales Revenue and Net Profit
-  const safeCollected = isNaN(collectedRev) ? 0 : collectedRev;
-  const safeExpenses = Number(totalFixedExpenses) || 0;
-  const netRevenue = Math.max(0, safeCollected - safeExpenses);
-  const grossProfit = safeCollected - (isNaN(cost) ? 0 : cost);
-  const netProfit = grossProfit - safeExpenses;
-  const isProfitable = netProfit >= 0;
+  // Today's Net Revenue and Net Profit (Deducting today's fixed expenses)
+  const todaySafeCollected = isNaN(todayCollectedRev) ? 0 : todayCollectedRev;
+  const todaySafeExpenses = Number(todayTotalFixedExpenses) || 0;
+  const todayNetRevenue = Math.max(0, todaySafeCollected - todaySafeExpenses);
+  const todayGrossProfit = todaySafeCollected - (isNaN(todayCost) ? 0 : todayCost);
+  const todayNetProfit = todayGrossProfit - todaySafeExpenses;
+  const isTodayProfitable = todayNetProfit >= 0;
 
-  // Revenue Payment Method Breakdown (Cash in drawer, InstaPay, Vodafone Cash, and Deferred Debt)
-  const paymentBreakdown = useMemo(() => {
+  // Today's Revenue Payment Method Breakdown (Cash in drawer, InstaPay, Vodafone Cash, and Deferred Debt)
+  const todayPaymentBreakdown = useMemo(() => {
     let cashTotal = 0;
     let instapayTotal = 0;
     let vodafoneTotal = 0;
@@ -181,7 +205,7 @@ export const Branches = () => {
       vodafoneNumbersBreakdown[targetNum] += safeV;
     };
 
-    bInvs.forEach(inv => {
+    todayInvs.forEach(inv => {
       const amt = getInvoicePaid(inv);
       const rem = getInvoiceRemaining(inv);
       remainingTotal += isNaN(rem) ? 0 : rem;
@@ -218,8 +242,8 @@ export const Branches = () => {
       }
     });
 
-    // Deduct expenses from Cash in Drawer first
-    const safeExpenses = Number(totalFixedExpenses) || 0;
+    // Deduct today's fixed expenses from Cash in Drawer first
+    const safeExpenses = Number(todayTotalFixedExpenses) || 0;
     const netCashTotal = Math.max(0, (isNaN(cashTotal) ? 0 : cashTotal) - safeExpenses);
 
     return { 
@@ -229,7 +253,7 @@ export const Branches = () => {
       remainingTotal: isNaN(remainingTotal) ? 0 : remainingTotal,
       vodafoneNumbersBreakdown
     };
-  }, [bInvs, totalFixedExpenses]);
+  }, [todayInvs, todayTotalFixedExpenses]);
 
   const allProducts = store.getProducts();
 
@@ -284,8 +308,10 @@ export const Branches = () => {
       dayInstapay: number;
       dayVodafone: number;
       netCashInDrawer: number;
+      dayExpenses?: FixedExpense[];
     };
   } | null>(null);
+  const [isDayExpensesExpanded, setIsDayExpensesExpanded] = useState(false);
 
   // Month Metrics for Active Branch
   const monthMetrics = useMemo(() => {
@@ -492,6 +518,7 @@ export const Branches = () => {
       dayInstapay,
       dayVodafone,
       netCashInDrawer,
+      dayExpenses,
     };
   };
 
@@ -594,7 +621,7 @@ export const Branches = () => {
         {/* BOTTOM ROW: 3 Financial KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 mt-5">
           
-          {/* Card 4: Net Total Collected Sales Revenue (Deducted by Expenses) */}
+          {/* Card 4: Net Total Collected Sales Revenue (Deducted by Expenses) - TODAY */}
           <Card 
             onClick={() => setIsRevenueModalOpen(true)}
             className="bg-card shadow-xs border border-border/80 border-l-4 border-l-emerald-500 hover:bg-emerald-500/10 transition-all rounded-2xl p-5 min-h-[100px] cursor-pointer group select-none"
@@ -602,11 +629,11 @@ export const Branches = () => {
             <div className="flex flex-row items-center justify-between w-full">
               <div className="flex flex-col items-start justify-center gap-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-muted-foreground">إيرادات المبيعات المحصلة</span>
+                  <span className="text-xs font-bold text-muted-foreground">إيرادات المبيعات المحصلة (اليوم)</span>
                   <span className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-md group-hover:scale-105 transition-transform">اضغط للتفاصيل 🔍</span>
                 </div>
                 <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">{netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">{todayNetRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   <span className="text-xs font-bold text-emerald-400">ج.م</span>
                 </div>
               </div>
@@ -616,14 +643,14 @@ export const Branches = () => {
             </div>
           </Card>
 
-          {/* Card 5: Net Profit (Deducted by Expenses and based on collected revenue) */}
+          {/* Card 5: Net Profit (Deducted by Expenses and based on collected revenue) - TODAY */}
           <Card className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-5 min-h-[100px]">
             <div className="flex flex-row items-center justify-between w-full">
               <div className="flex flex-col items-start justify-center gap-1">
-                <span className="text-xs font-bold text-muted-foreground">صافي الربح الفعلي المحصل</span>
+                <span className="text-xs font-bold text-muted-foreground">صافي الربح الفعلي المحصل (اليوم)</span>
                 <div className="flex items-baseline gap-1.5 mt-1">
-                  <span className={`text-2xl sm:text-3xl font-extrabold font-mono ${isProfitable ? 'text-teal-400' : 'text-rose-500'}`}>
-                    {netProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <span className={`text-2xl sm:text-3xl font-extrabold font-mono ${isTodayProfitable ? 'text-teal-400' : 'text-rose-500'}`}>
+                    {todayNetProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </span>
                   <span className="text-xs font-bold text-teal-400">ج.م</span>
                 </div>
@@ -666,13 +693,43 @@ export const Branches = () => {
       <div className={`space-y-4 ${isAdmin ? 'pt-4 mt-8' : 'pt-2'}`}>
           
           {/* Section Header Line Matching 'لوحة التحكم' Header */}
-          <div className="flex justify-between items-center border-b border-border/60 pb-2">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-border/60 pb-2">
             <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
               <Receipt className="text-rose-500" size={20} />
               <span>المصاريف الثابتة</span>
             </h2>
-            <div className="px-3.5 py-1.5 rounded-full bg-rose-950/70 text-rose-400 border border-rose-800/40 text-xs font-bold font-mono shadow-2xs">
-              إجمالي المصاريف اليومية: {Number(totalFixedExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filter Toggle: Today vs All */}
+              <div className="bg-muted/40 p-1 rounded-xl border border-border/60 flex items-center gap-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setExpensesViewFilter('today')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    expensesViewFilter === 'today'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  مصاريف اليوم ({todayFixedExpensesList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpensesViewFilter('all')}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                    expensesViewFilter === 'all'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  جميع المصاريف ({fixedExpensesList.length})
+                </button>
+              </div>
+
+              {/* Total Badge */}
+              <div className="px-3.5 py-1.5 rounded-full bg-rose-950/70 text-rose-400 border border-rose-800/40 text-xs font-bold font-mono shadow-2xs">
+                {expensesViewFilter === 'today' ? 'إجمالي مصاريف اليوم: ' : 'إجمالي جميع المصاريف: '}
+                {Number(displayedTotalFixedExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+              </div>
             </div>
           </div>
 
@@ -721,7 +778,7 @@ export const Branches = () => {
           </form>
 
           {/* List of Added Fixed Expenses Table */}
-          {fixedExpensesList.length > 0 && (
+          {displayedFixedExpenses.length > 0 ? (
             <div className="pt-2 overflow-x-auto">
               <table className="w-full text-xs text-right border-collapse">
                 <thead>
@@ -734,7 +791,7 @@ export const Branches = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {fixedExpensesList.map((exp) => {
+                  {displayedFixedExpenses.map((exp) => {
                     const displayName = (exp.userName && exp.userName.trim() && exp.userName !== 'الإدارة')
                       ? exp.userName
                       : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : null)
@@ -772,6 +829,14 @@ export const Branches = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              {expensesViewFilter === 'today' ? (
+                <span>لا توجد مصاريف ثابتة مسجلة لليوم حتى الآن. يمكنك إضافة مصروف جديد أعلاه أو الضغط على "جميع المصاريف".</span>
+              ) : (
+                <span>لا توجد أي مصاريف ثابتة مسجلة في هذا الفرع.</span>
+              )}
             </div>
           )}
 
@@ -946,12 +1011,15 @@ export const Branches = () => {
               return (
                 <div
                   key={dayNum}
-                  onClick={() => setSelectedDayModalData({
-                    dateStr,
-                    dayNum,
-                    weekdayName,
-                    metrics,
-                  })}
+                  onClick={() => {
+                    setIsDayExpensesExpanded(false);
+                    setSelectedDayModalData({
+                      dateStr,
+                      dayNum,
+                      weekdayName,
+                      metrics,
+                    });
+                  }}
                   className={`min-h-[44px] sm:min-h-[54px] p-1 sm:p-1.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between items-center text-center group select-none relative overflow-hidden ${
                     isToday
                       ? 'border-2 border-amber-500 bg-amber-500/10 dark:bg-amber-500/15 shadow-xs'
@@ -992,13 +1060,13 @@ export const Branches = () => {
         </div>
       )}
 
-      {/* REVENUE BREAKDOWN POPUP MODAL (Kash, InstaPay, Vodafone Cash) */}
+      {/* REVENUE BREAKDOWN POPUP MODAL (Kash, InstaPay, Vodafone Cash) - TODAY */}
       <Dialog open={isRevenueModalOpen} onOpenChange={setIsRevenueModalOpen}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-5 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-3">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <TrendingUp size={20} className="text-emerald-500" />
-              <span>تفاصيل إيرادات المبيعات والدرج — ({branch.nameAr})</span>
+              <span>تفاصيل إيرادات المبيعات والدرج (اليوم) — ({branch.nameAr})</span>
             </DialogTitle>
           </DialogHeader>
 
@@ -1015,7 +1083,7 @@ export const Branches = () => {
                 </div>
               </div>
               <div className="text-left font-mono font-extrabold text-sm sm:text-base text-emerald-600">
-                {paymentBreakdown.cashTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+                {todayPaymentBreakdown.cashTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
               </div>
             </div>
 
@@ -1030,7 +1098,7 @@ export const Branches = () => {
                 </div>
               </div>
               <div className="text-left font-mono font-extrabold text-sm sm:text-base text-purple-600">
-                {paymentBreakdown.instapayTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+                {todayPaymentBreakdown.instapayTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
               </div>
             </div>
 
@@ -1047,14 +1115,14 @@ export const Branches = () => {
                   </div>
                 </div>
                 <div className="text-left font-mono font-extrabold text-sm sm:text-base text-rose-600">
-                  {paymentBreakdown.vodafoneTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+                  {todayPaymentBreakdown.vodafoneTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
                 </div>
               </div>
 
               {/* 3 Wallet Sub-Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-rose-500/20">
                 {VODAFONE_CASH_NUMBERS.map((num) => {
-                  const amount = paymentBreakdown.vodafoneNumbersBreakdown?.[num] || 0;
+                  const amount = todayPaymentBreakdown.vodafoneNumbersBreakdown?.[num] || 0;
                   return (
                     <div key={num} className="bg-background/80 dark:bg-card/80 p-2.5 rounded-xl border border-rose-500/20 flex flex-col items-center justify-center text-center gap-1">
                       <span className="text-[11px] font-mono font-bold text-foreground" dir="ltr">
@@ -1081,15 +1149,15 @@ export const Branches = () => {
                 </div>
               </div>
               <div className="text-left font-mono font-extrabold text-sm sm:text-base text-amber-500">
-                {paymentBreakdown.remainingTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
+                {todayPaymentBreakdown.remainingTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-sans font-bold">ج.م</span>
               </div>
             </div>
 
             {/* Total Sum Footer */}
             <div className="bg-muted/40 p-3.5 sm:p-4 rounded-2xl border border-border/80 flex items-center justify-between pt-3 font-bold mt-2">
-              <span className="text-xs text-foreground">إجمالي المبيعات المحصلة بالفرع:</span>
+              <span className="text-xs text-foreground">إجمالي المبيعات المحصلة بالفرع (اليوم):</span>
               <span className="text-base sm:text-lg text-emerald-600 font-mono font-extrabold">
-                {netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                {todayNetRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
               </span>
             </div>
 
@@ -1221,22 +1289,76 @@ export const Branches = () => {
 
                 </div>
 
-                {/* 3. Fixed Expenses Daily Card (Red Style) */}
-                <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-rose-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 sm:gap-3">
-                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-rose-950/80 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-xs">
-                      <Receipt size={18} className="sm:w-[22px] sm:h-[22px]" />
+                {/* 3. Fixed Expenses Daily Card (Red Style) - Clickable to see what was spent */}
+                <div 
+                  onClick={() => setIsDayExpensesExpanded(prev => !prev)}
+                  className="bg-card shadow-xs border border-border/80 border-l-4 border-l-rose-500 rounded-2xl p-3.5 sm:p-4 cursor-pointer hover:bg-rose-500/5 transition-all group select-none"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-rose-950/80 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                        <Receipt size={18} className="sm:w-[22px] sm:h-[22px]" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-muted-foreground block">المصاريف الثابتة اليومية</span>
+                          <span className="text-[10px] bg-rose-950 text-rose-400 border border-rose-800/40 font-bold px-1.5 py-0.5 rounded-md group-hover:scale-105 transition-transform">
+                            اضغط لمعرفة ما تم صرفه 🔍
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs font-bold text-muted-foreground block">المصاريف الثابتة اليومية</span>
+                    <div className="flex items-center gap-2">
+                      <div className="text-left font-mono">
+                        <span className="text-lg sm:text-2xl font-extrabold text-rose-400">
+                          -{selectedDayModalData.metrics.totalFixedExp.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] sm:text-xs font-bold text-muted-foreground mr-1">ج.م</span>
+                      </div>
+                      <div className="text-muted-foreground group-hover:text-rose-400 transition-colors">
+                        {isDayExpensesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-left font-mono">
-                    <span className="text-lg sm:text-2xl font-extrabold text-rose-400">
-                      -{selectedDayModalData.metrics.totalFixedExp.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] sm:text-xs font-bold text-muted-foreground mr-1">ج.م</span>
-                  </div>
+
+                  {/* Expanded List of Day Expenses */}
+                  {isDayExpensesExpanded && (
+                    <div className="mt-3 pt-3 border-t border-rose-500/20 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="text-[11px] font-bold text-rose-300 flex items-center justify-between px-1">
+                        <span>قائمة ما تم صرفه في هذا اليوم:</span>
+                        <span>{selectedDayModalData.metrics.dayExpenses?.length || 0} مصروف</span>
+                      </div>
+                      {(!selectedDayModalData.metrics.dayExpenses || selectedDayModalData.metrics.dayExpenses.length === 0) ? (
+                        <div className="p-3 rounded-xl bg-background/50 border border-border/50 text-center text-xs text-muted-foreground">
+                          لم يتم تسجيل أي مصاريف في هذا اليوم 🎉
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {selectedDayModalData.metrics.dayExpenses.map(exp => {
+                            const expUser = (exp.userName && exp.userName.trim() && exp.userName !== 'الإدارة')
+                              ? exp.userName
+                              : (exp.userId ? (store.getUsers().find(u => u.id === exp.userId)?.name || store.getUsers().find(u => u.id === exp.userId)?.username) : null)
+                                || 'موظف الفرع';
+
+                            return (
+                              <div key={exp.id} className="bg-background/80 p-2.5 rounded-xl border border-rose-500/20 flex items-center justify-between text-xs">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-bold text-foreground">{exp.title}</span>
+                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <User size={10} className="text-amber-500" />
+                                    <span>بواسطة: {expUser}</span>
+                                  </span>
+                                </div>
+                                <div className="font-mono font-bold text-rose-400 text-xs sm:text-sm">
+                                  -{Number(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 4. Net Cash in Drawer Box */}
