@@ -88,6 +88,7 @@ export class InvoiceService {
     if (cached) return cached;
 
     const invoices = await this.invoiceRepo.find({
+      take: 100,
       order: { createdAt: 'DESC' },
     });
     const formatted = invoices.map(this.formatInvoiceResponse);
@@ -102,6 +103,7 @@ export class InvoiceService {
 
     const invoices = await this.invoiceRepo.find({
       where: { branchId },
+      take: 100,
       order: { createdAt: 'DESC' },
     });
     const formatted = invoices.map(this.formatInvoiceResponse);
