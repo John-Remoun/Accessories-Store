@@ -1162,7 +1162,18 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const handleSaveInvoiceEdit = async () => {
     if (!editingInvoice) return;
     if (editItems.length === 0) {
-      toast.error('لا يمكن حفظ الفاتورة بدون أي منتجات. إذا أردت إلغاء الفاتورة بالكامل يمكنك حذفها.');
+      setIsSubmittingEdit(true);
+      try {
+        const invId = editingInvoice.id || editingInvoice.invoiceNumber;
+        await store.deleteInvoicesByIds([invId, editingInvoice.invoiceNumber].filter(Boolean), [editingInvoice]);
+        toast.success('تم حذف الفاتورة بالكامل وإرجاع المنتجات إلى المخزن وتحديث الأرباح بنجاح.');
+        setEditingInvoice(null);
+        setRefreshKey(prev => prev + 1);
+      } catch (err: any) {
+        toast.error(err?.message || 'حدث خطأ أثناء حذف الفاتورة وإرجاع المنتجات');
+      } finally {
+        setIsSubmittingEdit(false);
+      }
       return;
     }
 
@@ -1238,6 +1249,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
 
       const returnedStockPayload = returnedItemsSummary.map(r => ({
         productId: r.productId,
+        productName: r.productName,
         quantity: r.returnCount
       }));
 

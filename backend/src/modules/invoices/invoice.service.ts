@@ -531,6 +531,9 @@ export class InvoiceService {
     memoryCache.invalidate('invoices');
     memoryCache.invalidate('products');
 
+    const updatedStockItems: StockUpdateItem[] = [];
+    let targetBranch = 'b1';
+
     await AppDataSource.transaction(async (transactionalEntityManager) => {
       // Find invoices with their line items to adjust inventory and employee stats
       const invoices = await transactionalEntityManager
@@ -541,9 +544,10 @@ export class InvoiceService {
 
       if (!invoices || invoices.length === 0) {
         // Invoices already deleted or non-existent.
-        // Prevents double-restoring inventory on duplicate or retry requests.
         return;
       }
+
+      targetBranch = invoices[0]?.branchId || 'b1';
 
       for (const inv of invoices) {
         const branchId = inv.branchId;
@@ -563,12 +567,60 @@ export class InvoiceService {
             // Restore regular product aggregate inventory
             if (item.productId) {
               const qtyToRestore = Number(item.quantity || 1);
-              await transactionalEntityManager.query(
+              const res: any = await transactionalEntityManager.query(
                 `UPDATE product_branch_data
                  SET quantity = quantity + $1, "updatedAt" = NOW()
-                 WHERE "productId" = $2 AND "branchId" = $3`,
+                 WHERE "productId" = $2 AND "branchId" = $3
+                 RETURNING quantity`,
                 [qtyToRestore, item.productId, branchId]
               );
+              const rows = Array.isArray(res) && Array.isArray(res[0]) ? res[0] : (Array.isArray(res) ? res : []);
+              if (rows.length > 0) {
+                updatedStockItems.push({
+                  productId: item.productId,
+                  productName: item.productName || '',
+                  newQuantity: Number(rows[0].quantity),
+                  isOutOfStock: Number(rows[0].quantity) <= 0,
+                });
+              } else {
+                // Check if it's a composition with internal components
+                try {
+                  const cleanItemName = (item.productName || '').replace(/\s*\(تركيبة خاصة\)\s*/g, '').trim();
+                  const compRows: any = await transactionalEntityManager.query(
+                    `SELECT "internalComponents" FROM product_compositions 
+                     WHERE name = $1 
+                        OR name = $2
+                        OR "createdProductId" = $3 
+                        OR id = $3
+                     LIMIT 1`,
+                    [item.productName, cleanItemName, item.productId]
+                  );
+                  const comps = Array.isArray(compRows) && Array.isArray(compRows[0]) ? compRows[0] : (Array.isArray(compRows) ? compRows : []);
+                  if (comps.length > 0 && Array.isArray(comps[0].internalComponents)) {
+                    for (const ic of comps[0].internalComponents) {
+                      if (ic.productId) {
+                        const compQty = (Number(ic.quantity) || 1) * qtyToRestore;
+                        const icRes: any = await transactionalEntityManager.query(
+                          `UPDATE product_branch_data
+                           SET quantity = quantity + $1, "updatedAt" = NOW()
+                           WHERE "productId" = $2 AND "branchId" = $3
+                           RETURNING quantity`,
+                          [compQty, ic.productId, branchId]
+                        );
+                        const icRows = Array.isArray(icRes) && Array.isArray(icRes[0]) ? icRes[0] : (Array.isArray(icRes) ? icRes : []);
+                        if (icRows.length > 0) {
+                          updatedStockItems.push({
+                            productId: ic.productId,
+                            productName: '',
+                            newQuantity: Number(icRows[0].quantity),
+                            isOutOfStock: Number(icRows[0].quantity) <= 0,
+                          });
+                        }
+                      }
+                    }
+                  }
+                } catch {}
+              }
             }
 
             // Restore physical QR piece to 'available' if linked and currently marked 'sold'
@@ -607,6 +659,17 @@ export class InvoiceService {
         }
       }
     });
+
+    if (updatedStockItems.length > 0) {
+      try {
+        broadcastStockUpdate({
+          branchId: targetBranch,
+          items: updatedStockItems,
+        });
+      } catch (bErr) {
+        console.warn('⚠️ [Socket.io] Broadcast error after invoice delete stock update:', bErr);
+      }
+    }
 
     return { success: true };
   }
@@ -760,6 +823,17 @@ export class InvoiceService {
       const branchId = invoice.branchId;
       const newItems = Array.isArray(data.items) ? data.items : [];
 
+      if (newItems.length === 0) {
+        // If all items are removed from invoice, delete invoice completely and restore all products
+        await this.deleteInvoicesByIds([invoice.id, invoice.invoiceNumber]);
+        return {
+          formattedInvoice: { ...this.formatInvoiceResponse(invoice), isDeleted: true },
+          updatedStockItems: [],
+          targetBranchId: branchId,
+          isDeleted: true,
+        };
+      }
+
       // Calculate stock differences
       const originalQtyMap = new Map<string, number>();
       for (const item of originalItems) {
@@ -785,28 +859,68 @@ export class InvoiceService {
 
         if (diff < 0) {
           const returnQty = Math.abs(diff);
-          await transactionalEntityManager.query(
+          const updateRes: any = await transactionalEntityManager.query(
             `UPDATE product_branch_data
              SET quantity = quantity + $1, "updatedAt" = NOW()
-             WHERE "productId" = $2 AND "branchId" = $3`,
+             WHERE "productId" = $2 AND "branchId" = $3
+             RETURNING quantity`,
             [returnQty, pId, branchId]
           );
-
-          const bData: any = await transactionalEntityManager.query(
-            `SELECT p.name AS "productName", p."nameAr" AS "nameAr", pbd.quantity
-             FROM product_branch_data pbd
-             LEFT JOIN products p ON p.id = pbd."productId"
-             WHERE pbd."productId" = $1 AND pbd."branchId" = $2`,
-            [pId, branchId]
-          );
-          if (bData && bData.length > 0) {
-            const q = Number(bData[0].quantity);
+          const rows = Array.isArray(updateRes) && Array.isArray(updateRes[0]) ? updateRes[0] : (Array.isArray(updateRes) ? updateRes : []);
+          if (rows.length > 0) {
+            const bData: any = await transactionalEntityManager.query(
+              `SELECT p.name AS "productName", p."nameAr" AS "nameAr"
+               FROM products p
+               WHERE p.id = $1`,
+              [pId]
+            );
+            const pRows = Array.isArray(bData) && Array.isArray(bData[0]) ? bData[0] : (Array.isArray(bData) ? bData : []);
             updatedStockItems.push({
               productId: pId,
-              productName: bData[0].nameAr || bData[0].productName || '',
-              newQuantity: q,
-              isOutOfStock: q <= 0,
+              productName: pRows[0]?.nameAr || pRows[0]?.name || '',
+              newQuantity: Number(rows[0].quantity),
+              isOutOfStock: Number(rows[0].quantity) <= 0,
             });
+          } else {
+            // Check if this was a composition product
+            try {
+              const origItem = originalItems.find(it => it.productId === pId);
+              const pName = origItem?.productName || '';
+              const cleanPName = pName.replace(/\s*\(تركيبة خاصة\)\s*/g, '').trim();
+              const compRows: any = await transactionalEntityManager.query(
+                `SELECT "internalComponents" FROM product_compositions 
+                 WHERE name = $1 
+                    OR name = $2
+                    OR "createdProductId" = $3 
+                    OR id = $3
+                 LIMIT 1`,
+                [pName, cleanPName, pId]
+              );
+              const comps = Array.isArray(compRows) && Array.isArray(compRows[0]) ? compRows[0] : (Array.isArray(compRows) ? compRows : []);
+              if (comps.length > 0 && Array.isArray(comps[0].internalComponents)) {
+                for (const ic of comps[0].internalComponents) {
+                  if (ic.productId) {
+                    const compQty = (Number(ic.quantity) || 1) * returnQty;
+                    const icRes: any = await transactionalEntityManager.query(
+                      `UPDATE product_branch_data
+                       SET quantity = quantity + $1, "updatedAt" = NOW()
+                       WHERE "productId" = $2 AND "branchId" = $3
+                       RETURNING quantity`,
+                      [compQty, ic.productId, branchId]
+                    );
+                    const icRows = Array.isArray(icRes) && Array.isArray(icRes[0]) ? icRes[0] : (Array.isArray(icRes) ? icRes : []);
+                    if (icRows.length > 0) {
+                      updatedStockItems.push({
+                        productId: ic.productId,
+                        productName: '',
+                        newQuantity: Number(icRows[0].quantity),
+                        isOutOfStock: Number(icRows[0].quantity) <= 0,
+                      });
+                    }
+                  }
+                }
+              }
+            } catch {}
           }
         } else if (diff > 0) {
           // Atomic conditional stock deduction: deduct ONLY if quantity >= diff

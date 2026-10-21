@@ -1011,6 +1011,21 @@ class StoreService {
         );
         if (bd) {
           bd.quantity = Math.max(0, (bd.quantity || 0) + Number(ret.quantity));
+        } else {
+          // Check if this was a composition product
+          const comp = (this.state.compositions || []).find(
+            c => ((ret as any).productName && (c.name === (ret as any).productName || c.name.includes((ret as any).productName))) || c.id === ret.productId
+          );
+          if (comp && Array.isArray(comp.internalComponents)) {
+            comp.internalComponents.forEach(ic => {
+              const rawBd = (this.state.productBranchData || []).find(
+                b => b.productId === ic.productId && b.branchId === updatedInvoice.branchId
+              );
+              if (rawBd) {
+                rawBd.quantity = Math.max(0, (rawBd.quantity || 0) + (Number(ic.quantity || 1) * Number(ret.quantity)));
+              }
+            });
+          }
         }
       }
     }
@@ -1100,11 +1115,18 @@ class StoreService {
     }
   }
 
-  public async deleteInvoicesByIds(ids: string[]) {
+  public async deleteInvoicesByIds(ids: string[], fallbackInvoices?: Invoice[]) {
     if (!ids || ids.length === 0) return;
     const inputSet = new Set(ids);
     // Find all matching invoices to capture both their id and invoiceNumber
     const matched = (this.state.invoices || []).filter(i => inputSet.has(i?.id) || inputSet.has(i?.invoiceNumber));
+    if (fallbackInvoices && fallbackInvoices.length > 0) {
+      fallbackInvoices.forEach(fi => {
+        if (!matched.some(m => m.id === fi.id || m.invoiceNumber === fi.invoiceNumber)) {
+          matched.push(fi);
+        }
+      });
+    }
     const fullSet = new Set([
       ...ids,
       ...matched.map(m => m.id),
@@ -1114,9 +1136,43 @@ class StoreService {
     // Tombstone all IDs so background sync will NEVER re-add them
     fullSet.forEach(id => this.tombstonedInvoiceIds.add(id));
 
+    // Restore stock locally for each item in the deleted invoices
+    matched.forEach(inv => {
+      const bId = inv.branchId;
+      (inv.items || []).forEach(item => {
+        const q = Number(item.quantity || 1);
+        const bd = (this.state.productBranchData || []).find(
+          b => b.productId === item.productId && b.branchId === bId
+        );
+        if (bd) {
+          bd.quantity = Math.max(0, (bd.quantity || 0) + q);
+        } else {
+          // Check if this was a composition product
+          const itemName = item.productName || '';
+          const cleanName = itemName.replace(/\s*\(تركيبة خاصة\)\s*/g, '').trim();
+          const comp = (this.state.compositions || []).find(
+            c => c.id === item.productId ||
+                 c.createdProductId === item.productId ||
+                 (itemName && c.name === itemName) ||
+                 (cleanName && (c.name === cleanName || c.name.includes(cleanName) || cleanName.includes(c.name)))
+          );
+          if (comp && Array.isArray(comp.internalComponents)) {
+            comp.internalComponents.forEach(ic => {
+              const rawBd = (this.state.productBranchData || []).find(
+                b => b.productId === ic.productId && b.branchId === bId
+              );
+              if (rawBd) {
+                rawBd.quantity = Math.max(0, (rawBd.quantity || 0) + (Number(ic.quantity || 1) * q));
+              }
+            });
+          }
+        }
+      });
+    });
+
     // Instant local removal with ZERO LAG
     this.state.invoices = (this.state.invoices || []).filter(i => !fullSet.has(i?.id) && !fullSet.has(i?.invoiceNumber));
-    this.saveState(false);
+    this.saveState(true);
     this.notifyListeners();
 
     // Broadcast instant deletion across tabs
