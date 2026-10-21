@@ -1,14 +1,20 @@
 import { AppDataSource } from '../../config/data-source';
 import { CustomerEntity } from './customer.entity';
 import { AppError } from '../../common/exceptions/app-error';
+import { memoryCache } from '../../common/cache/cache.service';
 
 export class CustomerService {
   private customerRepo = AppDataSource.getRepository(CustomerEntity);
 
   public async getAllCustomers() {
-    return this.customerRepo.find({
+    const cached = memoryCache.get<CustomerEntity[]>('customers:all');
+    if (cached) return cached;
+
+    const customers = await this.customerRepo.find({
       order: { createdAt: 'DESC' },
     });
+    memoryCache.set('customers:all', customers, 120);
+    return customers;
   }
 
   public async getCustomerById(id: string) {
@@ -20,6 +26,7 @@ export class CustomerService {
   }
 
   public async createOrUpdateCustomer(data: Partial<CustomerEntity>) {
+    memoryCache.invalidate('customers');
     let existing: CustomerEntity | null = null;
 
     if (data.id) {
@@ -46,6 +53,7 @@ export class CustomerService {
   }
 
   public async deleteCustomer(idOrPhone: string) {
+    memoryCache.invalidate('customers');
     const term = idOrPhone.trim();
     const customer = await this.customerRepo.findOne({
       where: [{ id: term }, { phone: term }],

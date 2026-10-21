@@ -1,14 +1,20 @@
 import { AppDataSource } from '../../config/data-source';
 import { SupplierEntity } from './supplier.entity';
 import { AppError } from '../../common/exceptions/app-error';
+import { memoryCache } from '../../common/cache/cache.service';
 
 export class SupplierService {
   private supplierRepo = AppDataSource.getRepository(SupplierEntity);
 
   public async getAllSuppliers() {
-    return this.supplierRepo.find({
+    const cached = memoryCache.get<SupplierEntity[]>('suppliers:all');
+    if (cached) return cached;
+
+    const suppliers = await this.supplierRepo.find({
       order: { purchaseDate: 'DESC' },
     });
+    memoryCache.set('suppliers:all', suppliers, 120);
+    return suppliers;
   }
 
   public async getSupplierById(id: string) {
@@ -20,6 +26,7 @@ export class SupplierService {
   }
 
   public async createSupplier(data: Partial<SupplierEntity>) {
+    memoryCache.invalidate('suppliers');
     const id = data.id || `sup_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const supplier = this.supplierRepo.create({
       ...data,
@@ -32,6 +39,7 @@ export class SupplierService {
   }
 
   public async updateSupplier(id: string, updates: Partial<SupplierEntity>) {
+    memoryCache.invalidate('suppliers');
     const supplier = await this.getSupplierById(id);
 
     if (updates.purchaseDate) {
@@ -43,6 +51,7 @@ export class SupplierService {
   }
 
   public async deleteSupplier(id: string) {
+    memoryCache.invalidate('suppliers');
     const supplier = await this.getSupplierById(id);
     await this.supplierRepo.remove(supplier);
     return { success: true };
