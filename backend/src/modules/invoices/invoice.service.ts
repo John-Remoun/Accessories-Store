@@ -250,9 +250,15 @@ export class InvoiceService {
       for (const itemPayload of data.items) {
         let physicalItemId: string | undefined = undefined;
 
-        // 1. If physicalItemId is provided, atomically claim it with branch matching & conditional update to prevent double-sale
-        if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
-          const pId = itemPayload.physicalItemId.trim();
+        // 1. If physicalItemId is provided and is a genuine physical item ID (not synthetic cart prefix), atomically claim it with branch matching & conditional update to prevent double-sale
+        const rawPId = itemPayload.physicalItemId ? itemPayload.physicalItemId.trim() : '';
+        const isSyntheticPhysical = !rawPId ||
+          rawPId.startsWith('COMP-ITEM-') ||
+          rawPId.startsWith('COMP-') ||
+          rawPId.startsWith('ITEM-');
+
+        if (rawPId && !isSyntheticPhysical) {
+          const pId = rawPId;
           const updatePhysResult: any = await transactionalEntityManager.query(
             `UPDATE physical_items
              SET status = 'sold', "updatedAt" = NOW()
@@ -563,12 +569,14 @@ export class InvoiceService {
             // Restore physical QR piece to 'available' if linked and currently marked 'sold'
             if (item.physicalItemId && item.physicalItemId.trim()) {
               const pId = item.physicalItemId.trim();
-              await transactionalEntityManager.query(
-                `UPDATE physical_items
-                 SET status = 'available', "updatedAt" = NOW()
-                 WHERE id = $1 AND "branchId" = $2 AND status = 'sold'`,
-                [pId, branchId]
-              );
+              if (!pId.startsWith('COMP-ITEM-') && !pId.startsWith('COMP-') && !pId.startsWith('ITEM-')) {
+                await transactionalEntityManager.query(
+                  `UPDATE physical_items
+                   SET status = 'available', "updatedAt" = NOW()
+                   WHERE id = $1 AND "branchId" = $2 AND status = 'sold'`,
+                  [pId, branchId]
+                );
+              }
             }
           }
         }
@@ -852,14 +860,20 @@ export class InvoiceService {
       const origPhysicalMap = new Map<string, InvoiceItemEntity>();
       for (const item of originalItems) {
         if (item.physicalItemId && item.physicalItemId.trim()) {
-          origPhysicalMap.set(item.physicalItemId.trim(), item);
+          const pId = item.physicalItemId.trim();
+          if (!pId.startsWith('COMP-ITEM-') && !pId.startsWith('COMP-') && !pId.startsWith('ITEM-')) {
+            origPhysicalMap.set(pId, item);
+          }
         }
       }
 
       const newPhysicalSet = new Set<string>();
       for (const item of newItems) {
         if (item.physicalItemId && item.physicalItemId.trim()) {
-          newPhysicalSet.add(item.physicalItemId.trim());
+          const pId = item.physicalItemId.trim();
+          if (!pId.startsWith('COMP-ITEM-') && !pId.startsWith('COMP-') && !pId.startsWith('ITEM-')) {
+            newPhysicalSet.add(pId);
+          }
         }
       }
 
@@ -877,8 +891,14 @@ export class InvoiceService {
 
       // B. Atomically claim newly added physical items
       for (const itemPayload of newItems) {
-        if (itemPayload.physicalItemId && itemPayload.physicalItemId.trim()) {
-          const pId = itemPayload.physicalItemId.trim();
+        const rawPId = itemPayload.physicalItemId ? itemPayload.physicalItemId.trim() : '';
+        const isSynthetic = !rawPId ||
+          rawPId.startsWith('COMP-ITEM-') ||
+          rawPId.startsWith('COMP-') ||
+          rawPId.startsWith('ITEM-');
+
+        if (rawPId && !isSynthetic) {
+          const pId = rawPId;
           if (!origPhysicalMap.has(pId)) {
             const updatePhysResult: any = await transactionalEntityManager.query(
               `UPDATE physical_items
@@ -953,9 +973,15 @@ export class InvoiceService {
         computedSubtotal += lineTotal;
         computedTotalCost += lineCost;
 
+        const rawPhys = itemPayload.physicalItemId ? itemPayload.physicalItemId.trim() : '';
+        const isSynthetic = !rawPhys ||
+          rawPhys.startsWith('COMP-ITEM-') ||
+          rawPhys.startsWith('COMP-') ||
+          rawPhys.startsWith('ITEM-');
+
         const invItem = transactionalEntityManager.create(InvoiceItemEntity, {
           invoiceId: invoice.id,
-          physicalItemId: itemPayload.physicalItemId,
+          physicalItemId: isSynthetic ? undefined : rawPhys || undefined,
           productId: itemPayload.productId,
           productName: itemPayload.productName || '',
           unitPrice,

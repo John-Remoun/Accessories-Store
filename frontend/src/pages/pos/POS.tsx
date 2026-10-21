@@ -24,7 +24,8 @@ import instapayLogo from '../../assets/instapay-logo.png';
 import lightLogo from '../../assets/light-logo.png';
 
 interface CartLineItem {
-  physicalItemId: string;
+  cartItemId: string;
+  physicalItemId?: string;
   product: Product;
   branchData: ProductBranchData;
   priceTier: 'price1' | 'price2' | 'price3' | 'price4';
@@ -540,7 +541,8 @@ export const POS = () => {
     setCart(prev => [
       ...prev,
       {
-        physicalItemId: `COMP-ITEM-${Date.now()}`,
+        cartItemId: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        physicalItemId: undefined,
         product: newAssembledProduct,
         branchData: transientBranchData,
         priceTier: 'price1',
@@ -693,7 +695,8 @@ export const POS = () => {
       } else {
         const availItem = availablePhysicalItems.find(i => i.productId === selectedProductId && !prev.some(c => c.physicalItemId === i.id));
         return [...prev, {
-          physicalItemId: availItem?.id || `ITEM-${Date.now()}`,
+          cartItemId: `cart_${selectedProductId}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          physicalItemId: availItem?.id || undefined,
           product: currentSelectedProduct,
           branchData: currentProductBranchData,
           priceTier: selectedPriceTier,
@@ -1032,14 +1035,22 @@ export const POS = () => {
 
     const invoiceNum = generateUniqueInvoiceNumber();
 
-    const invoiceItems = cart.map(item => ({
-      physicalItemId: item.physicalItemId || undefined,
-      productId: item.product.id,
-      productName: item.product.nameAr || item.product.nameEn,
-      unitPrice: item.selectedPrice,
-      unitCost: item.branchData?.cost || 0,
-      quantity: item.quantity
-    }));
+    const invoiceItems = cart.map(item => {
+      const pId = item.physicalItemId?.trim();
+      const isSynthetic = !pId ||
+        pId.startsWith('COMP-ITEM-') ||
+        pId.startsWith('COMP-') ||
+        pId.startsWith('ITEM-');
+
+      return {
+        physicalItemId: isSynthetic ? undefined : pId,
+        productId: item.product.id,
+        productName: item.product.nameAr || item.product.nameEn,
+        unitPrice: item.selectedPrice,
+        unitCost: item.branchData?.cost || 0,
+        quantity: item.quantity
+      };
+    });
 
     const splitPaymentsData = isMulti ? {
       cash: numSplitCash,
@@ -1655,12 +1666,18 @@ export const POS = () => {
                     </TableHeader>
                     <TableBody>
                       {cart.map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/20">
+                        <TableRow key={item.cartItemId || idx} className="hover:bg-muted/20">
                           <TableCell className="py-3">
                             <p className="font-bold text-xs text-foreground">{item.product.nameAr}</p>
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              كود: {item.physicalItemId}
-                            </span>
+                            {item.physicalItemId ? (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                كود: {item.physicalItemId}
+                              </span>
+                            ) : (item.product?.productCode || item.product?.sku) ? (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                كود: {item.product.productCode || item.product.sku}
+                              </span>
+                            ) : null}
                           </TableCell>
 
                           <TableCell className="text-center py-3 font-mono font-bold text-xs text-foreground whitespace-nowrap">

@@ -1196,14 +1196,22 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         discount: cleanDiscount,
         total: cleanTotal,
         totalCost: cleanCost,
-        items: editItems.map(it => ({
-          physicalItemId: it.physicalItemId,
-          productId: it.productId,
-          productName: it.productName,
-          unitPrice: Number(it.unitPrice) || 0,
-          unitCost: Number(it.unitCost) || 0,
-          quantity: Number(it.quantity) || 1,
-        })),
+        items: editItems.map(it => {
+          const pId = it.physicalItemId?.trim();
+          const isSynthetic = !pId ||
+            pId.startsWith('COMP-ITEM-') ||
+            pId.startsWith('COMP-') ||
+            pId.startsWith('ITEM-');
+
+          return {
+            physicalItemId: isSynthetic ? undefined : pId,
+            productId: it.productId,
+            productName: it.productName,
+            unitPrice: Number(it.unitPrice) || 0,
+            unitCost: Number(it.unitCost) || 0,
+            quantity: Number(it.quantity) || 1,
+          };
+        }),
       };
 
       const returnedStockPayload = returnedItemsSummary.map(r => ({

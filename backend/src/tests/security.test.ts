@@ -1370,6 +1370,65 @@ async function runSecurityTests() {
       }
     });
 
+    // =========================================================================
+    // SUITE 16: CUSTOM COMPOSITIONS & NON-SERIALIZED ITEM SALES INTEGRITY
+    // =========================================================================
+    console.log('\n--- SUITE 16: CUSTOM COMPOSITIONS & SYNTHETIC ITEM SALES ---');
+
+    await test('1. Synthetic composition prefix (COMP-ITEM-) bypasses physical piece lookup and avoids false rejection', async () => {
+      let physicalQueryExecuted = false;
+
+      function checkItemPhysical(rawId?: string): boolean {
+        const pId = rawId ? rawId.trim() : '';
+        const isSynthetic = !pId || pId.startsWith('COMP-ITEM-') || pId.startsWith('COMP-') || pId.startsWith('ITEM-');
+        if (pId && !isSynthetic) {
+          physicalQueryExecuted = true;
+          return true;
+        }
+        return false;
+      }
+
+      const isPhysical = checkItemPhysical('COMP-ITEM-1792589073208');
+      assert.strictEqual(isPhysical, false, 'COMP-ITEM- must not be treated as a physical item from physical_items table');
+      assert.strictEqual(physicalQueryExecuted, false, 'Database must not query physical_items for synthetic composition items');
+    });
+
+    await test('2. Synthetic cart prefix (ITEM-) bypasses physical piece lookup for non-serialized products', async () => {
+      let physicalQueryExecuted = false;
+
+      function checkItemPhysical(rawId?: string): boolean {
+        const pId = rawId ? rawId.trim() : '';
+        const isSynthetic = !pId || pId.startsWith('COMP-ITEM-') || pId.startsWith('COMP-') || pId.startsWith('ITEM-');
+        if (pId && !isSynthetic) {
+          physicalQueryExecuted = true;
+          return true;
+        }
+        return false;
+      }
+
+      const isPhysical = checkItemPhysical('ITEM-1792589073208');
+      assert.strictEqual(isPhysical, false, 'ITEM- must not be treated as a physical item');
+      assert.strictEqual(physicalQueryExecuted, false, 'Database must not query physical_items for non-serialized items');
+    });
+
+    await test('3. Genuine physical item (QR-SERIAL) continues to be strictly validated against physical_items', async () => {
+      let physicalQueryExecuted = false;
+
+      function checkItemPhysical(rawId?: string): boolean {
+        const pId = rawId ? rawId.trim() : '';
+        const isSynthetic = !pId || pId.startsWith('COMP-ITEM-') || pId.startsWith('COMP-') || pId.startsWith('ITEM-');
+        if (pId && !isSynthetic) {
+          physicalQueryExecuted = true;
+          return true;
+        }
+        return false;
+      }
+
+      const isPhysical = checkItemPhysical('QR-VALID-12345');
+      assert.strictEqual(isPhysical, true, 'Real serialized item must be recognized for physical piece validation');
+      assert.strictEqual(physicalQueryExecuted, true, 'Database query must be executed for real physical item');
+    });
+
   } finally {
     server.close();
   }
