@@ -1,0 +1,17 @@
+{
+  "root": true,
+  "overrides": [
+    {
+      "files": ["src/**/*.entity.ts"],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "Property[key.name='eager'][value.value=true]",
+            "message": "CRITICAL EGRESS PREVENTION: 'eager: true' is strictly forbidden on TypeORM entities. Always load relations explicitly on-demand."
+          }
+        ]
+      }
+    }
+  ]
+}
