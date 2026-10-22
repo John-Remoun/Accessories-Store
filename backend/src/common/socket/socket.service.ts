@@ -17,6 +17,8 @@ export interface StockUpdatePayload {
   timestamp: string;
 }
 
+import { verifyAccessToken } from '../utils/jwt.utils';
+
 export function initSocketServer(server: HttpServer): SocketIOServer {
   io = new SocketIOServer(server, {
     cors: {
@@ -27,13 +29,69 @@ export function initSocketServer(server: HttpServer): SocketIOServer {
     transports: ['websocket', 'polling'],
   });
 
+  io.use((socket: Socket, next) => {
+    const rawToken = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+    const token = typeof rawToken === 'string' && rawToken.startsWith('Bearer ')
+      ? rawToken.slice(7).trim()
+      : (typeof rawToken === 'string' ? rawToken.trim() : undefined);
+
+    if (token) {
+      try {
+        const decoded = verifyAccessToken(token);
+        socket.data.user = decoded;
+      } catch (e) {
+        // Continue connection; unauthenticated or expired token will be handled gracefully
+      }
+    }
+    next();
+  });
+
   io.on('connection', (socket: Socket) => {
     console.log(`🔌 [Socket.io] Client connected: ${socket.id}`);
 
-    socket.on('join:branch', (branchId: string) => {
-      if (branchId) {
-        socket.join(`branch:${branchId}`);
-        console.log(`📍 [Socket.io] Client ${socket.id} joined branch room: branch:${branchId}`);
+    const user = socket.data.user;
+    if (user && (user.role === 'admin' || user.role === 'super_admin')) {
+      socket.join('admin');
+      console.log(`📍 [Socket.io] Admin ${socket.id} auto-joined 'admin' room`);
+    } else if (user && user.branchId) {
+      socket.join(`branch:${user.branchId}`);
+      console.log(`📍 [Socket.io] Staff ${socket.id} auto-joined assigned branch room: branch:${user.branchId}`);
+    }
+
+    socket.on('join:branch', (data: { branchId?: string; token?: string } | string) => {
+      const requestedBranch = typeof data === 'string' ? data : data?.branchId;
+      const explicitToken = typeof data === 'object' ? data?.token : undefined;
+
+      let authUser = socket.data.user;
+      if (!authUser && explicitToken) {
+        try {
+          authUser = verifyAccessToken(explicitToken);
+          socket.data.user = authUser;
+        } catch (e) {}
+      }
+
+      if (authUser) {
+        if (authUser.role === 'admin' || authUser.role === 'super_admin') {
+          socket.join('admin');
+          if (requestedBranch) {
+            socket.join(`branch:${requestedBranch}`);
+            console.log(`📍 [Socket.io] Admin ${socket.id} joined branch room: branch:${requestedBranch}`);
+          }
+          return;
+        }
+
+        // Employee is strictly restricted to their own assigned branch room
+        if (authUser.branchId) {
+          socket.join(`branch:${authUser.branchId}`);
+          console.log(`📍 [Socket.io] Employee ${socket.id} strictly restricted to branch:${authUser.branchId}`);
+          return;
+        }
+      }
+
+      // Backward compatible fallback for unauthenticated socket connection
+      if (requestedBranch) {
+        socket.join(`branch:${requestedBranch}`);
+        console.log(`📍 [Socket.io] Client ${socket.id} joined branch room (fallback): branch:${requestedBranch}`);
       }
     });
 
@@ -66,7 +124,7 @@ export function broadcastStockUpdate(payload: Omit<StockUpdatePayload, 'timestam
   console.log(`📡 [Socket.io] Broadcasting stock deduction:`, JSON.stringify(fullPayload));
 
   if (fullPayload.branchId) {
-    io.to(`branch:${fullPayload.branchId}`).emit('inventory:stock-updated', fullPayload);
+    io.to(`branch:${fullPayload.branchId}`).to('admin').emit('inventory:stock-updated', fullPayload);
   } else {
     io.emit('inventory:stock-updated', fullPayload);
   }
@@ -99,7 +157,7 @@ export function broadcastInvoiceCreated(invoice: any): void {
   const mini = extractLightweightInvoice(invoice);
   console.log(`📡 [Socket.io] Broadcasting invoice created: #${mini?.invoiceNumber}`);
   if (mini?.branchId) {
-    io.to(`branch:${mini.branchId}`).emit('invoice:created', mini);
+    io.to(`branch:${mini.branchId}`).to('admin').emit('invoice:created', mini);
   } else {
     io.emit('invoice:created', mini);
   }
@@ -118,7 +176,7 @@ export function broadcastInvoiceUpdated(invoice: any): void {
   const mini = extractLightweightInvoice(invoice);
   console.log(`📡 [Socket.io] Broadcasting invoice updated: #${mini?.invoiceNumber}`);
   if (mini?.branchId) {
-    io.to(`branch:${mini.branchId}`).emit('invoice:updated', mini);
+    io.to(`branch:${mini.branchId}`).to('admin').emit('invoice:updated', mini);
   } else {
     io.emit('invoice:updated', mini);
   }
@@ -129,7 +187,7 @@ export function broadcastExpenseCreated(expense: any): void {
   if (!io) return;
   console.log(`📡 [Socket.io] Broadcasting expense created: ${expense?.id}`);
   if (expense?.branchId) {
-    io.to(`branch:${expense.branchId}`).emit('expense:created', expense);
+    io.to(`branch:${expense.branchId}`).to('admin').emit('expense:created', expense);
   } else {
     io.emit('expense:created', expense);
   }
@@ -140,7 +198,7 @@ export function broadcastExpenseDeleted(id: string, branchId?: string): void {
   if (!io) return;
   console.log(`📡 [Socket.io] Broadcasting expense deleted: ${id}`);
   if (branchId) {
-    io.to(`branch:${branchId}`).emit('expense:deleted', { id, branchId, timestamp: new Date().toISOString() });
+    io.to(`branch:${branchId}`).to('admin').emit('expense:deleted', { id, branchId, timestamp: new Date().toISOString() });
   } else {
     io.emit('expense:deleted', { id, timestamp: new Date().toISOString() });
   }

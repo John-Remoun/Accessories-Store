@@ -25,7 +25,9 @@ export function initSocketClient(): Socket {
     ? (import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, ''))
     : window.location.origin;
 
+  const token = localStorage.getItem('access_token');
   socket = io(serverUrl, {
+    auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 20,
@@ -36,7 +38,8 @@ export function initSocketClient(): Socket {
     console.log('⚡ [Socket.io Client] Connected to real-time server. ID:', socket?.id);
     store.setSocketConnected(true);
     const lastActiveBranch = localStorage.getItem('last_active_branch') || 'b1';
-    socket?.emit('join:branch', lastActiveBranch);
+    const currentToken = localStorage.getItem('access_token');
+    socket?.emit('join:branch', { branchId: lastActiveBranch, token: currentToken });
   });
 
   socket.on('inventory:stock-updated', (payload: RealtimeStockPayload) => {
