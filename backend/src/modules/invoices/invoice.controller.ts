@@ -24,14 +24,14 @@ export class InvoiceController {
           paymentStatus: req.query.paymentStatus as string,
           isFavorite: req.query.isFavorite !== undefined ? req.query.isFavorite === 'true' : undefined,
           employeeId: !scope.isGlobalAdmin && scope.user.role === 'employee' ? scope.user.userId : undefined,
-        });
+        }, scope.isGlobalAdmin);
         return sendResponse(res, 200, 'Invoices retrieved successfully', paginated);
       }
 
       // Legacy unpaginated endpoint: strictly bound to user's assigned branch for non-admins
       const invoices = effectiveBranchId
-        ? await invoiceService.getInvoicesByBranch(effectiveBranchId)
-        : await invoiceService.getAllInvoices();
+        ? await invoiceService.getInvoicesByBranch(effectiveBranchId, scope.isGlobalAdmin)
+        : await invoiceService.getAllInvoices(scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Invoices retrieved successfully', invoices);
     } catch (error) {
       next(error);
@@ -42,8 +42,8 @@ export class InvoiceController {
     try {
       res.setHeader('Cache-Control', 'private, max-age=10, stale-while-revalidate=20');
       const branchId = req.params.branchId as string;
-      await resolveBranchScope(req, branchId);
-      const invoices = await invoiceService.getInvoicesByBranch(branchId);
+      const scope = await resolveBranchScope(req, branchId);
+      const invoices = await invoiceService.getInvoicesByBranch(branchId, scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Branch invoices retrieved successfully', invoices);
     } catch (error) {
       next(error);
@@ -54,7 +54,9 @@ export class InvoiceController {
     try {
       res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
       const id = req.params.id as string;
-      const invoice = await invoiceService.getInvoiceById(id);
+      const user = (req as any).user;
+      const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+      const invoice = await invoiceService.getInvoiceById(id, isAdmin);
       // Strictly verify that the invoice belongs to the user's permitted branch
       await resolveBranchScope(req, invoice.branchId);
       return sendResponse(res, 200, 'Invoice retrieved successfully', invoice);
@@ -91,8 +93,8 @@ export class InvoiceController {
     try {
       const id = req.params.id as string;
       const existing = await invoiceService.getInvoiceById(id);
-      await resolveBranchScope(req, existing.branchId);
-      const invoice = await invoiceService.toggleFavorite(id);
+      const scope = await resolveBranchScope(req, existing.branchId);
+      const invoice = await invoiceService.toggleFavorite(id, scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Invoice favorite status updated', invoice);
     } catch (error) {
       next(error);
@@ -132,7 +134,7 @@ export class InvoiceController {
       if (!scope.isGlobalAdmin && req.body.branchId && req.body.branchId !== scope.branchId) {
         throw new AppError(`Forbidden: You cannot transfer invoice to branch '${req.body.branchId}'`, 403);
       }
-      const invoice = await invoiceService.updateInvoice(id, req.body);
+      const invoice = await invoiceService.updateInvoice(id, req.body, scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Invoice updated successfully', invoice);
     } catch (error) {
       next(error);
@@ -150,7 +152,7 @@ export class InvoiceController {
         endDate: req.query.endDate as string,
         year: req.query.year ? Number(req.query.year) : undefined,
         month: req.query.month !== undefined ? Number(req.query.month) : undefined,
-      });
+      }, scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Reports summary retrieved successfully', summary);
     } catch (error) {
       next(error);
@@ -166,7 +168,7 @@ export class InvoiceController {
         phone: req.query.phone as string,
         name: req.query.name as string,
         branchId: effectiveBranchId,
-      });
+      }, scope.isGlobalAdmin);
       return sendResponse(res, 200, 'Customer statement retrieved successfully', statement);
     } catch (error) {
       next(error);

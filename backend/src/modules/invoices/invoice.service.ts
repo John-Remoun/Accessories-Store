@@ -83,21 +83,22 @@ export function getCairoDateParts(dateVal: string | Date | undefined): { year: n
 export class InvoiceService {
   private invoiceRepo = AppDataSource.getRepository(InvoiceEntity);
 
-  public async getAllInvoices() {
-    const cached = memoryCache.get<any[]>('invoices:all');
+  public async getAllInvoices(isAdmin: boolean = true) {
+    const cacheKey = `invoices:all:${isAdmin ? 'admin' : 'staff'}`;
+    const cached = memoryCache.get<any[]>(cacheKey);
     if (cached) return cached;
 
     const invoices = await this.invoiceRepo.find({
       take: 100,
       order: { createdAt: 'DESC' },
     });
-    const formatted = invoices.map(this.formatInvoiceResponse);
-    memoryCache.set('invoices:all', formatted, 15);
+    const formatted = invoices.map(inv => this.formatInvoiceResponse(inv, isAdmin));
+    memoryCache.set(cacheKey, formatted, 15);
     return formatted;
   }
 
-  public async getInvoicesByBranch(branchId: string) {
-    const cacheKey = `invoices:branch:${branchId}`;
+  public async getInvoicesByBranch(branchId: string, isAdmin: boolean = true) {
+    const cacheKey = `invoices:branch:${branchId}:${isAdmin ? 'admin' : 'staff'}`;
     const cached = memoryCache.get<any[]>(cacheKey);
     if (cached) return cached;
 
@@ -106,12 +107,12 @@ export class InvoiceService {
       take: 100,
       order: { createdAt: 'DESC' },
     });
-    const formatted = invoices.map(this.formatInvoiceResponse);
+    const formatted = invoices.map(inv => this.formatInvoiceResponse(inv, isAdmin));
     memoryCache.set(cacheKey, formatted, 15);
     return formatted;
   }
 
-  public async getInvoiceById(id: string) {
+  public async getInvoiceById(id: string, isAdmin: boolean = true) {
     const invoice = await this.invoiceRepo.findOne({
       where: [{ id }, { invoiceNumber: id }],
       relations: ['invoiceItems'],
@@ -119,7 +120,7 @@ export class InvoiceService {
     if (!invoice) {
       throw new AppError('Invoice not found', 404);
     }
-    return this.formatInvoiceResponse(invoice);
+    return this.formatInvoiceResponse(invoice, isAdmin);
   }
 
   public async getPaginatedInvoices(options: {
@@ -133,7 +134,7 @@ export class InvoiceService {
     isFavorite?: boolean;
     employeeId?: string;
     customerPhone?: string;
-  }) {
+  }, isAdmin: boolean = true) {
     const page = Math.max(1, Number(options.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
     const skip = (page - 1) * limit;
@@ -193,7 +194,7 @@ export class InvoiceService {
       .take(limit);
 
     const [invoices, total] = await qb.getManyAndCount();
-    const formatted = invoices.map(this.formatInvoiceResponse);
+    const formatted = invoices.map(inv => this.formatInvoiceResponse(inv, isAdmin));
 
     return {
       data: formatted,
@@ -673,7 +674,7 @@ export class InvoiceService {
     return { success: true };
   }
 
-  public async toggleFavorite(id: string) {
+  public async toggleFavorite(id: string, isAdmin: boolean = true) {
     memoryCache.invalidate('invoices');
     const invoice = await this.invoiceRepo.findOne({ where: { id } });
     if (!invoice) {
@@ -681,7 +682,7 @@ export class InvoiceService {
     }
     invoice.isFavorite = !invoice.isFavorite;
     await this.invoiceRepo.save(invoice);
-    return this.formatInvoiceResponse(invoice);
+    return this.formatInvoiceResponse(invoice, isAdmin);
   }
 
   public async payInvoice(id: string, amount: number) {
@@ -805,7 +806,7 @@ export class InvoiceService {
     return result;
   }
 
-  public async updateInvoice(id: string, data: any) {
+  public async updateInvoice(id: string, data: any, isAdmin: boolean = true) {
     memoryCache.invalidate('invoices');
     memoryCache.invalidate('products');
     const result = await AppDataSource.transaction(async (transactionalEntityManager) => {
@@ -1150,7 +1151,7 @@ export class InvoiceService {
       await transactionalEntityManager.save(invoice);
 
       return {
-        formattedInvoice: this.formatInvoiceResponse(invoice),
+        formattedInvoice: this.formatInvoiceResponse(invoice, isAdmin),
         updatedStockItems,
         targetBranchId: branchId,
       };
@@ -1176,18 +1177,23 @@ export class InvoiceService {
     };
   }
 
-  private formatInvoiceResponse(invoice: InvoiceEntity) {
-    const items = (invoice.invoiceItems || []).map((item) => ({
-      physicalItemId: item.physicalItemId,
-      productId: item.productId,
-      productName: item.productName,
-      unitPrice: Number(item.unitPrice),
-      unitCost: Number(item.unitCost),
-      quantity: Number(item.quantity),
-      profit: Number(item.profit),
-    }));
+  private formatInvoiceResponse(invoice: InvoiceEntity, isAdmin: boolean = true) {
+    const items = (invoice.invoiceItems || []).map((item) => {
+      const baseItem: any = {
+        physicalItemId: item.physicalItemId,
+        productId: item.productId,
+        productName: item.productName,
+        unitPrice: Number(item.unitPrice),
+        quantity: Number(item.quantity),
+      };
+      if (isAdmin) {
+        baseItem.unitCost = Number(item.unitCost);
+        baseItem.profit = Number(item.profit);
+      }
+      return baseItem;
+    });
 
-    return {
+    const response: any = {
       id: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       branchId: invoice.branchId,
@@ -1200,8 +1206,6 @@ export class InvoiceService {
       subtotal: Number(invoice.subtotal),
       discount: Number(invoice.discount),
       total: Number(invoice.total),
-      totalCost: Number(invoice.totalCost),
-      netProfit: Number(invoice.netProfit || 0),
       paymentMethod: invoice.paymentMethod,
       paymentStatus: invoice.paymentStatus,
       paymentSubMethod: invoice.paymentSubMethod,
@@ -1213,6 +1217,13 @@ export class InvoiceService {
       createdAt: invoice.createdAt,
       updatedAt: invoice.updatedAt,
     };
+
+    if (isAdmin) {
+      response.totalCost = Number(invoice.totalCost);
+      response.netProfit = Number(invoice.netProfit || 0);
+    }
+
+    return response;
   }
 
   public async getReportsSummary(options: {
@@ -1221,7 +1232,7 @@ export class InvoiceService {
     endDate?: string;
     year?: number;
     month?: number;
-  }) {
+  }, isAdmin: boolean = true) {
     if (!AppDataSource.isInitialized) {
       return {
         branchSummaries: [],
@@ -1243,7 +1254,7 @@ export class InvoiceService {
       }
     }
 
-    const cacheKey = `invoices:reports_summary:${options.branchId || 'all'}:${options.year ?? 'all'}:${options.month ?? 'all'}:${options.startDate || ''}:${options.endDate || ''}`;
+    const cacheKey = `invoices:reports_summary:${isAdmin ? 'admin' : 'staff'}:${options.branchId || 'all'}:${options.year ?? 'all'}:${options.month ?? 'all'}:${options.startDate || ''}:${options.endDate || ''}`;
     const cached = memoryCache.get<any>(cacheKey);
     if (cached) return cached;
 
@@ -1443,18 +1454,30 @@ export class InvoiceService {
       }
     }
 
-    const result = {
+    const result: any = {
       branchSummaries: Array.from(branchMap.values()),
       overall: {
         revenue: totalRevenue,
-        cost: totalCost,
-        netProfit: totalRevenue - totalCost,
         remainingDebt: totalRemainingDebt,
         invoicesCount: relevantInvoiceCount,
       },
       employeeRankings: Array.from(employeeMap.values()).sort((a, b) => b.totalSalesAmount - a.totalSalesAmount),
       dailyMetrics: Array.from(daysMap.values()).sort((a, b) => a.dayNum - b.dayNum),
     };
+
+    if (isAdmin) {
+      result.overall.cost = totalCost;
+      result.overall.netProfit = totalRevenue - totalCost;
+    } else {
+      result.branchSummaries = result.branchSummaries.map((b: any) => {
+        const { cost, netProfit, ...safeB } = b;
+        return safeB;
+      });
+      result.dailyMetrics = result.dailyMetrics.map((d: any) => {
+        const { cost, netProfit, ...safeD } = d;
+        return safeD;
+      });
+    }
 
     memoryCache.set(cacheKey, result, 60);
     return result;
@@ -1464,7 +1487,7 @@ export class InvoiceService {
     phone?: string;
     name?: string;
     branchId?: string;
-  }) {
+  }, isAdmin: boolean = true) {
     if (!AppDataSource.isInitialized) {
       return {
         customerPhone: options.phone || '',
@@ -1509,7 +1532,7 @@ export class InvoiceService {
     qb = qb.orderBy('invoice.date', 'ASC').addOrderBy('invoice.id', 'ASC');
 
     const invoices = await qb.getMany();
-    const formatted = invoices.map(this.formatInvoiceResponse);
+    const formatted = invoices.map(inv => this.formatInvoiceResponse(inv, isAdmin));
 
     let totalPurchases = 0;
     let totalPaid = 0;

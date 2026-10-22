@@ -1603,6 +1603,92 @@ async function runSecurityTests() {
       }
     });
 
+    // =========================================================================
+    // TEST SUITE 17: INVOICE COST & PROFIT REDACTION FOR NON-ADMINS
+    // =========================================================================
+    console.log('\n--- Suite 17: Invoice Cost & Profit Redaction ---');
+
+    await test('1. Employee requesting invoice: totalCost, netProfit, unitCost, profit are completely redacted (undefined)', async () => {
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      (invoiceService as any).invoiceRepo = {
+        findOne: async () => ({
+          id: 'inv-sec-staff-1',
+          invoiceNumber: 'INV-STAFF-1',
+          branchId: 'b1',
+          total: 500,
+          totalCost: 300,
+          netProfit: 200,
+          invoiceItems: [
+            { productId: 'p1', productName: 'Case', unitPrice: 250, unitCost: 150, quantity: 2, profit: 200 },
+          ],
+        }),
+      };
+
+      try {
+        const staffInvoice = await invoiceService.getInvoiceById('inv-sec-staff-1', false);
+        assert.strictEqual(staffInvoice.totalCost, undefined, 'staff invoice must NOT include totalCost');
+        assert.strictEqual(staffInvoice.netProfit, undefined, 'staff invoice must NOT include netProfit');
+        assert.strictEqual(staffInvoice.items[0].unitCost, undefined, 'staff invoice item must NOT include unitCost');
+        assert.strictEqual(staffInvoice.items[0].profit, undefined, 'staff invoice item must NOT include profit');
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+      }
+    });
+
+    await test('2. Admin requesting invoice: totalCost, netProfit, unitCost, profit are fully preserved', async () => {
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      (invoiceService as any).invoiceRepo = {
+        findOne: async () => ({
+          id: 'inv-sec-admin-1',
+          invoiceNumber: 'INV-ADMIN-1',
+          branchId: 'b1',
+          total: 500,
+          totalCost: 300,
+          netProfit: 200,
+          invoiceItems: [
+            { productId: 'p1', productName: 'Case', unitPrice: 250, unitCost: 150, quantity: 2, profit: 200 },
+          ],
+        }),
+      };
+
+      try {
+        const adminInvoice = await invoiceService.getInvoiceById('inv-sec-admin-1', true);
+        assert.strictEqual(adminInvoice.totalCost, 300, 'admin invoice must include totalCost');
+        assert.strictEqual(adminInvoice.netProfit, 200, 'admin invoice must include netProfit');
+        assert.strictEqual(adminInvoice.items[0].unitCost, 150, 'admin invoice item must include unitCost');
+        assert.strictEqual(adminInvoice.items[0].profit, 200, 'admin invoice item must include profit');
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+      }
+    });
+
+    await test('3. Reports summary for non-admin: overall.cost and overall.netProfit are redacted', async () => {
+      memoryCache.clear();
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      (invoiceService as any).invoiceRepo = {
+        createQueryBuilder: () => ({
+          andWhere: function () { return this; },
+          select: function () { return this; },
+          getMany: async () => [
+            { id: 'inv-r1', date: '2026-10-21T12:00:00Z', total: 1000, totalCost: 600, netProfit: 400, paidAmount: 1000, remainingAmount: 0, paymentStatus: 'paid', branchId: 'b1' }
+          ],
+        }),
+      };
+
+      try {
+        const staffSummary = await invoiceService.getReportsSummary({ year: 2026, month: 10 }, false);
+        assert.strictEqual(staffSummary.overall.cost, undefined, 'staff reports summary overall.cost must be undefined');
+        assert.strictEqual(staffSummary.overall.netProfit, undefined, 'staff reports summary overall.netProfit must be undefined');
+        if (staffSummary.branchSummaries.length > 0) {
+          assert.strictEqual(staffSummary.branchSummaries[0].cost, undefined, 'staff branch summary cost must be undefined');
+          assert.strictEqual(staffSummary.branchSummaries[0].netProfit, undefined, 'staff branch summary netProfit must be undefined');
+        }
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+        memoryCache.clear();
+      }
+    });
+
   } finally {
     server.close();
   }
