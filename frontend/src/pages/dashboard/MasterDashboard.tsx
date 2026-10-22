@@ -546,14 +546,26 @@ export const MasterDashboard = () => {
     }, 1200);
   };
 
-  const handleSendWhatsAppToOwner = (inv: Invoice) => {
-    const branchObj = store.getBranch(inv.branchId);
-    const branchName = branchObj ? branchObj.nameAr : 'الفرع الرئيسي';
-    const sellerObj = store.getUsers().find(u => u.id === inv.employeeId);
-    const sellerName = sellerObj ? sellerObj.name : 'الكاشير';
-    const customerInfo = inv.customerName ? `${inv.customerName} (${inv.customerPhone || ''})` : 'عميل فرع';
+  const handleSendWhatsAppToOwner = async (inv: Invoice) => {
+    let targetInv = inv;
+    if (!targetInv.items || targetInv.items.length === 0) {
+      try {
+        const full = await api.getInvoiceById(inv.id || inv.invoiceNumber);
+        if (full && Array.isArray(full.items) && full.items.length > 0) {
+          targetInv = full;
+        }
+      } catch (e) {
+        console.warn('Could not fetch full invoice for WhatsApp:', e);
+      }
+    }
 
-    const itemsList = inv.items.map((item, idx) => {
+    const branchObj = store.getBranch(targetInv.branchId);
+    const branchName = branchObj ? branchObj.nameAr : 'الفرع الرئيسي';
+    const sellerObj = store.getUsers().find(u => u.id === targetInv.employeeId);
+    const sellerName = sellerObj ? sellerObj.name : 'الكاشير';
+    const customerInfo = targetInv.customerName ? `${targetInv.customerName} (${targetInv.customerPhone || ''})` : 'عميل فرع';
+
+    const itemsList = (targetInv.items || []).map((item, idx) => {
       const p = store.getProduct(item.productId);
       const name = item.productName || p?.nameAr || p?.nameEn || 'منتج';
       return `${idx + 1}. ${name}: ${item.unitPrice.toFixed(2)} ج.م`;

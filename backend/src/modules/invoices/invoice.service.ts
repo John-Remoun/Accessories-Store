@@ -138,8 +138,7 @@ export class InvoiceService {
     const limit = Math.min(100, Math.max(1, Number(options.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const qb = this.invoiceRepo.createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.invoiceItems', 'invoiceItems');
+    const qb = this.invoiceRepo.createQueryBuilder('invoice');
 
     if (options.branchId) {
       qb.andWhere('invoice.branchId = :branchId', { branchId: options.branchId });

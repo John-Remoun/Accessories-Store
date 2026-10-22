@@ -719,6 +719,17 @@ export const Invoices = () => {
     setWhatsAppModalInvoice(inv);
     setRecipientType('customer');
     setRecipientPhoneInput(inv.customerPhone || '');
+    if (!inv.items || inv.items.length === 0) {
+      api.getInvoiceById(inv.id || inv.invoiceNumber)
+        .then(full => {
+          if (full && Array.isArray(full.items) && full.items.length > 0) {
+            setWhatsAppModalInvoice(prev => (prev && (prev.id === full.id || prev.invoiceNumber === full.invoiceNumber) ? { ...prev, items: full.items } : prev));
+          }
+        })
+        .catch(err => {
+          console.warn('Could not load invoice items for WhatsApp message:', err);
+        });
+    }
   };
 
   const handleSelectRecipientType = (type: 'customer' | 'bola' | 'mina') => {
@@ -760,7 +771,7 @@ export const Invoices = () => {
     const rem = getInvoiceRemaining(inv);
     const paid = getInvoicePaid(inv);
 
-    const itemLines = inv.items.map((item) => {
+    const itemLines = (inv.items || []).map((item) => {
       const p = store.getProduct(item.productId);
       const name = item.productName || p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
       const count = item.quantity || 1;
