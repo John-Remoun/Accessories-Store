@@ -1,3 +1,5 @@
+import { bumpSyncVersion } from '../sync/sync-version';
+
 class MemoryCache {
   private cache = new Map<string, { value: any; expiresAt: number }>();
 
@@ -24,10 +26,16 @@ class MemoryCache {
         this.cache.delete(key);
       }
     }
+    try {
+      bumpSyncVersion();
+    } catch {}
   }
 
   public clear(): void {
     this.cache.clear();
+    try {
+      bumpSyncVersion();
+    } catch {}
   }
 }
 

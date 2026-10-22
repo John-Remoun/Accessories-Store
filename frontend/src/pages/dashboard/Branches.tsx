@@ -275,22 +275,25 @@ export const Branches = () => {
     };
   }, [todayInvs, todayTotalFixedExpenses]);
 
+  useEffect(() => {
+    if (branch?.id) {
+      store.quickSyncStockAndInvoices(branch.id);
+    }
+  }, [branch?.id]);
+
   const allProducts = store.getProducts();
 
-  const branchProductsList = useMemo(() => {
-    return allProducts.filter(p => {
-      const bd = store.getProductBranchData(p.id, branch.id);
-      return Boolean(bd);
-    });
-  }, [allProducts, branch.id]);
+  const branchBranchData = useMemo(() => {
+    return store.getProductBranchDataByBranch(branch.id);
+  }, [branch.id, store.getAllProductBranchData()]);
 
   const { totalInventoryValue, availablePiecesCount, lowStockList } = useMemo(() => {
     let sumValue = 0;
     let sumPieces = 0;
     const lowStock: any[] = [];
+    const prodMap = new Map((allProducts || []).map(p => [p.id, p]));
 
-    branchProductsList.forEach(p => {
-      const bd = store.getProductBranchData(p.id, branch.id);
+    branchBranchData.forEach(bd => {
       const qty = Number(bd?.quantity || 0);
       const cost = Number(bd?.cost || 0);
       const minStock = Number(bd?.minStock ?? 10);
@@ -299,12 +302,13 @@ export const Branches = () => {
       sumValue += (cost * qty);
 
       if (qty <= minStock) {
-        lowStock.push(p);
+        const prod = prodMap.get(bd.productId);
+        if (prod) lowStock.push(prod);
       }
     });
 
     return { totalInventoryValue: sumValue, availablePiecesCount: sumPieces, lowStockList: lowStock };
-  }, [branchProductsList, branch.id]);
+  }, [branchBranchData, allProducts]);
 
 
   const [selectedDayModalData, setSelectedDayModalData] = useState<{
@@ -604,14 +608,37 @@ export const Branches = () => {
     <div className="space-y-8 animate-in fade-in duration-300 pb-20 md:pb-0" dir="rtl">
       
       {/* 1. Centered Branch Header Bar */}
-      <div className="bg-card border border-border/80 p-6 rounded-3xl shadow-sm flex flex-col items-center justify-center text-center space-y-2 relative overflow-hidden">
-        <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">
-          {branch.nameAr}
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground flex items-center justify-center gap-1.5 font-medium">
-          <MapPin size={14} className="text-primary shrink-0" />
-          <span>{isAdmin ? 'لوحة التحكم والأرباح والمخزن بالفرع' : 'المصاريف الثابتة بالفرع'}</span>
-        </p>
+      <div className="bg-card border border-border/80 p-6 rounded-3xl shadow-sm flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-foreground">
+            {branch.nameAr}
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground flex items-center justify-center gap-1.5 font-medium mt-1">
+            <MapPin size={14} className="text-primary shrink-0" />
+            <span>{isAdmin ? 'لوحة التحكم والأرباح والمخزن بالفرع' : 'المصاريف الثابتة بالفرع'}</span>
+          </p>
+        </div>
+
+        {isAdmin && (
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2 border-t border-border/40 w-full max-w-xl">
+            {store.getBranches().map(b => {
+              const isSelected = b.id === branch.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => navigate(`/branches?id=${b.id}`)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border ${
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary shadow-xs scale-105'
+                      : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {b.nameAr}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* 2. DASHBOARD SECTION FOR THIS BRANCH (Admin Only) */}

@@ -133,15 +133,21 @@ const ProductSearchCombobox = ({
 export const POS = () => {
   useStoreSync();
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const location = useLocation();
+
+  const [activeBranchOverride, setActiveBranchOverride] = useState<string | null>(null);
 
   const currentBranchId = useMemo(() => {
     if (user && user.role !== 'admin' && user.branchId) {
       return user.branchId;
     }
+    if (activeBranchOverride) return activeBranchOverride;
     const params = new URLSearchParams(location.search);
     return params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b4';
-  }, [location.search, user]);
+  }, [location.search, user, activeBranchOverride]);
+
+  const currentBranchObj = store.getBranch(currentBranchId);
 
   // Master State
   const [cart, setCart] = useState<CartLineItem[]>([]);
@@ -1295,14 +1301,51 @@ export const POS = () => {
       {/* ------------------------------------------------------------------------- */}
       {/* TOP POS HEADER BAR */}
       {/* ------------------------------------------------------------------------- */}
-      <div className="flex flex-row justify-between items-center gap-3 bg-card border border-border/80 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card border border-border/80 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-xs">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <ShoppingCart className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
-          <h1 className="text-sm sm:text-xl font-bold text-foreground truncate">المبيعات (كاشير)</h1>
+          <div>
+            <h1 className="text-sm sm:text-xl font-bold text-foreground truncate">المبيعات (كاشير)</h1>
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              الفرع الحالي: <strong className="text-amber-500">{currentBranchObj?.nameAr || 'الفرع'}</strong>
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-muted/60 border border-border/80 text-[11px] sm:text-xs flex items-center gap-1.5 sm:gap-2 font-medium">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+          {isAdmin && (
+            <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border/60">
+              {store.getBranches().map(b => {
+                const isSelected = b.id === currentBranchId;
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => {
+                      if (b.id !== currentBranchId) {
+                        setActiveBranchOverride(b.id);
+                        try {
+                          localStorage.setItem('last_active_branch', b.id);
+                          localStorage.setItem('active_branch', b.id);
+                        } catch {}
+                        resetPosScreen();
+                        store.quickSyncStockAndInvoices(b.id);
+                      }
+                    }}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all ${
+                      isSelected
+                        ? 'bg-amber-500 text-black shadow-xs font-black'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                    }`}
+                  >
+                    {b.nameAr}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-muted/60 border border-border/80 text-[11px] sm:text-xs flex items-center gap-1.5 sm:gap-2 font-medium shrink-0">
             <User size={14} className="text-amber-500 shrink-0" />
             <span className="truncate">الكاشير: <strong className="text-foreground">{user?.name}</strong></span>
           </div>

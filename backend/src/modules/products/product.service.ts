@@ -1,15 +1,18 @@
 import { AppDataSource } from '../../config/data-source';
 import { ProductEntity } from './product.entity';
 import { ProductBranchDataEntity } from './product-branch-data.entity';
+import { BranchEntity } from '../branches/branch.entity';
 import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
 import { AppError } from '../../common/exceptions/app-error';
 import { memoryCache } from '../../common/cache/cache.service';
+import { bumpSyncVersion } from '../../common/sync/sync-version';
 import { broadcastProductCreated, broadcastProductUpdated, broadcastProductDeleted, broadcastStockUpdate } from '../../common/socket/socket.service';
 
 export class ProductService {
   private productRepo = AppDataSource.getRepository(ProductEntity);
   private branchDataRepo = AppDataSource.getRepository(ProductBranchDataEntity);
   private physicalItemRepo = AppDataSource.getRepository(PhysicalItemEntity);
+  private branchRepo = AppDataSource.getRepository(BranchEntity);
 
   public async getAllProducts() {
     const cached = memoryCache.get<ProductEntity[]>('products:all');
@@ -17,7 +20,7 @@ export class ProductService {
 
     const products = await this.productRepo.find({
       order: { createdAt: 'DESC' },
-      take: 500,
+      take: 10000,
     });
     memoryCache.set('products:all', products, 60);
     return products;
@@ -78,7 +81,7 @@ export class ProductService {
     const rawData = await this.branchDataRepo.find({
       where: whereClause,
       select: selectColumns,
-      take: 500,
+      take: 10000,
     });
 
     const data = !includeCost
@@ -100,6 +103,8 @@ export class ProductService {
 
   public async createProduct(productData: Partial<ProductEntity>, branchDataList: Partial<ProductBranchDataEntity>[] = []) {
     memoryCache.invalidate('products');
+    bumpSyncVersion();
+
     const id = productData.id || `p_${Date.now()}`;
     const product = this.productRepo.create({
       ...productData,
@@ -109,35 +114,60 @@ export class ProductService {
 
     await this.productRepo.save(product);
 
-    let entities: ProductBranchDataEntity[] = [];
-    if (branchDataList.length > 0) {
-      entities = branchDataList.map((bd) =>
+    // Auto-populate for all branches so every branch has the product in its catalog
+    const allBranches = await this.branchRepo.find();
+    const baseBd = branchDataList[0] || {};
+    const cost = Number(baseBd.cost || 0);
+    const p1 = Number(baseBd.price1 || 0);
+    const p1Label = baseBd.price1Label || 'سعر 1';
+    const p2 = Number(baseBd.price2 || p1);
+    const p2Label = baseBd.price2Label || 'سعر 2';
+    const p3 = Number(baseBd.price3 || p1);
+    const p3Label = baseBd.price3Label || 'سعر 3';
+    const p4 = Number(baseBd.price4 || p1);
+    const p4Label = baseBd.price4Label || 'سعر 4';
+    const minStock = Number(baseBd.minStock ?? 10);
+
+    const entities: ProductBranchDataEntity[] = [];
+    const prefix = (productData.sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
+
+    for (const b of allBranches) {
+      const explicitBd = branchDataList.find(bd => bd.branchId === b.id);
+      const qty = explicitBd ? Number(explicitBd.quantity || 0) : 0;
+      entities.push(
         this.branchDataRepo.create({
-          ...bd,
           productId: id,
-          quantity: Number(bd.quantity || 0)
+          branchId: b.id,
+          cost: explicitBd && explicitBd.cost !== undefined ? Number(explicitBd.cost) : cost,
+          price1: explicitBd && explicitBd.price1 !== undefined ? Number(explicitBd.price1) : p1,
+          price1Label: explicitBd?.price1Label || p1Label,
+          price2: explicitBd && explicitBd.price2 !== undefined ? Number(explicitBd.price2) : p2,
+          price2Label: explicitBd?.price2Label || p2Label,
+          price3: explicitBd && explicitBd.price3 !== undefined ? Number(explicitBd.price3) : p3,
+          price3Label: explicitBd?.price3Label || p3Label,
+          price4: explicitBd && explicitBd.price4 !== undefined ? Number(explicitBd.price4) : p4,
+          price4Label: explicitBd?.price4Label || p4Label,
+          minStock: explicitBd && explicitBd.minStock !== undefined ? Number(explicitBd.minStock) : minStock,
+          quantity: qty,
         })
       );
-      await this.branchDataRepo.save(entities);
 
-      const prefix = (productData.sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
-      for (const bd of branchDataList) {
-        if (bd.branchId) {
-          const itemId = `QR-${prefix}`;
-          let item = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: bd.branchId } });
-          if (!item) {
-            item = this.physicalItemRepo.create({
-              id: itemId,
-              productId: id,
-              branchId: bd.branchId,
-              status: 'available',
-              serialNumber: prefix,
-            });
-            await this.physicalItemRepo.save(item);
-          }
-        }
+      // Generate physical QR item for each branch
+      const itemId = `QR-${prefix}-${b.id}`;
+      const existingItem = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: b.id } });
+      if (!existingItem) {
+        const item = this.physicalItemRepo.create({
+          id: itemId,
+          productId: id,
+          branchId: b.id,
+          status: 'available',
+          serialNumber: prefix,
+        });
+        await this.physicalItemRepo.save(item);
       }
     }
+
+    await this.branchDataRepo.save(entities);
 
     try {
       broadcastProductCreated(product, entities);
@@ -150,6 +180,7 @@ export class ProductService {
 
   public async updateProduct(id: string, updates: Partial<ProductEntity>) {
     memoryCache.invalidate('products');
+    bumpSyncVersion();
     const product = await this.getProductById(id);
     Object.assign(product, updates);
     const updated = await this.productRepo.save(product);
@@ -163,6 +194,7 @@ export class ProductService {
 
   public async updateBranchData(data: Partial<ProductBranchDataEntity>) {
     memoryCache.invalidate('products');
+    bumpSyncVersion();
     if (!data.productId || !data.branchId) {
       throw new AppError('productId and branchId are required', 400);
     }
@@ -198,6 +230,7 @@ export class ProductService {
 
   public async deleteProduct(id: string) {
     memoryCache.invalidate('products');
+    bumpSyncVersion();
     const product = await this.getProductById(id);
 
     // Delete associated branch data and physical items
@@ -216,6 +249,7 @@ export class ProductService {
 
   public async adjustStockQuantity(productId: string, branchId: string, targetQuantity: number, prefix: string) {
     memoryCache.invalidate('products');
+    bumpSyncVersion();
     let bd = await this.branchDataRepo.findOne({ where: { productId, branchId } });
     if (bd) {
       bd.quantity = Number(targetQuantity);

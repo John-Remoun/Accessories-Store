@@ -162,16 +162,17 @@ export const Invoices = () => {
   const allInvoices = store.getInvoices();
 
   // Active Branch Identification
-  const activeBranchId = useMemo(() => {
+  const [branchFilter, setBranchFilter] = useState<string>(() => {
     if (!isAdmin && user?.branchId) {
       return user.branchId;
     }
     const params = new URLSearchParams(location.search);
-    return params.get('id') || localStorage.getItem('last_active_branch') || user?.branchId || 'b1';
-  }, [location.search, user?.branchId, isAdmin]);
+    return params.get('id') || localStorage.getItem('last_active_branch') || 'all';
+  });
 
-  const activeBranch = store.getBranch(activeBranchId);
-  const activeBranchName = activeBranch?.nameAr || 'الفرع';
+  const activeBranchId = branchFilter === 'all' ? undefined : branchFilter;
+  const activeBranch = activeBranchId ? store.getBranch(activeBranchId) : null;
+  const activeBranchName = activeBranch?.nameAr || 'كل الفروع';
 
   // Invoices Filtering: Employees see ONLY their own invoices, Admins see all
   const userInvoices = useMemo(() => {
@@ -1338,7 +1339,7 @@ Salla Bola & Mina`;
     <div className="space-y-6 pb-20 md:pb-6 animate-in fade-in" dir="rtl">
       
       {/* PAGE HEADER (Image 2 Top Title) */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border border-border/80 p-4 sm:p-5 rounded-3xl shadow-lg">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card border border-border/80 p-4 sm:p-5 rounded-3xl shadow-lg">
         <div className="flex items-center gap-3">
           <FileText className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 shrink-0" />
           <div>
@@ -1347,7 +1348,42 @@ Salla Bola & Mina`;
           </div>
         </div>
 
-        {!isAdmin && (
+        {isAdmin ? (
+          <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1.5 rounded-2xl border border-border/60">
+            <button
+              onClick={() => {
+                setBranchFilter('all');
+                store.quickSyncStockAndInvoices();
+              }}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                branchFilter === 'all'
+                  ? 'bg-amber-500 text-black shadow-xs font-black'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+              }`}
+            >
+              كل الفروع
+            </button>
+            {store.getBranches().map(b => (
+              <button
+                key={b.id}
+                onClick={() => {
+                  setBranchFilter(b.id);
+                  try {
+                    localStorage.setItem('last_active_branch', b.id);
+                  } catch {}
+                  store.quickSyncStockAndInvoices(b.id);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                  branchFilter === b.id
+                    ? 'bg-amber-500 text-black shadow-xs font-black'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                }`}
+              >
+                {b.nameAr}
+              </button>
+            ))}
+          </div>
+        ) : (
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 text-xs font-bold shadow-xs">
             <User size={15} />
             <span>فواتيرك المسجلة باسمك فقط ({branchInvoices.length} فاتورة)</span>

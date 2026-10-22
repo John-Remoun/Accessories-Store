@@ -87,19 +87,19 @@ export const DashboardLayout = () => {
   // Navigation items with dynamic branch dashboard
   const adminNav = [
     { name: 'الفروع (الشاشة الرئيسية)', path: '/dashboard', icon: Store },
-    { name: `لوحة تحكم ${currentBranch ? currentBranch.nameAr : 'فرع القاهرة'}`, path: `/branches?id=${activeBranchId}`, icon: LayoutDashboard },
-    { name: 'نقطة البيع', path: '/pos', icon: ShoppingCart },
-    { name: 'المنتجات', path: '/products', icon: Package },
-    { name: 'سجل الفواتير', path: '/invoices', icon: FileText },
+    { name: `لوحة تحكم ${currentBranch ? currentBranch.nameAr : 'الفرع'}`, path: `/branches?id=${activeBranchId}`, icon: LayoutDashboard },
+    { name: 'نقطة البيع', path: `/pos?id=${activeBranchId}`, icon: ShoppingCart },
+    { name: 'المنتجات', path: `/products?id=${activeBranchId}`, icon: Package },
+    { name: 'سجل الفواتير', path: `/invoices?id=${activeBranchId}`, icon: FileText },
     { name: 'سجل العملاء', path: `/customers?id=${activeBranchId}`, icon: Users },
     { name: 'الموظفين والطاقم', path: `/employees?id=${activeBranchId}`, icon: UserPlus },
   ];
 
   const employeeNav = [
     { name: `لوحة تحكم ومصاريف ${currentBranch ? currentBranch.nameAr : 'الفرع'}`, path: `/branches?id=${activeBranchId}`, icon: LayoutDashboard },
-    { name: 'نقطة البيع', path: '/pos', icon: ShoppingCart },
-    { name: 'المنتجات', path: '/products', icon: Package },
-    { name: 'سجل الفواتير', path: '/invoices', icon: FileText },
+    { name: 'نقطة البيع', path: `/pos?id=${activeBranchId}`, icon: ShoppingCart },
+    { name: 'المنتجات', path: `/products?id=${activeBranchId}`, icon: Package },
+    { name: 'سجل الفواتير', path: `/invoices?id=${activeBranchId}`, icon: FileText },
   ];
 
   const navItems = isAdmin ? adminNav : employeeNav;
@@ -140,10 +140,10 @@ export const DashboardLayout = () => {
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-none">
           {navItems.map((item) => {
-            const currentFullUrl = location.pathname + location.search;
-            const isActive = item.path.includes('?') 
-              ? currentFullUrl === item.path
-              : (location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path)));
+            const basePath = item.path.split('?')[0];
+            const isActive = basePath === '/dashboard'
+              ? (location.pathname === '/dashboard' || location.pathname === '/')
+              : (location.pathname === basePath);
             const Icon = item.icon;
 
             return (
@@ -212,10 +212,10 @@ export const DashboardLayout = () => {
           <nav className="flex-1 overflow-y-auto py-6 scrollbar-none">
             <ul className="space-y-1.5 px-3">
               {navItems.map((item) => {
-                const currentFullUrl = location.pathname + location.search;
-                const isActive = item.path.includes('?') 
-                  ? currentFullUrl === item.path
-                  : (location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path)));
+                const basePath = item.path.split('?')[0];
+                const isActive = basePath === '/dashboard'
+                  ? (location.pathname === '/dashboard' || location.pathname === '/')
+                  : (location.pathname === basePath);
                 const Icon = item.icon;
 
                 return (

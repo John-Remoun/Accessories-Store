@@ -663,37 +663,65 @@ export const Products = () => {
     <div className="space-y-6 pb-20 md:pb-6 animate-in fade-in" dir="rtl">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card border border-border/80 p-6 rounded-3xl shadow-xs print:hidden">
-        <div className="flex items-center gap-3">
-          <Package size={28} className="text-amber-500 shrink-0" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">المنتجات</h1>
+      <div className="flex flex-col gap-4 bg-card border border-border/80 p-6 rounded-3xl shadow-xs print:hidden">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Package size={28} className="text-amber-500 shrink-0" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-foreground">المنتجات</h1>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                استعراض وإضافة المنتجات، التنبيه بنقصان المخزون، وتوليد وطباعة أكواد الـ QR بالفرع.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              استعراض وإضافة المنتجات، التنبيه بنقصان المخزون، وتوليد وطباعة أكواد الـ QR بالفرع.
-            </p>
           </div>
+
+          {isAdmin && (
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto justify-end">
+              <Button 
+                onClick={() => setIsCategoryModalOpen(true)}
+                variant="outline"
+                className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 font-bold text-xs px-5 h-11 rounded-2xl gap-2 w-full sm:w-auto shadow-xs"
+              >
+                <Tag size={18} />
+                <span>إدارة الفئات</span>
+              </Button>
+
+              <Button 
+                onClick={openAddModal} 
+                className="shadow-md bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs px-6 h-11 rounded-2xl gap-2 w-full sm:w-auto"
+              >
+                <Plus size={18} />
+                <span>إضافة منتج جديد</span>
+              </Button>
+            </div>
+          )}
         </div>
 
         {isAdmin && (
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto justify-end">
-            <Button 
-              onClick={() => setIsCategoryModalOpen(true)}
-              variant="outline"
-              className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 font-bold text-xs px-5 h-11 rounded-2xl gap-2 w-full sm:w-auto shadow-xs"
-            >
-              <Tag size={18} />
-              <span>إدارة الفئات</span>
-            </Button>
-
-            <Button 
-              onClick={openAddModal} 
-              className="shadow-md bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs px-6 h-11 rounded-2xl gap-2 w-full sm:w-auto"
-            >
-              <Plus size={18} />
-              <span>إضافة منتج جديد</span>
-            </Button>
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-border/50">
+            <span className="text-xs font-bold text-muted-foreground ml-1">عرض مخزون الفرع:</span>
+            {store.getBranches().map(b => (
+              <button
+                key={b.id}
+                onClick={() => {
+                  setActiveBranchId(b.id);
+                  try {
+                    localStorage.setItem('last_active_branch', b.id);
+                    localStorage.setItem('active_branch', b.id);
+                  } catch {}
+                  store.quickSyncStockAndInvoices(b.id);
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border ${
+                  activeBranchId === b.id
+                    ? 'bg-amber-500 text-black border-amber-500 shadow-xs font-extrabold scale-105'
+                    : 'bg-muted/60 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {b.nameAr}
+              </button>
+            ))}
           </div>
         )}
       </div>

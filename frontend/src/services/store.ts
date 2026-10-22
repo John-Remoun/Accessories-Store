@@ -153,6 +153,19 @@ class StoreService {
     });
   }
 
+  public isCurrentUserAdmin(): boolean {
+    if (typeof window === 'undefined') return true;
+    try {
+      const storedId = localStorage.getItem('mock_auth_id');
+      if (!storedId) return true;
+      const user = (this.state?.users || mockUsers).find(u => u && u.id === storedId);
+      if (!user) return true;
+      return user.role === 'admin' || !user.branchId || ['bola', 'mina', 'test'].includes((user.username || '').toLowerCase());
+    } catch {
+      return true;
+    }
+  }
+
   private getActiveBranchId(): string | undefined {
     if (typeof window !== 'undefined') {
       try {
@@ -162,27 +175,28 @@ class StoreService {
     return undefined;
   }
 
-  public async quickSyncStockAndInvoices(): Promise<void> {
+  public async quickSyncStockAndInvoices(targetBranchId?: string): Promise<void> {
     if (this.quickSyncPromise) return this.quickSyncPromise;
 
     const now = Date.now();
-    if (now - this.lastQuickSyncTimestamp < 30000) {
-      // Cooldown enforced (at least 30s between quick syncs)
+    if (now - this.lastQuickSyncTimestamp < 15000) {
+      // Cooldown enforced (at least 15s between quick syncs)
       return;
     }
     this.lastQuickSyncTimestamp = now;
 
     this.quickSyncPromise = (async () => {
       try {
-        const activeBranch = this.getActiveBranchId();
+        const isAdmin = this.isCurrentUserAdmin();
+        const branchToSync = isAdmin ? undefined : (targetBranchId || this.getActiveBranchId());
         const [branchDataList, invs] = await Promise.allSettled([
-          api.getProductBranchDataList(activeBranch),
-          api.getPaginatedInvoices({ page: 1, limit: 20, branchId: activeBranch }),
+          api.getProductBranchDataList(branchToSync),
+          api.getPaginatedInvoices({ page: 1, limit: 30, branchId: branchToSync }),
         ]);
 
         let stateChanged = false;
 
-        // 1. Check stock changes
+        // 1. Reconcile stock changes without wiping other branches
         if (branchDataList.status === 'fulfilled' && Array.isArray(branchDataList.value)) {
           const previousData = this.state.productBranchData || [];
           const changedItems: Array<{ productId: string; productName: string; newQuantity: number; isOutOfStock: boolean }> = [];
@@ -202,49 +216,54 @@ class StoreService {
             }
           });
 
-          if (stateChanged || previousData.length === 0) {
-            this.state.productBranchData = branchDataList.value.map(bd => ({
-              ...bd,
-              cost: Number(bd.cost || 0),
-              price1: Number(bd.price1 || 0),
-              price2: Number(bd.price2 || 0),
-              price3: Number(bd.price3 || 0),
-              price4: Number(bd.price4 || 0),
-              minStock: Number(bd.minStock ?? 10),
-              quantity: Number(bd.quantity || 0)
-            }));
+          const normalizedFresh = branchDataList.value.map(bd => ({
+            ...bd,
+            cost: Number(bd.cost || 0),
+            price1: Number(bd.price1 || 0),
+            price2: Number(bd.price2 || 0),
+            price3: Number(bd.price3 || 0),
+            price4: Number(bd.price4 || 0),
+            minStock: Number(bd.minStock ?? 10),
+            quantity: Number(bd.quantity || 0)
+          }));
 
-            if (changedItems.length > 0 && typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
-                detail: {
-                  branchId: branchDataList.value[0]?.branchId || 'b4',
-                  items: changedItems,
-                  timestamp: new Date().toISOString()
-                }
-              }));
-            }
+          const updatedBranchIds = new Set(normalizedFresh.map(d => d.branchId));
+          const preservedOtherBranches = (this.state.productBranchData || []).filter(
+            d => d && !updatedBranchIds.has(d.branchId)
+          );
+          this.state.productBranchData = [...preservedOtherBranches, ...normalizedFresh];
+          stateChanged = true;
+
+          if (changedItems.length > 0 && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
+              detail: {
+                branchId: branchDataList.value[0]?.branchId || 'b4',
+                items: changedItems,
+                timestamp: new Date().toISOString()
+              }
+            }));
           }
         }
 
-        // 2. Reconcile recent invoices without full-table download
+        // 2. Reconcile recent invoices without full-table wipe
         if (invs.status === 'fulfilled' && invs.value) {
           const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
           if (rawInvs.length > 0) {
-            const existingMap = new Map((this.state.invoices || []).map(i => [i.id, i]));
+            const existingMap = new Map((this.state.invoices || []).map(i => [i.id || i.invoiceNumber, i]));
             let invoicesChanged = false;
             rawInvs.forEach(freshInv => {
-              if (!this.tombstonedInvoiceIds.has(freshInv.id) && !this.tombstonedInvoiceIds.has(freshInv.invoiceNumber)) {
-                const old = existingMap.get(freshInv.id);
+              if (freshInv && !this.tombstonedInvoiceIds.has(freshInv.id) && !this.tombstonedInvoiceIds.has(freshInv.invoiceNumber)) {
+                const key = freshInv.id || freshInv.invoiceNumber;
+                const old = existingMap.get(key);
                 if (!old || old.paymentStatus !== freshInv.paymentStatus || old.paidAmount !== freshInv.paidAmount) {
-                  existingMap.set(freshInv.id, { ...(old || {}), ...freshInv });
+                  existingMap.set(key, { ...(old || {}), ...freshInv });
                   invoicesChanged = true;
                 }
               }
             });
             if (invoicesChanged) {
               this.state.invoices = Array.from(existingMap.values())
-                .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime())
-                .slice(0, 100);
+                .sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
               stateChanged = true;
             }
           }
@@ -290,7 +309,8 @@ class StoreService {
           }
         }
 
-        const activeBranch = this.getActiveBranchId();
+        const isAdmin = this.isCurrentUserAdmin();
+        const branchToSync = isAdmin ? undefined : this.getActiveBranchId();
         const [
           fixedExp,
           invs,
@@ -304,9 +324,9 @@ class StoreService {
           supplierList
         ] = await Promise.allSettled([
           api.getFixedExpenses(),
-          api.getPaginatedInvoices({ page: 1, limit: 50, branchId: activeBranch }),
+          api.getPaginatedInvoices({ page: 1, limit: 100, branchId: branchToSync }),
           api.getProducts(),
-          api.getProductBranchDataList(activeBranch),
+          api.getProductBranchDataList(branchToSync),
           api.getCategories(),
           api.getPhysicalItems(),
           api.getBranches(),
@@ -325,8 +345,13 @@ class StoreService {
         if (invs.status === 'fulfilled' && invs.value) {
           const rawInvs: any[] = Array.isArray(invs.value) ? invs.value : (invs.value?.data || []);
           if (rawInvs.length > 0) {
-            this.state.invoices = rawInvs
-              .filter(i => !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber))
+            const invoiceMap = new Map((this.state.invoices || []).map(i => [i.id || i.invoiceNumber, i]));
+            rawInvs.forEach(i => {
+              if (i && !this.tombstonedInvoiceIds.has(i.id) && !this.tombstonedInvoiceIds.has(i.invoiceNumber)) {
+                invoiceMap.set(i.id || i.invoiceNumber, i);
+              }
+            });
+            this.state.invoices = Array.from(invoiceMap.values())
               .sort(
                 (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
               );
@@ -388,7 +413,7 @@ class StoreService {
             }
           });
 
-          this.state.productBranchData = branchDataList.value.map(bd => ({
+          const normalizedFresh = branchDataList.value.map(bd => ({
             ...bd,
             cost: Number(bd.cost || 0),
             price1: Number(bd.price1 || 0),
@@ -398,6 +423,12 @@ class StoreService {
             minStock: Number(bd.minStock ?? 10),
             quantity: Number(bd.quantity || 0)
           }));
+
+          const updatedBranchIds = new Set(normalizedFresh.map(d => d.branchId));
+          const preservedOtherBranches = (this.state.productBranchData || []).filter(
+            d => d && !updatedBranchIds.has(d.branchId)
+          );
+          this.state.productBranchData = [...preservedOtherBranches, ...normalizedFresh];
 
           if (changedItems.length > 0 && typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('inventory:stock-updated', {
@@ -701,21 +732,54 @@ class StoreService {
   public async addProduct(product: Product, branchDataList: ProductBranchData[]) {
     if (!this.state.products) this.state.products = [];
     if (!this.state.productBranchData) this.state.productBranchData = [];
+
+    // Ensure all existing branches have a branchData entry for this product
+    const branches = this.getBranches();
+    const fullBranchData: ProductBranchData[] = [...branchDataList];
+    const templateBd = branchDataList[0] || {
+      cost: 0,
+      price1: 0,
+      price2: 0,
+      price3: 0,
+      price4: 0,
+      minStock: 10,
+    };
+
+    for (const b of branches) {
+      if (!fullBranchData.some(bd => bd && bd.branchId === b.id)) {
+        fullBranchData.push({
+          productId: product.id,
+          branchId: b.id,
+          cost: Number(templateBd.cost || 0),
+          price1: Number(templateBd.price1 || 0),
+          price1Label: templateBd.price1Label || 'سعر 1',
+          price2: Number(templateBd.price2 || 0),
+          price2Label: templateBd.price2Label || 'سعر 2',
+          price3: Number(templateBd.price3 || 0),
+          price3Label: templateBd.price3Label || 'سعر 3',
+          price4: Number(templateBd.price4 || 0),
+          price4Label: templateBd.price4Label || 'سعر 4',
+          minStock: Number(templateBd.minStock ?? 10),
+          quantity: 0,
+        });
+      }
+    }
+
     this.state.products.push(product);
-    this.state.productBranchData.push(...branchDataList);
+    this.state.productBranchData.push(...fullBranchData);
     this.saveState(true);
 
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage({
           type: 'PRODUCT_CREATED',
-          payload: { product, branchData: branchDataList }
+          payload: { product, branchData: fullBranchData }
         });
       } catch {}
     }
 
     try {
-      await api.createProduct(product, branchDataList);
+      await api.createProduct(product, fullBranchData);
     } catch (err) {
       console.warn('DB sync warning (createProduct):', err);
     }
@@ -769,6 +833,14 @@ class StoreService {
 
   public getProductBranchData(productId: string, branchId: string) {
     return (this.state?.productBranchData || []).find(d => d?.productId === productId && d?.branchId === branchId);
+  }
+
+  public getProductBranchDataByBranch(branchId: string): ProductBranchData[] {
+    return (this.state?.productBranchData || []).filter(d => d && d.branchId === branchId);
+  }
+
+  public getAllProductBranchData(): ProductBranchData[] {
+    return this.state?.productBranchData || [];
   }
 
   public async updateProductBranchData(data: ProductBranchData) {
