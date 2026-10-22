@@ -1236,7 +1236,12 @@ export class InvoiceService {
     if (!AppDataSource.isInitialized) {
       return {
         branchSummaries: [],
-        overall: { revenue: 0, cost: 0, netProfit: 0, remainingDebt: 0, invoicesCount: 0 },
+        overall: {
+          revenue: 0,
+          ...(isAdmin ? { cost: 0, netProfit: 0 } : {}),
+          remainingDebt: 0,
+          invoicesCount: 0,
+        },
         employeeRankings: [],
         dailyMetrics: [],
       };

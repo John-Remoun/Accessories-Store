@@ -518,7 +518,7 @@ async function runSecurityTests() {
       try {
         await seedDatabase({ isProductionOverride: true });
       } catch (err: any) {
-        if (err.code === 'EAI_AGAIN' || err.message?.includes('getaddrinfo') || err.message?.includes('connection to')) {
+        if (err.code === 'EAI_AGAIN' || err.message?.includes('getaddrinfo') || err.message?.includes('connection to') || err.message?.includes('timeout') || err.message?.includes('Connection terminated')) {
           console.log('  ⚠️ [Notice] Remote Supabase pooler unreachable in local environment:', err.message);
         } else {
           throw err;
@@ -531,7 +531,7 @@ async function runSecurityTests() {
       try {
         await seedDatabase({ isProductionOverride: false });
       } catch (err: any) {
-        if (err.code === 'EAI_AGAIN' || err.message?.includes('getaddrinfo') || err.message?.includes('connection to')) {
+        if (err.code === 'EAI_AGAIN' || err.message?.includes('getaddrinfo') || err.message?.includes('connection to') || err.message?.includes('timeout') || err.message?.includes('Connection terminated')) {
           console.log('  ⚠️ [Notice] Remote Supabase pooler unreachable in local environment:', err.message);
         } else {
           throw err;
