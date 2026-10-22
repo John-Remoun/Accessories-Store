@@ -8,6 +8,8 @@ import { memoryCache } from '../../common/cache/cache.service';
 import { bumpSyncVersion } from '../../common/sync/sync-version';
 import { broadcastProductCreated, broadcastProductUpdated, broadcastProductDeleted, broadcastStockUpdate } from '../../common/socket/socket.service';
 
+export const MAX_LIST_LIMIT = 5000;
+
 export class ProductService {
   private productRepo = AppDataSource.getRepository(ProductEntity);
   private branchDataRepo = AppDataSource.getRepository(ProductBranchDataEntity);
@@ -20,7 +22,7 @@ export class ProductService {
 
     const products = await this.productRepo.find({
       order: { createdAt: 'DESC' },
-      take: 10000,
+      take: MAX_LIST_LIMIT,
     });
     memoryCache.set('products:all', products, 60);
     return products;
@@ -81,7 +83,7 @@ export class ProductService {
     const rawData = await this.branchDataRepo.find({
       where: whereClause,
       select: selectColumns,
-      take: 10000,
+      take: MAX_LIST_LIMIT,
     });
 
     const data = !includeCost

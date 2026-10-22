@@ -10,7 +10,7 @@ import { memoryCache } from '../common/cache/cache.service';
 import { AppDataSource } from '../config/data-source';
 import { invoiceService, getCustomerIdentityConditions, getCairoDateParts, InvoiceService } from '../modules/invoices/invoice.service';
 import { InvoiceEntity } from '../modules/invoices/invoice.entity';
-import { ProductService } from '../modules/products/product.service';
+import { ProductService, MAX_LIST_LIMIT } from '../modules/products/product.service';
 import { egressMonitor } from '../common/middleware/egress-monitor.middleware';
 
 async function runSecurityTests() {
@@ -1525,7 +1525,7 @@ async function runSecurityTests() {
       }
     });
 
-    await test('4. ProductService.getAllBranchData filters by branch at SQL level, redacts cost for staff, and caps at 500', async () => {
+    await test('4. ProductService.getAllBranchData filters by branch at SQL level, redacts cost for staff, and caps at MAX_LIST_LIMIT', async () => {
       const prodService = new ProductService();
       memoryCache.clear();
 
@@ -1544,7 +1544,7 @@ async function runSecurityTests() {
         const staffList = await prodService.getAllBranchData('b4', false);
         assert.ok(capturedOptions, 'find options must be passed');
         assert.deepStrictEqual(capturedOptions.where, { branchId: 'b4' }, 'SQL level WHERE branchId must be applied');
-        assert.strictEqual(capturedOptions.take, 500, 'take limit must be capped at 500');
+        assert.strictEqual(capturedOptions.take, MAX_LIST_LIMIT, `take limit must be capped at MAX_LIST_LIMIT (${MAX_LIST_LIMIT})`);
         assert.ok(!capturedOptions.select.includes('cost'), 'cost column must not be selected for staff');
         assert.strictEqual((staffList[0] as any).cost, undefined, 'cost must be undefined for staff');
       } finally {
@@ -1552,7 +1552,7 @@ async function runSecurityTests() {
       }
     });
 
-    await test('5. ProductService.getAllProducts strictly caps at 500 rows', async () => {
+    await test('5. ProductService.getAllProducts strictly caps at MAX_LIST_LIMIT rows', async () => {
       const prodService = new ProductService();
       memoryCache.clear();
 
@@ -1567,7 +1567,7 @@ async function runSecurityTests() {
       try {
         await prodService.getAllProducts();
         assert.ok(capturedOptions, 'find options must be passed');
-        assert.strictEqual(capturedOptions.take, 500, 'take limit must be strictly 500');
+        assert.strictEqual(capturedOptions.take, MAX_LIST_LIMIT, `take limit must be strictly MAX_LIST_LIMIT (${MAX_LIST_LIMIT})`);
       } finally {
         memoryCache.clear();
       }
@@ -1617,6 +1617,7 @@ async function runSecurityTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runSecurityTests().catch((err) => {
