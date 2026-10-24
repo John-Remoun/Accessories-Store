@@ -349,22 +349,22 @@ export const Customers = () => {
     );
   }, [customerRecords, search, showFavoritesOnly]);
 
-  // Pagination State (Defaults to 8 customers per page like Invoices)
+  // Pagination State (Fixed 8 customers per page like Invoices)
+  const ITEMS_PER_PAGE = 8;
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(8);
 
   // Reset page when search, branch, or favorite filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [search, showFavoritesOnly, activeBranchId]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
 
   const paginatedCustomers = useMemo(() => {
-    const start = (safePage - 1) * itemsPerPage;
-    return filteredCustomers.slice(start, start + itemsPerPage);
-  }, [filteredCustomers, safePage, itemsPerPage]);
+    const start = (safePage - 1) * ITEMS_PER_PAGE;
+    return filteredCustomers.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredCustomers, safePage]);
 
   // Summary stats
   const totalCustomersCount = customerRecords.length;
@@ -658,33 +658,14 @@ export const Customers = () => {
 
       {/* SEARCH AND CUSTOMERS TABLE */}
       <div className="space-y-4 print:hidden">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-            <Input 
-              placeholder="ابحث باسم العميل أو برقم التليفون..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pr-10 h-12 text-xs rounded-2xl bg-card border-border/80 shadow-2xs w-full"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-center bg-card border border-border/80 px-3.5 h-12 rounded-2xl shadow-2xs text-xs">
-            <span className="text-muted-foreground font-bold shrink-0">عرض بالصفحة:</span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => {
-                setItemsPerPage(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-transparent font-bold font-mono text-amber-500 outline-none cursor-pointer text-xs"
-            >
-              <option value={8} className="bg-card text-foreground">8 عملاء</option>
-              <option value={15} className="bg-card text-foreground">15 عميل</option>
-              <option value={25} className="bg-card text-foreground">25 عميل</option>
-              <option value={50} className="bg-card text-foreground">50 عميل</option>
-            </select>
-          </div>
+        <div className="relative">
+          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <Input 
+            placeholder="ابحث باسم العميل أو برقم التليفون..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-10 h-12 text-xs rounded-2xl bg-card border-border/80 shadow-2xs w-full"
+          />
         </div>
 
         <div className="bg-card rounded-2xl border border-border/80 overflow-hidden shadow-xs">
@@ -800,7 +781,7 @@ export const Customers = () => {
             currentPage={safePage}
             totalPages={totalPages}
             totalItems={filteredCustomers.length}
-            itemsPerPage={itemsPerPage}
+            itemsPerPage={ITEMS_PER_PAGE}
             onPageChange={(p) => setCurrentPage(p)}
             accentColor="amber"
           />
