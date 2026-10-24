@@ -245,11 +245,42 @@ export const POS = () => {
 
   // Customer & Payment Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState<string>('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState<boolean>(false);
+  const customerComboboxRef = useRef<HTMLDivElement>(null);
+
+  // Close customer search dropdown on click/touch outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (customerComboboxRef.current && !customerComboboxRef.current.contains(event.target as Node)) {
+        setIsCustomerDropdownOpen(false);
+      }
+    };
+    if (isCustomerDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCustomerDropdownOpen]);
+
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerError, setCustomerError] = useState<string>('');
   const [isCustomerFavorite, setIsCustomerFavorite] = useState<boolean>(false);
   const [customersList, setCustomersList] = useState<Customer[]>(() => store.getCustomers());
+
+  const selectedCustomerObj = customersList.find(c => c.id === selectedCustomerId);
+
+  const filteredFavoriteCustomers = useMemo(() => {
+    if (!customerSearchTerm.trim()) return customersList;
+    const q = customerSearchTerm.toLowerCase().trim();
+    return customersList.filter(c => 
+      c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q))
+    );
+  }, [customersList, customerSearchTerm]);
 
   const handleSelectCustomer = (custId: string) => {
     setSelectedCustomerId(custId);
@@ -365,6 +396,8 @@ export const POS = () => {
     setPaymentSubMethod('cash');
     setSelectedVodafoneNumber(VODAFONE_CASH_NUMBERS[0]);
     setIsDropdownOpen(false);
+    setCustomerSearchTerm('');
+    setIsCustomerDropdownOpen(false);
   }, []);
 
   // Listen for browser navigation back from WhatsApp (bfcache or page visibility)
@@ -1830,26 +1863,112 @@ export const POS = () => {
               <h2 className="text-lg font-bold text-foreground">بيانات العميل وإتمام الدفع</h2>
             </div>
 
-            {/* Preferred Customers Dropdown */}
-            <div className="space-y-1.5">
+            {/* Preferred Customers Searchable Input Combobox */}
+            <div ref={customerComboboxRef} className="space-y-1.5 relative">
               <Label className="text-xs font-bold text-amber-500 flex items-center gap-1">
                 ⭐ العملاء المفضليين
               </Label>
-              <CustomSelect
-                value={selectedCustomerId}
-                onChange={(val) => handleSelectCustomer(val)}
-                placeholder="-- اختر من القائمة المفضلة لتعبئة البيانات تلقائياً --"
-                searchable={true}
-                searchPlaceholder="ابحث باسم العميل أو رقم الهاتف..."
-                options={[
-                  { value: '', label: '-- اختر من القائمة المفضلة لتعبئة البيانات تلقائياً --' },
-                  ...customersList.map(c => ({
-                    value: c.id,
-                    label: `⭐ ${c.name}`,
-                    sublabel: c.phone
-                  }))
-                ]}
-              />
+              <div className="relative">
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none">
+                  <Star size={16} className="fill-amber-500 text-amber-500" />
+                </div>
+                <Input
+                  id="pos-favorite-customer-search"
+                  placeholder="-- اختر أو ابحث من القائمة المفضلة --"
+                  value={
+                    isCustomerDropdownOpen
+                      ? customerSearchTerm
+                      : selectedCustomerObj
+                      ? `${selectedCustomerObj.name}${selectedCustomerObj.phone ? ` (${selectedCustomerObj.phone})` : ''}`
+                      : customerSearchTerm
+                  }
+                  onFocus={() => setIsCustomerDropdownOpen(true)}
+                  onChange={(e) => {
+                    setCustomerSearchTerm(e.target.value);
+                    setIsCustomerDropdownOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setIsCustomerDropdownOpen(false);
+                    } else if (e.key === 'Enter' && filteredFavoriteCustomers.length > 0) {
+                      e.preventDefault();
+                      handleSelectCustomer(filteredFavoriteCustomers[0].id);
+                      setIsCustomerDropdownOpen(false);
+                      setCustomerSearchTerm('');
+                    }
+                  }}
+                  className="pr-10 pl-11 h-11 text-xs font-bold rounded-xl bg-background border-border w-full truncate focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:border-amber-500 hover:border-amber-500/50 transition-all shadow-2xs"
+                />
+
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {selectedCustomerId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectCustomer('');
+                        setCustomerSearchTerm('');
+                      }}
+                      className="text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                      title="إلغاء التحديد"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                  >
+                    <ChevronDown
+                      size={16}
+                      className={`transition-transform duration-200 ${isCustomerDropdownOpen ? 'rotate-180 text-amber-500' : ''}`}
+                    />
+                  </button>
+                </div>
+
+                {/* Floating Dropdown List */}
+                {isCustomerDropdownOpen && (
+                  <div className="absolute top-full right-0 mt-1.5 z-50 bg-card border border-amber-500/30 rounded-2xl shadow-2xl max-h-60 overflow-y-auto w-full p-1.5 space-y-1 animate-in fade-in zoom-in-95 scrollbar-thin">
+                    {filteredFavoriteCustomers.length === 0 ? (
+                      <div className="p-3 text-xs text-muted-foreground text-center">
+                        {customersList.length === 0 ? 'لا يوجد عملاء مفضلين حالياً' : 'لا يوجد عميل يطابق البحث'}
+                      </div>
+                    ) : (
+                      filteredFavoriteCustomers.map((c) => {
+                        const isSelected = c.id === selectedCustomerId;
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => {
+                              handleSelectCustomer(c.id);
+                              setCustomerSearchTerm('');
+                              setIsCustomerDropdownOpen(false);
+                            }}
+                            className={`w-full text-right p-2.5 rounded-xl text-xs flex items-center justify-between gap-2.5 transition-all font-bold cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30 shadow-2xs'
+                                : 'hover:bg-muted/60 text-foreground hover:text-amber-500'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate min-w-0">
+                              <Star size={14} className="text-amber-500 shrink-0 fill-amber-500" />
+                              <span className="truncate text-foreground font-bold">{c.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {c.phone && (
+                                <span className="text-[11px] font-mono text-muted-foreground font-normal">
+                                  {c.phone}
+                                </span>
+                              )}
+                              {isSelected && <Check size={14} className="text-amber-500 shrink-0 mr-1" />}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Customer Validation Alert Error Banner */}
