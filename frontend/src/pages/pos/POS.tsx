@@ -1799,6 +1799,8 @@ export const POS = () => {
                 value={selectedCustomerId}
                 onChange={(val) => handleSelectCustomer(val)}
                 placeholder="-- اختر من القائمة المفضلة لتعبئة البيانات تلقائياً --"
+                searchable={true}
+                searchPlaceholder="ابحث باسم العميل أو رقم الهاتف..."
                 options={[
                   { value: '', label: '-- اختر من القائمة المفضلة لتعبئة البيانات تلقائياً --' },
                   ...customersList.map(c => ({
