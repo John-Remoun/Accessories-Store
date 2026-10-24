@@ -116,52 +116,52 @@ export class ProductService {
 
     await this.productRepo.save(product);
 
-    // Auto-populate for all branches so every branch has the product in its catalog
-    const allBranches = await this.branchRepo.find();
-    const baseBd = branchDataList[0] || {};
-    const cost = Number(baseBd.cost || 0);
-    const p1 = Number(baseBd.price1 || 0);
-    const p1Label = baseBd.price1Label || 'سعر 1';
-    const p2 = Number(baseBd.price2 || p1);
-    const p2Label = baseBd.price2Label || 'سعر 2';
-    const p3 = Number(baseBd.price3 || p1);
-    const p3Label = baseBd.price3Label || 'سعر 3';
-    const p4 = Number(baseBd.price4 || p1);
-    const p4Label = baseBd.price4Label || 'سعر 4';
-    const minStock = Number(baseBd.minStock ?? 10);
-
+    // STRICT BRANCH ISOLATION: Only create branch data for explicitly specified branches!
+    // Never auto-populate other branches with 0 stock.
     const entities: ProductBranchDataEntity[] = [];
     const prefix = (productData.sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
 
-    for (const b of allBranches) {
-      const explicitBd = branchDataList.find(bd => bd.branchId === b.id);
-      const qty = explicitBd ? Number(explicitBd.quantity || 0) : 0;
+    for (const explicitBd of branchDataList) {
+      if (!explicitBd.branchId) continue;
+      const bId = explicitBd.branchId;
+      const cost = Number(explicitBd.cost || 0);
+      const p1 = Number(explicitBd.price1 || 0);
+      const p1Label = explicitBd.price1Label || 'سعر 1';
+      const p2 = Number(explicitBd.price2 || p1);
+      const p2Label = explicitBd.price2Label || 'سعر 2';
+      const p3 = Number(explicitBd.price3 || p1);
+      const p3Label = explicitBd.price3Label || 'سعر 3';
+      const p4 = Number(explicitBd.price4 || p1);
+      const p4Label = explicitBd.price4Label || 'سعر 4';
+      const minStock = Number(explicitBd.minStock ?? 10);
+      const qty = Number(explicitBd.quantity || 0);
+
       entities.push(
         this.branchDataRepo.create({
           productId: id,
-          branchId: b.id,
-          cost: explicitBd && explicitBd.cost !== undefined ? Number(explicitBd.cost) : cost,
-          price1: explicitBd && explicitBd.price1 !== undefined ? Number(explicitBd.price1) : p1,
-          price1Label: explicitBd?.price1Label || p1Label,
-          price2: explicitBd && explicitBd.price2 !== undefined ? Number(explicitBd.price2) : p2,
-          price2Label: explicitBd?.price2Label || p2Label,
-          price3: explicitBd && explicitBd.price3 !== undefined ? Number(explicitBd.price3) : p3,
-          price3Label: explicitBd?.price3Label || p3Label,
-          price4: explicitBd && explicitBd.price4 !== undefined ? Number(explicitBd.price4) : p4,
-          price4Label: explicitBd?.price4Label || p4Label,
-          minStock: explicitBd && explicitBd.minStock !== undefined ? Number(explicitBd.minStock) : minStock,
+          branchId: bId,
+          cost,
+          price1: p1,
+          price1Label: p1Label,
+          price2: p2,
+          price2Label: p2Label,
+          price3: p3,
+          price3Label: p3Label,
+          price4: p4,
+          price4Label: p4Label,
+          minStock,
           quantity: qty,
         })
       );
 
-      // Generate physical QR item for each branch
-      const itemId = `QR-${prefix}-${b.id}`;
-      const existingItem = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: b.id } });
+      // Generate physical QR item for this branch only
+      const itemId = `QR-${prefix}-${bId}`;
+      const existingItem = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: bId } });
       if (!existingItem) {
         const item = this.physicalItemRepo.create({
           id: itemId,
           productId: id,
-          branchId: b.id,
+          branchId: bId,
           status: 'available',
           serialNumber: prefix,
         });
@@ -169,7 +169,9 @@ export class ProductService {
       }
     }
 
-    await this.branchDataRepo.save(entities);
+    if (entities.length > 0) {
+      await this.branchDataRepo.save(entities);
+    }
 
     try {
       broadcastProductCreated(product, entities);

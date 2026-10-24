@@ -188,7 +188,7 @@ class StoreService {
     this.quickSyncPromise = (async () => {
       try {
         const isAdmin = this.isCurrentUserAdmin();
-        const branchToSync = isAdmin ? undefined : (targetBranchId || this.getActiveBranchId());
+        const branchToSync = targetBranchId || (isAdmin ? undefined : this.getActiveBranchId());
         const [branchDataList, invs] = await Promise.allSettled([
           api.getProductBranchDataList(branchToSync),
           api.getPaginatedInvoices({ page: 1, limit: 30, branchId: branchToSync }),
@@ -733,53 +733,38 @@ class StoreService {
     if (!this.state.products) this.state.products = [];
     if (!this.state.productBranchData) this.state.productBranchData = [];
 
-    // Ensure all existing branches have a branchData entry for this product
-    const branches = this.getBranches();
-    const fullBranchData: ProductBranchData[] = [...branchDataList];
-    const templateBd = branchDataList[0] || {
-      cost: 0,
-      price1: 0,
-      price2: 0,
-      price3: 0,
-      price4: 0,
-      minStock: 10,
-    };
-
-    for (const b of branches) {
-      if (!fullBranchData.some(bd => bd && bd.branchId === b.id)) {
-        fullBranchData.push({
-          productId: product.id,
-          branchId: b.id,
-          cost: Number(templateBd.cost || 0),
-          price1: Number(templateBd.price1 || 0),
-          price1Label: templateBd.price1Label || 'سعر 1',
-          price2: Number(templateBd.price2 || 0),
-          price2Label: templateBd.price2Label || 'سعر 2',
-          price3: Number(templateBd.price3 || 0),
-          price3Label: templateBd.price3Label || 'سعر 3',
-          price4: Number(templateBd.price4 || 0),
-          price4Label: templateBd.price4Label || 'سعر 4',
-          minStock: Number(templateBd.minStock ?? 10),
-          quantity: 0,
-        });
-      }
-    }
+    // STRICT BRANCH ISOLATION: Products belong strictly to the branch they are created in!
+    // Never auto-populate other branches with 0 stock.
+    const normalizedBranchData: ProductBranchData[] = (branchDataList || []).map(bd => ({
+      ...bd,
+      cost: Number(bd.cost || 0),
+      price1: Number(bd.price1 || 0),
+      price1Label: bd.price1Label || 'سعر 1',
+      price2: Number(bd.price2 || 0),
+      price2Label: bd.price2Label || 'سعر 2',
+      price3: Number(bd.price3 || 0),
+      price3Label: bd.price3Label || 'سعر 3',
+      price4: Number(bd.price4 || 0),
+      price4Label: bd.price4Label || 'سعر 4',
+      minStock: Number(bd.minStock ?? 10),
+      quantity: Number(bd.quantity || 0),
+    }));
 
     this.state.products.push(product);
-    this.state.productBranchData.push(...fullBranchData);
+    this.state.productBranchData.push(...normalizedBranchData);
     this.saveState(true);
 
     if (this.broadcastChannel) {
       try {
         this.broadcastChannel.postMessage({
           type: 'PRODUCT_CREATED',
-          payload: { product, branchData: fullBranchData }
+          payload: { product, branchData: normalizedBranchData }
         });
       } catch {}
     }
 
     try {
-      await api.createProduct(product, fullBranchData);
+      await api.createProduct(product, normalizedBranchData);
     } catch (err) {
       console.warn('DB sync warning (createProduct):', err);
     }
