@@ -47,6 +47,23 @@ const ProductSearchCombobox = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen]);
 
   const selectedProduct = products.find(p => p.id === selectedProductId);
 
@@ -59,7 +76,7 @@ const ProductSearchCombobox = ({
   }, [products, query]);
 
   return (
-    <div className="relative flex-1 min-w-[180px]">
+    <div ref={containerRef} className="relative flex-1 min-w-[180px]">
       {/* Trigger Button */}
       <button
         type="button"
@@ -204,6 +221,24 @@ export const POS = () => {
   const [productSearchTerm, setProductSearchTerm] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const productComboboxRef = useRef<HTMLDivElement>(null);
+
+  // Close product search dropdown on click/touch outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (productComboboxRef.current && !productComboboxRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
   const [selectedPriceTier, setSelectedPriceTier] = useState<'price1' | 'price2' | 'price3' | 'price4'>('price1');
   const [inputQuantity, setInputQuantity] = useState<number>(1);
   const [qrScanInput, setQrScanInput] = useState<string>('');
@@ -1509,7 +1544,7 @@ export const POS = () => {
               <div className="flex flex-col sm:flex-row sm:items-end gap-3.5 sm:gap-2.5 w-full">
                 
                 {/* 1. SELECT PRODUCT SEARCHABLE COMBOBOX */}
-                <div className="w-full sm:flex-1 min-w-0 space-y-1.5 sm:space-y-1 relative">
+                <div ref={productComboboxRef} className="w-full sm:flex-1 min-w-0 space-y-1.5 sm:space-y-1 relative">
                   <div className="flex items-center justify-between sm:justify-start gap-1.5 h-5 min-w-0">
                     <Label className="text-xs sm:text-xs font-bold text-foreground sm:text-muted-foreground shrink-0">اختر المنتج</Label>
                     {currentSelectedProduct && (
@@ -1530,6 +1565,11 @@ export const POS = () => {
                       onChange={(e) => {
                         setProductSearchTerm(e.target.value);
                         setIsDropdownOpen(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setIsDropdownOpen(false);
+                        }
                       }}
                       className="pr-10 pl-11 h-12 sm:h-11 text-xs sm:text-xs font-bold rounded-2xl sm:rounded-xl bg-background border-border w-full truncate focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:border-amber-500"
                     />
