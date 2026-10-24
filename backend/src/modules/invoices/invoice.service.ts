@@ -1577,6 +1577,10 @@ export class InvoiceService {
   public async getCustomerSummaries(options: { branchId?: string }) {
     if (!AppDataSource.isInitialized) return [];
 
+    const cacheKey = `invoices:customers-summary:${options.branchId || 'all'}`;
+    const cached = memoryCache.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     let qb = this.invoiceRepo
       .createQueryBuilder('invoice')
       .select('COALESCE(NULLIF(TRIM(invoice.customerPhone), \'\'), NULLIF(TRIM(invoice.customerId), \'\'))', 'phone')
@@ -1593,7 +1597,7 @@ export class InvoiceService {
     }
 
     const raw = await qb.getRawMany();
-    return raw.map(r => ({
+    const result = raw.map(r => ({
       phone: r.phone,
       name: r.name || 'عميل',
       invoiceCount: Number(r.invoiceCount || 0),
@@ -1601,6 +1605,9 @@ export class InvoiceService {
       totalDebt: Math.round(Number(r.totalDebt || 0) * 100) / 100,
       lastVisit: r.lastVisit || new Date().toISOString(),
     }));
+
+    memoryCache.set(cacheKey, result, 60);
+    return result;
   }
 }
 

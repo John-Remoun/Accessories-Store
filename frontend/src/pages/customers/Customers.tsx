@@ -9,7 +9,11 @@ import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '../../components/ui/dialog';
-import { Users, Search, Download, Star, MessageCircle, Send, Megaphone, Check, Copy, Sparkles, AlertCircle, Trash2, AlertTriangle } from 'lucide-react';
+import { 
+  Users, Search, Download, Star, MessageCircle, Send, Megaphone, 
+  Check, Copy, Sparkles, AlertCircle, Trash2, AlertTriangle, 
+  ChevronLeft, ChevronRight 
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 export interface CustomerRecord {
@@ -21,6 +25,126 @@ export interface CustomerRecord {
   lastVisit: string;
   isFavorite: boolean;
 }
+
+interface CustomerPaginationProps {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  onPageChange: (page: number) => void;
+  accentColor?: 'emerald' | 'rose' | 'amber';
+}
+
+const CustomerPagination = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  itemsPerPage,
+  onPageChange,
+  accentColor = 'amber'
+}: CustomerPaginationProps) => {
+  if (totalItems <= itemsPerPage && totalPages <= 1) return null;
+
+  // Generate page numbers to show (e.g., 1, 2, 3 ... totalPages)
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
+
+  const pages = getPageNumbers();
+
+  const activeStyles = {
+    emerald: 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-950/40 font-black',
+    rose: 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-950/40 font-black',
+    amber: 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-950/40 font-black',
+  }[accentColor];
+
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3.5 pb-2.5 px-4 border-t border-border/50 text-xs bg-muted/20">
+      {/* Information text */}
+      <div className="text-muted-foreground text-xs font-semibold select-none order-2 sm:order-1">
+        عرض <span className="font-mono font-bold text-foreground">{startItem}</span> - <span className="font-mono font-bold text-foreground">{endItem}</span> من إجمالي <span className="font-mono font-bold text-foreground">{totalItems}</span> عميل
+      </div>
+
+      {/* Pagination controls */}
+      <div className="flex items-center gap-1.5 select-none order-1 sm:order-2" dir="rtl">
+        {/* Previous Page Button */}
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-foreground font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-xs"
+          title="الصفحة السابقة"
+        >
+          <ChevronRight size={14} className="shrink-0" />
+          <span>السابق</span>
+        </button>
+
+        {/* Number Buttons */}
+        <div className="flex items-center gap-1">
+          {pages.map((p, idx) => {
+            if (p === '...') {
+              return (
+                <span key={`dots-${idx}`} className="px-1.5 text-muted-foreground/60 font-bold font-mono">
+                  ...
+                </span>
+              );
+            }
+
+            const pageNum = Number(p);
+            const isActive = pageNum === currentPage;
+
+            return (
+              <button
+                key={`page-${pageNum}`}
+                type="button"
+                onClick={() => onPageChange(pageNum)}
+                className={`w-8 h-8 rounded-xl font-mono text-xs transition-all flex items-center justify-center border ${
+                  isActive
+                    ? `${activeStyles} scale-105`
+                    : 'bg-card border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground font-semibold'
+                } active:scale-95 shadow-xs`}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Next Page Button */}
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="h-8 px-3 rounded-xl border border-border/80 bg-card hover:bg-muted text-foreground font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-30 disabled:pointer-events-none active:scale-95 shadow-xs"
+          title="الصفحة التالية"
+        >
+          <span>التالي</span>
+          <ChevronLeft size={14} className="shrink-0" />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const Customers = () => {
   useStoreSync();
@@ -224,6 +348,23 @@ export const Customers = () => {
       (a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime()
     );
   }, [customerRecords, search, showFavoritesOnly]);
+
+  // Pagination State (Defaults to 8 customers per page like Invoices)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(8);
+
+  // Reset page when search, branch, or favorite filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, showFavoritesOnly, activeBranchId]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedCustomers = useMemo(() => {
+    const start = (safePage - 1) * itemsPerPage;
+    return filteredCustomers.slice(start, start + itemsPerPage);
+  }, [filteredCustomers, safePage, itemsPerPage]);
 
   // Summary stats
   const totalCustomersCount = customerRecords.length;
@@ -517,14 +658,33 @@ export const Customers = () => {
 
       {/* SEARCH AND CUSTOMERS TABLE */}
       <div className="space-y-4 print:hidden">
-        <div className="relative">
-          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-          <Input 
-            placeholder="ابحث باسم العميل أو برقم التليفون..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pr-10 h-12 text-xs rounded-2xl bg-card border-border/80 shadow-2xs w-full"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+            <Input 
+              placeholder="ابحث باسم العميل أو برقم التليفون..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pr-10 h-12 text-xs rounded-2xl bg-card border-border/80 shadow-2xs w-full"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-center bg-card border border-border/80 px-3.5 h-12 rounded-2xl shadow-2xs text-xs">
+            <span className="text-muted-foreground font-bold shrink-0">عرض بالصفحة:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent font-bold font-mono text-amber-500 outline-none cursor-pointer text-xs"
+            >
+              <option value={8} className="bg-card text-foreground">8 عملاء</option>
+              <option value={15} className="bg-card text-foreground">15 عميل</option>
+              <option value={25} className="bg-card text-foreground">25 عميل</option>
+              <option value={50} className="bg-card text-foreground">50 عميل</option>
+            </select>
+          </div>
         </div>
 
         <div className="bg-card rounded-2xl border border-border/80 overflow-hidden shadow-xs">
@@ -549,7 +709,7 @@ export const Customers = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCustomers.map((c) => {
+                paginatedCustomers.map((c) => {
                   const cleanPhone = (c.phone || '').replace(/\D/g, '');
                   const formattedPhone = cleanPhone.startsWith('2') ? cleanPhone : `20${cleanPhone.replace(/^0/, '')}`;
 
@@ -634,6 +794,16 @@ export const Customers = () => {
               )}
             </TableBody>
           </Table>
+
+          {/* Customer Table Pagination Bar */}
+          <CustomerPagination
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalItems={filteredCustomers.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={(p) => setCurrentPage(p)}
+            accentColor="amber"
+          />
         </div>
       </div>
 
