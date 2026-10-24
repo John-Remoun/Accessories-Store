@@ -37,7 +37,7 @@ export function initSocketClient(): Socket {
   socket.on('connect', () => {
     console.log('⚡ [Socket.io Client] Connected to real-time server. ID:', socket?.id);
     store.setSocketConnected(true);
-    const lastActiveBranch = localStorage.getItem('last_active_branch') || 'b1';
+    const lastActiveBranch = localStorage.getItem('last_active_branch') || 'b4';
     const currentToken = localStorage.getItem('access_token');
     socket?.emit('join:branch', { branchId: lastActiveBranch, token: currentToken });
   });
@@ -120,6 +120,13 @@ export function initSocketClient(): Socket {
   });
 
   return socket;
+}
+
+export function switchSocketBranch(newBranchId: string) {
+  if (socket && socket.connected) {
+    const currentToken = localStorage.getItem('access_token');
+    socket.emit('join:branch', { branchId: newBranchId, token: currentToken });
+  }
 }
 
 export function getSocketClient(): Socket | null {

@@ -128,6 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('mock_auth_id');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    localStorage.removeItem('last_active_branch');
+    localStorage.removeItem('active_branch');
   };
 
   return (

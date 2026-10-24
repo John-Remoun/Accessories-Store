@@ -25,6 +25,7 @@ export interface Category {
   id: string;
   nameEn: string;
   nameAr: string;
+  branchId?: string;
 }
 
 export interface Product {
@@ -43,6 +44,7 @@ export interface Product {
   size: string;
   brand?: string;
   notes?: string;
+  branchId?: string;
   isActive: boolean;
 }
 

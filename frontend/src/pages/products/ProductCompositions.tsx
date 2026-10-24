@@ -233,8 +233,12 @@ export const ProductCompositions = () => {
     const cleanPrefix = 'COMP';
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const skuCode = `${cleanPrefix}-${randomNum}`;
-    const categories = store.getCategories();
-    const defaultCatId = categories.length > 0 ? categories[0].id : 'c1';
+    const categories = store.getCategories(activeBranchId);
+    const defaultCatId = categories.length > 0 ? categories[0].id : '';
+    if (!defaultCatId) {
+      setFormError('يرجى إضافة فئة في هذا الفرع أولاً قبل تسجيل التركيبة');
+      return;
+    }
 
     const newAssembledProduct: Product = {
       id: `comp_p_${Date.now()}`,
@@ -245,12 +249,13 @@ export const ProductCompositions = () => {
       categoryId: defaultCatId,
       sku: skuCode,
       productCode: skuCode,
-      material: '', color: '', size: '', isActive: true
+      material: '', color: '', size: '', isActive: true,
+      branchId: activeBranchId,
     };
 
-    const branchDataList = store.getBranches().map(b => ({
+    const branchDataList = [{
       productId: newAssembledProduct.id,
-      branchId: b.id,
+      branchId: activeBranchId,
       cost: calculatedUnitCost,
       price1: price1 || calculatedUnitCost * 1.2,
       price1Label: 'سعر 1',
@@ -260,8 +265,9 @@ export const ProductCompositions = () => {
       price3Label: 'سعر 3',
       price4: price1 || calculatedUnitCost * 1.05,
       price4Label: 'سعر 4',
-      minStock: 5
-    }));
+      minStock: 5,
+      quantity: compQuantity,
+    }];
 
     store.addProduct(newAssembledProduct, branchDataList);
 

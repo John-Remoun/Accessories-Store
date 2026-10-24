@@ -475,8 +475,8 @@ export const POS = () => {
     const cleanPrefix = 'COMP';
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const skuCode = `${cleanPrefix}-${randomNum}`;
-    const categories = store.getCategories();
-    const defaultCatId = categories.length > 0 ? categories[0].id : 'c1';
+    const categories = store.getCategories(currentBranchId);
+    const defaultCatId = categories.length > 0 ? categories[0].id : '';
 
     const formattedCompName = `${compName.trim()} (تركيبة خاصة)`;
 
@@ -489,7 +489,8 @@ export const POS = () => {
       categoryId: defaultCatId,
       sku: skuCode,
       productCode: skuCode,
-      material: '', color: '', size: '', isActive: true
+      material: '', color: '', size: '', isActive: true,
+      branchId: currentBranchId,
     };
 
     const finalPrice = customSellingPrice || minSellingPrice;

@@ -91,13 +91,15 @@ export const api = {
   deleteBranch: (id: string) => request<any>(`/branches/${id}`, { method: 'DELETE' }),
 
   // Categories
-  getCategories: () => request<any[]>('/categories'),
+  getCategories: (branchId?: string) =>
+    request<any[]>(branchId ? `/categories?branchId=${encodeURIComponent(branchId)}` : '/categories'),
   createCategory: (cat: any) => request<any>('/categories', { method: 'POST', body: JSON.stringify(cat) }),
   updateCategory: (id: string, nameAr: string) => request<any>(`/categories/${id}`, { method: 'PATCH', body: JSON.stringify({ nameAr }) }),
   deleteCategory: (id: string) => request<any>(`/categories/${id}`, { method: 'DELETE' }),
 
   // Products
-  getProducts: () => request<any[]>('/products'),
+  getProducts: (branchId?: string) =>
+    request<any[]>(branchId ? `/products?branchId=${encodeURIComponent(branchId)}` : '/products'),
   getProductBranchDataList: (branchId?: string) =>
     request<any[]>(branchId ? `/products/branch-data/all?branchId=${encodeURIComponent(branchId)}` : '/products/branch-data/all'),
   createProduct: (product: any, branchDataList: any[]) =>
@@ -109,7 +111,8 @@ export const api = {
     request<any>('/products/adjust-stock', { method: 'POST', body: JSON.stringify({ productId, branchId, targetQuantity: Number(targetQuantity), prefix }) }),
 
   // Physical Items
-  getPhysicalItems: () => request<any[]>('/physical-items'),
+  getPhysicalItems: (branchId?: string) =>
+    request<any[]>(branchId ? `/physical-items/branch/${encodeURIComponent(branchId)}` : '/physical-items'),
   generatePhysicalItems: (productId: string, branchId: string, quantity: number, prefix: string) =>
     request<any[]>('/physical-items/generate', { method: 'POST', body: JSON.stringify({ productId, branchId, quantity: Number(quantity), prefix }) }),
   updatePhysicalItemStatus: (id: string, status: string) =>
@@ -257,7 +260,8 @@ export const api = {
   },
 
   // Customers
-  getCustomers: () => request<any[]>('/customers'),
+  getCustomers: (branchId?: string) =>
+    request<any[]>(branchId ? `/customers?branchId=${encodeURIComponent(branchId)}` : '/customers'),
   saveCustomer: (customer: any) => request<any>('/customers', { method: 'POST', body: JSON.stringify(customer) }),
   deleteCustomer: (idOrPhone: string) => request<any>(`/customers/${idOrPhone}`, { method: 'DELETE' }),
 
@@ -272,7 +276,8 @@ export const api = {
   deleteComposition: (id: string) => request<any>(`/compositions/${id}`, { method: 'DELETE' }),
 
   // Suppliers & Purchases
-  getSuppliers: () => request<any[]>('/suppliers'),
+  getSuppliers: (branchId?: string) =>
+    request<any[]>(branchId ? `/suppliers?branchId=${encodeURIComponent(branchId)}` : '/suppliers'),
   createSupplier: (purchase: any) => request<any>('/suppliers', { method: 'POST', body: JSON.stringify(purchase) }),
   saveSupplierPurchase: (purchase: any) => request<any>('/suppliers', { method: 'POST', body: JSON.stringify(purchase) }),
   updateSupplier: (id: string, updates: any) => request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),

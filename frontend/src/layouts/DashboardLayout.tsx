@@ -203,7 +203,7 @@ export const DashboardLayout = () => {
 
             {!isCollapsed && (
               <span className="text-sm sm:text-base font-black text-amber-500 tracking-tight truncate min-w-0">
-                {currentBranch ? currentBranch.nameAr : 'فرع القاهرة'}
+                {currentBranch ? currentBranch.nameAr : 'فرع المكتب'}
               </span>
             )}
           </div>
@@ -285,7 +285,7 @@ export const DashboardLayout = () => {
         {/* Top Navbar with Centered Store Title Logo */}
         <header className="relative h-16 sm:h-20 bg-card/90 backdrop-blur-md border-b border-border flex items-center justify-between px-3 sm:px-8 z-10 shadow-xs shrink-0">
           
-          {/* Right Action on Mobile: Hamburger Menu */}
+          {/* Right Action on Mobile: Hamburger Menu + Branch Indicator Badge */}
           <div className="flex items-center gap-2 z-10">
             {!isLandingPage && !isSettingsPage && (
               <Button
@@ -298,6 +298,10 @@ export const DashboardLayout = () => {
                 <Menu size={22} />
               </Button>
             )}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-500 font-black text-xs sm:text-sm shadow-xs select-none">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              <span>{currentBranch ? currentBranch.nameAr : 'فرع المكتب'}</span>
+            </div>
           </div>
 
           {/* Centered Store Brand Logo (Absolute Center) */}

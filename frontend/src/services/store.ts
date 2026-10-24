@@ -2,7 +2,7 @@ import { mockBranches, mockCategories, mockCustomers, mockPhysicalItems, mockInv
 import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
 import { api } from './api';
 
-const STORE_KEY = 'accessories_store_data_v13';
+const STORE_KEY = 'accessories_store_data_v14';
 
 export interface AppState {
   users: User[];
@@ -323,16 +323,16 @@ class StoreService {
           userList,
           supplierList
         ] = await Promise.allSettled([
-          api.getFixedExpenses(),
+          api.getFixedExpenses(branchToSync),
           api.getPaginatedInvoices({ page: 1, limit: 100, branchId: branchToSync }),
-          api.getProducts(),
+          api.getProducts(branchToSync),
           api.getProductBranchDataList(branchToSync),
-          api.getCategories(),
-          api.getPhysicalItems(),
+          api.getCategories(branchToSync),
+          api.getPhysicalItems(branchToSync),
           api.getBranches(),
-          api.getCustomers(),
+          api.getCustomers(branchToSync),
           api.getUsers(),
-          api.getSuppliers(),
+          api.getSuppliers(branchToSync),
         ]);
 
         if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
@@ -688,17 +688,25 @@ class StoreService {
   }
 
   // --- Categories ---
-  public getCategories() { return this.state?.categories || []; }
+  public getCategories(branchId?: string) {
+    const list = this.state?.categories || [];
+    if (!branchId) return list;
+    return list.filter(c => !c.branchId || c.branchId === branchId);
+  }
+
   public async addCategory(cat: Category) {
     if (!this.state.categories) this.state.categories = [];
-    this.state.categories.push(cat);
+    const activeBranch = cat.branchId || this.getActiveBranchId();
+    const sanitizedCat: Category = { ...cat, branchId: activeBranch };
+    this.state.categories.push(sanitizedCat);
     this.saveState(true);
     try {
-      await api.createCategory(cat);
+      await api.createCategory(sanitizedCat);
     } catch (err) {
       console.warn('DB sync warning (createCategory):', err);
     }
   }
+
   public async updateCategory(id: string, nameAr: string) {
     const cat = (this.state.categories || []).find(c => c?.id === id);
     if (cat) {
@@ -712,6 +720,7 @@ class StoreService {
       }
     }
   }
+
   public async deleteCategory(id: string) {
     const linkedProductsCount = (this.state.products || []).filter(p => p?.categoryId === id).length;
     if (linkedProductsCount > 0) {
@@ -727,16 +736,28 @@ class StoreService {
   }
 
   // --- Products & Branch Data ---
-  public getProducts() { return this.state?.products || []; }
-  public getProduct(id: string) { return this.getProducts().find(p => p?.id === id); }
+  public getProducts(branchId?: string) {
+    const list = this.state?.products || [];
+    if (!branchId) return list;
+    return list.filter(p => !p.branchId || p.branchId === branchId);
+  }
+
+  public getProduct(id: string) {
+    return (this.state?.products || []).find(p => p?.id === id);
+  }
+
   public async addProduct(product: Product, branchDataList: ProductBranchData[]) {
     if (!this.state.products) this.state.products = [];
     if (!this.state.productBranchData) this.state.productBranchData = [];
+
+    const activeBranch: string = product.branchId || branchDataList?.[0]?.branchId || this.getActiveBranchId() || 'b4';
+    const sanitizedProduct: Product = { ...product, branchId: activeBranch };
 
     // STRICT BRANCH ISOLATION: Products belong strictly to the branch they are created in!
     // Never auto-populate other branches with 0 stock.
     const normalizedBranchData: ProductBranchData[] = (branchDataList || []).map(bd => ({
       ...bd,
+      branchId: bd.branchId || activeBranch,
       cost: Number(bd.cost || 0),
       price1: Number(bd.price1 || 0),
       price1Label: bd.price1Label || 'سعر 1',
@@ -750,7 +771,7 @@ class StoreService {
       quantity: Number(bd.quantity || 0),
     }));
 
-    this.state.products.push(product);
+    this.state.products.push(sanitizedProduct);
     this.state.productBranchData.push(...normalizedBranchData);
     this.saveState(true);
 
@@ -758,13 +779,13 @@ class StoreService {
       try {
         this.broadcastChannel.postMessage({
           type: 'PRODUCT_CREATED',
-          payload: { product, branchData: normalizedBranchData }
+          payload: { product: sanitizedProduct, branchData: normalizedBranchData }
         });
       } catch {}
     }
 
     try {
-      await api.createProduct(product, normalizedBranchData);
+      await api.createProduct(sanitizedProduct, normalizedBranchData);
     } catch (err) {
       console.warn('DB sync warning (createProduct):', err);
     }
