@@ -8,6 +8,7 @@ const expenseService = new FixedExpenseService();
 export class FixedExpenseController {
   public async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, no-cache');
       const scope = await resolveBranchScope(req, req.query.branchId as string);
       const effectiveBranchId = scope.isGlobalAdmin ? (req.query.branchId as string) : scope.branchId;
       const expenses = await expenseService.getExpensesByBranch(effectiveBranchId);
@@ -19,10 +20,23 @@ export class FixedExpenseController {
 
   public async getByBranch(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, no-cache');
       const branchId = req.params.branchId as string;
       await resolveBranchScope(req, branchId);
       const expenses = await expenseService.getExpensesByBranch(branchId);
       return sendResponse(res, 200, 'Fixed expenses retrieved', expenses);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async getOne(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.setHeader('Cache-Control', 'private, no-cache');
+      const id = req.params.id as string;
+      const existing = await expenseService.getExpenseById(id);
+      await resolveBranchScope(req, existing.branchId);
+      return sendResponse(res, 200, 'Fixed expense retrieved', existing);
     } catch (error) {
       next(error);
     }

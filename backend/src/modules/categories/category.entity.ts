@@ -11,6 +11,9 @@ export class CategoryEntity {
   @Column({ type: 'varchar', length: 150 })
   nameAr!: string;
 
+  @Column({ type: 'varchar', length: 100 })
+  branchId!: string;
+
   @CreateDateColumn()
   createdAt!: Date;
 

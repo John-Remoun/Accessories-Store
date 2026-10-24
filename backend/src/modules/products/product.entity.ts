@@ -20,6 +20,9 @@ export class ProductEntity {
   @Column({ type: 'varchar', length: 100 })
   categoryId!: string;
 
+  @Column({ type: 'varchar', length: 100 })
+  branchId!: string;
+
   @Column({ type: 'varchar', length: 100, nullable: true })
   subcategoryId?: string;
 

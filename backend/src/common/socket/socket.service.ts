@@ -88,11 +88,8 @@ export function initSocketServer(server: HttpServer): SocketIOServer {
         }
       }
 
-      // Backward compatible fallback for unauthenticated socket connection
-      if (requestedBranch) {
-        socket.join(`branch:${requestedBranch}`);
-        console.log(`📍 [Socket.io] Client ${socket.id} joined branch room (fallback): branch:${requestedBranch}`);
-      }
+      // Strictly reject unauthenticated clients from joining branch rooms
+      console.warn(`⚠️ [Socket.io] Unauthenticated client ${socket.id} attempted to join branch room: ${requestedBranch}. Ignored.`);
     });
 
     socket.on('disconnect', () => {
@@ -163,11 +160,15 @@ export function broadcastInvoiceCreated(invoice: any): void {
   }
 }
 
-export function broadcastInvoicesDeleted(ids: string[]): void {
+export function broadcastInvoicesDeleted(ids: string[], branchId?: string): void {
   bumpSyncVersion();
   if (!io) return;
-  console.log(`📡 [Socket.io] Broadcasting invoices deleted:`, ids);
-  io.emit('invoices:deleted', { ids, timestamp: new Date().toISOString() });
+  console.log(`📡 [Socket.io] Broadcasting invoices deleted for branch ${branchId || 'all'}:`, ids);
+  if (branchId) {
+    io.to(`branch:${branchId}`).to('admin').emit('invoices:deleted', { ids, branchId, timestamp: new Date().toISOString() });
+  } else {
+    io.to('admin').emit('invoices:deleted', { ids, timestamp: new Date().toISOString() });
+  }
 }
 
 export function broadcastInvoiceUpdated(invoice: any): void {
@@ -178,7 +179,7 @@ export function broadcastInvoiceUpdated(invoice: any): void {
   if (mini?.branchId) {
     io.to(`branch:${mini.branchId}`).to('admin').emit('invoice:updated', mini);
   } else {
-    io.emit('invoice:updated', mini);
+    io.to('admin').emit('invoice:updated', mini);
   }
 }
 
@@ -189,7 +190,7 @@ export function broadcastExpenseCreated(expense: any): void {
   if (expense?.branchId) {
     io.to(`branch:${expense.branchId}`).to('admin').emit('expense:created', expense);
   } else {
-    io.emit('expense:created', expense);
+    io.to('admin').emit('expense:created', expense);
   }
 }
 
@@ -200,7 +201,7 @@ export function broadcastExpenseDeleted(id: string, branchId?: string): void {
   if (branchId) {
     io.to(`branch:${branchId}`).to('admin').emit('expense:deleted', { id, branchId, timestamp: new Date().toISOString() });
   } else {
-    io.emit('expense:deleted', { id, timestamp: new Date().toISOString() });
+    io.to('admin').emit('expense:deleted', { id, timestamp: new Date().toISOString() });
   }
 }
 
@@ -215,21 +216,34 @@ export function broadcastProductCreated(product: any, branchData?: any[]): void 
         return rest;
       })
     : branchData;
-  io.emit('product:created', { product, branchData: safeBranchData, timestamp: new Date().toISOString() });
+  const targetBranch = product?.branchId || safeBranchData?.[0]?.branchId;
+  if (targetBranch) {
+    io.to(`branch:${targetBranch}`).to('admin').emit('product:created', { product, branchData: safeBranchData, timestamp: new Date().toISOString() });
+  } else {
+    io.to('admin').emit('product:created', { product, branchData: safeBranchData, timestamp: new Date().toISOString() });
+  }
 }
 
 export function broadcastProductUpdated(product: any): void {
   bumpSyncVersion();
   if (!io) return;
   console.log(`📡 [Socket.io] Broadcasting product updated: ${product?.nameAr || product?.id}`);
-  io.emit('product:updated', product);
+  if (product?.branchId) {
+    io.to(`branch:${product.branchId}`).to('admin').emit('product:updated', product);
+  } else {
+    io.to('admin').emit('product:updated', product);
+  }
 }
 
-export function broadcastProductDeleted(id: string): void {
+export function broadcastProductDeleted(id: string, branchId?: string): void {
   bumpSyncVersion();
   if (!io) return;
   console.log(`📡 [Socket.io] Broadcasting product deleted: ${id}`);
-  io.emit('product:deleted', { id, timestamp: new Date().toISOString() });
+  if (branchId) {
+    io.to(`branch:${branchId}`).to('admin').emit('product:deleted', { id, branchId, timestamp: new Date().toISOString() });
+  } else {
+    io.to('admin').emit('product:deleted', { id, timestamp: new Date().toISOString() });
+  }
 }
 
 

@@ -8,14 +8,18 @@ export class CategoryService {
   private categoryRepo = AppDataSource.getRepository(CategoryEntity);
   private productRepo = AppDataSource.getRepository(ProductEntity);
 
-  public async getAllCategories() {
-    const cached = memoryCache.get<CategoryEntity[]>('categories:all');
+  public async getAllCategories(branchId?: string) {
+    const targetBranch = branchId?.trim();
+    const cacheKey = targetBranch ? `categories:branch:${targetBranch}` : 'categories:all';
+    const cached = memoryCache.get<CategoryEntity[]>(cacheKey);
     if (cached) return cached;
 
+    const whereClause = targetBranch ? { branchId: targetBranch } : {};
     const categories = await this.categoryRepo.find({
+      where: whereClause,
       order: { createdAt: 'ASC' },
     });
-    memoryCache.set('categories:all', categories, 300);
+    memoryCache.set(cacheKey, categories, 300);
     return categories;
   }
 
@@ -27,29 +31,42 @@ export class CategoryService {
     return category;
   }
 
-  public async createCategory(data: { id?: string; nameAr: string; nameEn?: string }) {
+  public async createCategory(data: { id?: string; nameAr: string; nameEn?: string; branchId: string }) {
     memoryCache.invalidate('categories');
-    const id = data.id || `c_${Date.now()}`;
+    if (!data.branchId) {
+      throw new AppError('branchId is required to create a category', 400);
+    }
+    const id = data.id || `cat_${Date.now()}_${data.branchId}`;
     const nameEn = data.nameEn || data.nameAr;
     const category = this.categoryRepo.create({
       id,
       nameAr: data.nameAr,
       nameEn,
+      branchId: data.branchId,
     });
     return this.categoryRepo.save(category);
   }
 
-  public async updateCategory(id: string, nameAr: string) {
+  public async updateCategory(id: string, nameAr: string, scopeBranchId?: string, isGlobalAdmin?: boolean) {
     memoryCache.invalidate('categories');
     const category = await this.getCategoryById(id);
+
+    if (!isGlobalAdmin && scopeBranchId && category.branchId !== scopeBranchId) {
+      throw new AppError('Forbidden: Access denied to category belonging to another branch', 403);
+    }
+
     category.nameAr = nameAr;
     category.nameEn = nameAr;
     return this.categoryRepo.save(category);
   }
 
-  public async deleteCategory(id: string) {
+  public async deleteCategory(id: string, scopeBranchId?: string, isGlobalAdmin?: boolean) {
     memoryCache.invalidate('categories');
     const category = await this.getCategoryById(id);
+
+    if (!isGlobalAdmin && scopeBranchId && category.branchId !== scopeBranchId) {
+      throw new AppError('Forbidden: Access denied to delete category belonging to another branch', 403);
+    }
     
     // Block deletion if category has associated products
     const productCount = await this.productRepo.count({ where: { categoryId: id } });

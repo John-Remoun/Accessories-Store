@@ -20,6 +20,7 @@ router.post('/branch-data', validateBody(productBranchDataSchema), (req, res, ne
 router.post('/adjust-stock', (req, res, next) => controller.adjustStock(req, res, next));
 
 router.patch('/:id', validateBody(updateProductSchema), (req, res, next) => controller.update(req, res, next));
+router.put('/:id', validateBody(updateProductSchema), (req, res, next) => controller.update(req, res, next));
 router.delete('/:id', (req, res, next) => controller.delete(req, res, next));
 
 export default router;

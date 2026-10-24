@@ -8,6 +8,7 @@ const itemService = new PhysicalItemService();
 export class PhysicalItemController {
   public async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, no-cache');
       const scope = await resolveBranchScope(req, req.query.branchId as string);
       const items = scope.isGlobalAdmin && !req.query.branchId
         ? await itemService.getAllItems()
@@ -18,8 +19,21 @@ export class PhysicalItemController {
     }
   }
 
+  public async getOne(req: Request, res: Response, next: NextFunction) {
+    try {
+      res.setHeader('Cache-Control', 'private, no-cache');
+      const id = req.params.id as string;
+      const item = await itemService.getItemById(id);
+      await resolveBranchScope(req, item.branchId);
+      return sendResponse(res, 200, 'Physical item retrieved successfully', item);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   public async getByProduct(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, no-cache');
       const productId = req.params.productId as string;
       const scope = await resolveBranchScope(req);
       let items = await itemService.getItemsByProduct(productId);
@@ -34,6 +48,7 @@ export class PhysicalItemController {
 
   public async getByBranch(req: Request, res: Response, next: NextFunction) {
     try {
+      res.setHeader('Cache-Control', 'private, no-cache');
       const branchId = req.params.branchId as string;
       await resolveBranchScope(req, branchId);
       const items = await itemService.getItemsByBranch(branchId);

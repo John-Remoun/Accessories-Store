@@ -653,7 +653,7 @@ export class InvoiceService {
         );
 
         try {
-          broadcastInvoicesDeleted(combinedIds);
+          broadcastInvoicesDeleted(combinedIds, targetBranch);
         } catch (bErr) {
           console.warn('⚠️ [Socket.io] Broadcast error after invoice delete:', bErr);
         }

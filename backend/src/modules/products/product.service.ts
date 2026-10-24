@@ -1,6 +1,7 @@
 import { AppDataSource } from '../../config/data-source';
 import { ProductEntity } from './product.entity';
 import { ProductBranchDataEntity } from './product-branch-data.entity';
+import { CategoryEntity } from '../categories/category.entity';
 import { BranchEntity } from '../branches/branch.entity';
 import { PhysicalItemEntity } from '../physical-items/physical-item.entity';
 import { AppError } from '../../common/exceptions/app-error';
@@ -15,16 +16,21 @@ export class ProductService {
   private branchDataRepo = AppDataSource.getRepository(ProductBranchDataEntity);
   private physicalItemRepo = AppDataSource.getRepository(PhysicalItemEntity);
   private branchRepo = AppDataSource.getRepository(BranchEntity);
+  private categoryRepo = AppDataSource.getRepository(CategoryEntity);
 
-  public async getAllProducts() {
-    const cached = memoryCache.get<ProductEntity[]>('products:all');
+  public async getAllProducts(branchId?: string) {
+    const targetBranch = branchId?.trim();
+    const cacheKey = targetBranch ? `products:branch:${targetBranch}` : 'products:all';
+    const cached = memoryCache.get<ProductEntity[]>(cacheKey);
     if (cached) return cached;
 
+    const whereClause = targetBranch ? { branchId: targetBranch } : {};
     const products = await this.productRepo.find({
+      where: whereClause,
       order: { createdAt: 'DESC' },
       take: MAX_LIST_LIMIT,
     });
-    memoryCache.set('products:all', products, 60);
+    memoryCache.set(cacheKey, products, 60);
     return products;
   }
 
@@ -103,27 +109,77 @@ export class ProductService {
     });
   }
 
-  public async createProduct(productData: Partial<ProductEntity>, branchDataList: Partial<ProductBranchDataEntity>[] = []) {
+  public async resolveBranchCategoryId(inputCatId: string, effectiveBranchId: string): Promise<string> {
+    if (!inputCatId) return inputCatId;
+
+    // 1. Exact match check
+    const exact = await this.categoryRepo.findOne({ where: { id: inputCatId } });
+    if (exact && exact.branchId === effectiveBranchId) {
+      return exact.id;
+    }
+
+    // 2. Base ID check (e.g. cat_123 or cat_123_b2 -> cat_123_b1)
+    const baseId = inputCatId.replace(/_b[1-4]$/, '');
+    const candidateId = `${baseId}_${effectiveBranchId}`;
+    const candidate = await this.categoryRepo.findOne({ where: { id: candidateId, branchId: effectiveBranchId } });
+    if (candidate) {
+      return candidate.id;
+    }
+
+    // 3. Name-based match if category exists in another branch
+    if (exact) {
+      const nameMatch = await this.categoryRepo.findOne({
+        where: { nameAr: exact.nameAr, branchId: effectiveBranchId },
+      });
+      if (nameMatch) {
+        return nameMatch.id;
+      }
+    }
+
+    // 4. Safe fallback to first available category in the branch to prevent FK crashes
+    const fallback = await this.categoryRepo.findOne({ where: { branchId: effectiveBranchId } });
+    if (fallback) {
+      return fallback.id;
+    }
+
+    return inputCatId;
+  }
+
+  public async createProduct(
+    productData: Partial<ProductEntity>,
+    branchDataList: Partial<ProductBranchDataEntity>[] = [],
+    scopeBranchId?: string
+  ) {
     memoryCache.invalidate('products');
     bumpSyncVersion();
 
     const id = productData.id || `p_${Date.now()}`;
+    const effectiveBranchId = scopeBranchId || productData.branchId;
+    if (!effectiveBranchId) {
+      throw new AppError('branchId is required to create a product', 400);
+    }
+
+    const resolvedCategoryId = await this.resolveBranchCategoryId(productData.categoryId || '', effectiveBranchId);
+
     const product = this.productRepo.create({
       ...productData,
       id,
+      branchId: effectiveBranchId,
+      categoryId: resolvedCategoryId,
       nameEn: productData.nameEn || productData.nameAr || '',
     });
 
     await this.productRepo.save(product);
 
-    // STRICT BRANCH ISOLATION: Only create branch data for explicitly specified branches!
-    // Never auto-populate other branches with 0 stock.
+    // STRICT BRANCH ISOLATION: Only create branch data for explicitly specified branches and matching product branch!
     const entities: ProductBranchDataEntity[] = [];
     const prefix = (productData.sku || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase() || 'ITM';
 
     for (const explicitBd of branchDataList) {
       if (!explicitBd.branchId) continue;
       const bId = explicitBd.branchId;
+      if (bId !== effectiveBranchId) continue;
+
       const cost = Number(explicitBd.cost || 0);
       const p1 = Number(explicitBd.price1 || 0);
       const p1Label = explicitBd.price1Label || 'سعر 1';
@@ -155,7 +211,7 @@ export class ProductService {
       );
 
       // Generate physical QR item for this branch only
-      const itemId = `QR-${prefix}-${bId}`;
+      const itemId = `QR-${prefix}-${bId}-${Math.random().toString(36).substring(2, 6)}`;
       const existingItem = await this.physicalItemRepo.findOne({ where: { productId: id, branchId: bId } });
       if (!existingItem) {
         const item = this.physicalItemRepo.create({
@@ -182,11 +238,27 @@ export class ProductService {
     return product;
   }
 
-  public async updateProduct(id: string, updates: Partial<ProductEntity>) {
+  public async updateProduct(
+    id: string,
+    updates: Partial<ProductEntity>,
+    scopeBranchId?: string,
+    isGlobalAdmin?: boolean
+  ) {
     memoryCache.invalidate('products');
     bumpSyncVersion();
     const product = await this.getProductById(id);
-    Object.assign(product, updates);
+
+    // IDOR Protection: Reject cross-branch product editing
+    if (!isGlobalAdmin && scopeBranchId && product.branchId !== scopeBranchId) {
+      throw new AppError(`Forbidden: Access denied to update product belonging to another branch`, 403);
+    }
+
+    // Never allow mutating branchId
+    const { branchId, ...safeUpdates } = updates;
+    if (safeUpdates.categoryId) {
+      safeUpdates.categoryId = await this.resolveBranchCategoryId(safeUpdates.categoryId, product.branchId);
+    }
+    Object.assign(product, safeUpdates);
     const updated = await this.productRepo.save(product);
     try {
       broadcastProductUpdated(updated);
@@ -232,10 +304,15 @@ export class ProductService {
     return saved;
   }
 
-  public async deleteProduct(id: string) {
+  public async deleteProduct(id: string, scopeBranchId?: string, isGlobalAdmin?: boolean) {
     memoryCache.invalidate('products');
     bumpSyncVersion();
     const product = await this.getProductById(id);
+
+    // IDOR Protection: Reject cross-branch product deletion
+    if (!isGlobalAdmin && scopeBranchId && product.branchId !== scopeBranchId) {
+      throw new AppError(`Forbidden: Access denied to delete product belonging to another branch`, 403);
+    }
 
     // Delete associated branch data and physical items
     await this.branchDataRepo.delete({ productId: id });
@@ -243,7 +320,7 @@ export class ProductService {
     await this.productRepo.remove(product);
 
     try {
-      broadcastProductDeleted(id);
+      broadcastProductDeleted(id, product.branchId);
     } catch (bErr) {
       console.warn('⚠️ [Socket.io] Broadcast error after product delete:', bErr);
     }

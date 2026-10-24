@@ -14,8 +14,8 @@ export class CustomerEntity {
   @Column({ type: 'varchar', length: 150, nullable: true })
   email?: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  branchId?: string;
+  @Column({ type: 'varchar', length: 100 })
+  branchId!: string;
 
   @CreateDateColumn()
   createdAt!: Date;

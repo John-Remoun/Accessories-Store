@@ -67,7 +67,7 @@ export class InvoiceController {
 
   public async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const scope = await resolveBranchScope(req, req.body.branchId);
+      const scope = await resolveBranchScope(req);
       if (!scope.isGlobalAdmin) {
         req.body.branchId = scope.branchId;
       }

@@ -13,6 +13,7 @@ router.use(authenticate);
 router.get('/', (req, res, next) => controller.getAll(req, res, next));
 router.get('/product/:productId', (req, res, next) => controller.getByProduct(req, res, next));
 router.get('/branch/:branchId', (req, res, next) => controller.getByBranch(req, res, next));
+router.get('/:id', (req, res, next) => controller.getOne(req, res, next));
 
 router.post('/generate', validateBody(createPhysicalItemsSchema), (req, res, next) => controller.generate(req, res, next));
 router.patch('/:id/status', validateBody(updatePhysicalItemStatusSchema), (req, res, next) => controller.updateStatus(req, res, next));

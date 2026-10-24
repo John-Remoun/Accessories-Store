@@ -43,11 +43,14 @@ const migrations = [
   AddPerformanceIndexes1700000000002,
 ];
 
+const activeSchema = process.env.DB_SCHEMA || 'public';
+
 export const AppDataSource = new DataSource(
   dbUrl
     ? {
         type: 'postgres',
         url: dbUrl,
+        schema: activeSchema,
         ssl: sslConfig,
         synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
         logging: env.nodeEnv === 'development',
@@ -58,13 +61,15 @@ export const AppDataSource = new DataSource(
           max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 5,
           min: 1,
           idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 10000,
+          connectionTimeoutMillis: 30000,
+          options: process.env.DB_SCHEMA ? `-c search_path=${process.env.DB_SCHEMA},public` : undefined,
         },
       }
     : {
         type: 'postgres',
         host: env.db.host,
         port: env.db.port,
+        schema: activeSchema,
         username: env.db.username,
         password: env.db.password,
         database: env.db.database,
@@ -78,7 +83,8 @@ export const AppDataSource = new DataSource(
           max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 5,
           min: 1,
           idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 10000,
+          connectionTimeoutMillis: 30000,
+          options: process.env.DB_SCHEMA ? `-c search_path=${process.env.DB_SCHEMA},public` : undefined,
         },
       }
 );

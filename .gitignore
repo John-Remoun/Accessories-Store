@@ -19,6 +19,8 @@ dist-ssr/
 *.pfx
 
 # Local database dumps
+backups/
+*.sql
 *.dump
 *.sql.gz
 

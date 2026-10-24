@@ -6,14 +6,18 @@ import { memoryCache } from '../../common/cache/cache.service';
 export class SupplierService {
   private supplierRepo = AppDataSource.getRepository(SupplierEntity);
 
-  public async getAllSuppliers() {
-    const cached = memoryCache.get<SupplierEntity[]>('suppliers:all');
+  public async getAllSuppliers(branchId?: string) {
+    const targetBranch = branchId?.trim();
+    const cacheKey = targetBranch ? `suppliers:branch:${targetBranch}` : 'suppliers:all';
+    const cached = memoryCache.get<SupplierEntity[]>(cacheKey);
     if (cached) return cached;
 
+    const whereClause = targetBranch ? { branchId: targetBranch } : {};
     const suppliers = await this.supplierRepo.find({
+      where: whereClause,
       order: { purchaseDate: 'DESC' },
     });
-    memoryCache.set('suppliers:all', suppliers, 120);
+    memoryCache.set(cacheKey, suppliers, 120);
     return suppliers;
   }
 
@@ -25,12 +29,17 @@ export class SupplierService {
     return supplier;
   }
 
-  public async createSupplier(data: Partial<SupplierEntity>) {
+  public async createSupplier(data: Partial<SupplierEntity>, scopeBranchId?: string) {
     memoryCache.invalidate('suppliers');
+    const effectiveBranchId = scopeBranchId || data.branchId;
+    if (!effectiveBranchId) {
+      throw new AppError('branchId is required to create a supplier record', 400);
+    }
     const id = data.id || `sup_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const supplier = this.supplierRepo.create({
       ...data,
       id,
+      branchId: effectiveBranchId,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : new Date(),
       paymentHistory: Array.isArray(data.paymentHistory) ? data.paymentHistory : [],
     });
@@ -38,21 +47,31 @@ export class SupplierService {
     return this.supplierRepo.save(supplier);
   }
 
-  public async updateSupplier(id: string, updates: Partial<SupplierEntity>) {
+  public async updateSupplier(id: string, updates: Partial<SupplierEntity>, scopeBranchId?: string, isGlobalAdmin?: boolean) {
     memoryCache.invalidate('suppliers');
     const supplier = await this.getSupplierById(id);
+
+    if (!isGlobalAdmin && scopeBranchId && supplier.branchId !== scopeBranchId) {
+      throw new AppError('Forbidden: Access denied to supplier record belonging to another branch', 403);
+    }
 
     if (updates.purchaseDate) {
       updates.purchaseDate = new Date(updates.purchaseDate);
     }
 
-    Object.assign(supplier, updates);
+    const { branchId, ...safeUpdates } = updates;
+    Object.assign(supplier, safeUpdates);
     return this.supplierRepo.save(supplier);
   }
 
-  public async deleteSupplier(id: string) {
+  public async deleteSupplier(id: string, scopeBranchId?: string, isGlobalAdmin?: boolean) {
     memoryCache.invalidate('suppliers');
     const supplier = await this.getSupplierById(id);
+
+    if (!isGlobalAdmin && scopeBranchId && supplier.branchId !== scopeBranchId) {
+      throw new AppError('Forbidden: Access denied to delete supplier record belonging to another branch', 403);
+    }
+
     await this.supplierRepo.remove(supplier);
     return { success: true };
   }

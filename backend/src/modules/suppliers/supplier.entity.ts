@@ -24,8 +24,8 @@ export class SupplierEntity {
   @Column({ type: 'text', nullable: true })
   itemsDescription?: string;
 
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  branchId?: string;
+  @Column({ type: 'varchar', length: 100 })
+  branchId!: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   totalAmount!: number;

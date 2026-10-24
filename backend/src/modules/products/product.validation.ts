@@ -32,6 +32,7 @@ export const createProductSchema = z.object({
   size: z.string().default(''),
   brand: z.string().optional(),
   notes: z.string().optional(),
+  branchId: z.string().optional(),
   isActive: z.boolean().default(true),
   branchDataList: z.array(productBranchDataSchema).optional().default([]),
 });
