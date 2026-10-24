@@ -507,6 +507,7 @@ export class InvoiceService {
         customerPhone: data.customerPhone.trim(),
         cashierName: (data as any).cashierName,
         total: formattedInvoice.total,
+        discount: formattedInvoice.discount,
         paidAmount: formattedInvoice.paidAmount,
         remainingAmount: formattedInvoice.remainingAmount,
         paymentMethod: formattedInvoice.paymentMethod,

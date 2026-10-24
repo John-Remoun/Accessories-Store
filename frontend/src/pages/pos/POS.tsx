@@ -1002,10 +1002,18 @@ export const POS = () => {
     msg += `-----------------------------------\n`;
     msg += `تفاصيل المشتريات:\n`;
     itemMap.forEach(item => {
-      msg += `- ${item.name} (عدد ${item.count}) : ${item.totalPrice.toFixed(2)} ج.م\n`;
+      msg += `• ${item.name} (عدد ${item.count} × ${item.unitPrice.toFixed(2)} ج.م) : ${item.totalPrice.toFixed(2)} ج.م\n`;
     });
     msg += `-----------------------------------\n`;
-    msg += `المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م\n`;
+    const invDiscount = Number(inv.discount || 0);
+    if (invDiscount > 0) {
+      const invSubtotal = inv.total + invDiscount;
+      msg += `المجموع قبل الخصم: ${invSubtotal.toFixed(2)} ج.م\n`;
+      msg += `الخصم: -${invDiscount.toFixed(2)} ج.م\n`;
+      msg += `الإجمالي بعد الخصم: ${inv.total.toFixed(2)} ج.م\n`;
+    } else {
+      msg += `المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م\n`;
+    }
     if (inv.paidAmount !== undefined) {
       msg += `المدفوع: ${inv.paidAmount.toFixed(2)} ج.م\n`;
     }
@@ -2759,9 +2767,24 @@ export const POS = () => {
                           </tr>
                         ))}
 
+                        {Number(lastPrintedInvoice.discount || 0) > 0 && (
+                          <>
+                            <tr className="text-gray-700 bg-gray-50 border-t border-gray-300">
+                              <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">المجموع قبل الخصم</td>
+                              <td className="py-1.5 px-1 text-left font-mono font-bold">{(lastPrintedInvoice.total + Number(lastPrintedInvoice.discount)).toFixed(2)}</td>
+                            </tr>
+                            <tr className="text-rose-600 bg-rose-50/50">
+                              <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">الخصم</td>
+                              <td className="py-1.5 px-1 text-left font-mono font-bold">-{Number(lastPrintedInvoice.discount).toFixed(2)}</td>
+                            </tr>
+                          </>
+                        )}
+
                         {/* Totals Summary Row matching image */}
                         <tr className="font-bold text-gray-900 bg-gray-50 border-t-2 border-gray-400">
-                          <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">الإجمالي</td>
+                          <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">
+                            {Number(lastPrintedInvoice.discount || 0) > 0 ? 'الإجمالي بعد الخصم' : 'الإجمالي'}
+                          </td>
                           <td className="py-2 px-1 border-l border-gray-300 text-center font-mono text-sm">{totalQty}</td>
                           <td className="py-2 px-1 border-l border-gray-300 text-center"></td>
                           <td className="py-2 px-1 text-left font-mono text-sm">{lastPrintedInvoice.total.toFixed(2)}</td>

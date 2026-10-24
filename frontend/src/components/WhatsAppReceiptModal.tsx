@@ -14,6 +14,7 @@ export interface WhatsAppReceiptData {
   cashierName?: string;
   date?: string;
   total: number;
+  discount?: number;
   paidAmount?: number;
   remainingAmount?: number;
   paymentMethod?: string;
@@ -50,6 +51,12 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
     ? `+20 ${receiptData.customerPhone.slice(1)}` 
     : receiptData.customerPhone;
 
+  const invDiscount = Number(receiptData.discount || 0);
+  const invSubtotal = receiptData.total + invDiscount;
+  const totalsText = invDiscount > 0
+    ? `المجموع قبل الخصم: ${invSubtotal.toFixed(2)} ج.م\nالخصم: -${invDiscount.toFixed(2)} ج.م\nالإجمالي بعد الخصم: ${receiptData.total.toFixed(2)} ج.م`
+    : `المجموع الإجمالي: ${receiptData.total.toFixed(2)} ج.م`;
+
   // Build structured message text
   const messageText = `*متجر Salla Bola & Mina للإكسسوارات*
 فاتورة مبيعات مسلسل: #${receiptData.invoiceNumber}
@@ -59,9 +66,9 @@ export const WhatsAppReceiptModal: React.FC<WhatsAppReceiptModalProps> = ({
 الموظف البائع: ${receiptData.cashierName || 'الكاشير'}
 -----------------------------------
 تفاصيل المشتريات:
-${receiptData.items.map(it => `- ${it.name} (عدد ${it.count}) : ${it.totalPrice.toFixed(2)} ج.م`).join('\n')}
+${receiptData.items.map(it => `• ${it.name} (عدد ${it.count} × ${it.unitPrice.toFixed(2)} ج.م) : ${it.totalPrice.toFixed(2)} ج.م`).join('\n')}
 -----------------------------------
-المجموع الإجمالي: ${receiptData.total.toFixed(2)} ج.م
+${totalsText}
 ${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmount.toFixed(2)} ج.م\n` : ''}${receiptData.remainingAmount !== undefined && receiptData.remainingAmount > 0 ? `المتبقي (آجل): ${receiptData.remainingAmount.toFixed(2)} ج.م\n` : ''}طريقة السداد: ${receiptData.paymentMethod === 'vodafone_cash' ? `فودافون كاش${receiptData.vodafoneNumber ? ` (محفظة: ${receiptData.vodafoneNumber})` : ''}` : receiptData.paymentMethod === 'instapay' ? 'إنستاباي' : receiptData.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
 -----------------------------------
 هدفنا إرضاء العميل وليس الربح ❤️
@@ -179,7 +186,7 @@ ${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmou
                 <span className="text-[11px] text-emerald-200 font-bold block">محتويات الفاتورة:</span>
                 {receiptData.items.map((it, idx) => (
                   <div key={idx} className="flex justify-between items-center text-[11px] bg-emerald-900/40 px-2 py-1 rounded">
-                    <span>• {it.name} (عدد {it.count})</span>
+                    <span>• {it.name} (عدد {it.count} × {it.unitPrice.toFixed(2)} ج.م)</span>
                     <span className="font-mono font-bold text-emerald-200">{it.totalPrice.toFixed(2)} ج.م</span>
                   </div>
                 ))}
@@ -187,10 +194,27 @@ ${receiptData.paidAmount !== undefined ? `المدفوع: ${receiptData.paidAmou
 
               {/* Financial Totals */}
               <div className="pt-1.5 border-t border-emerald-400/20 space-y-0.5 text-[11px]">
-                <div className="flex justify-between font-bold text-white text-xs">
-                  <span>المجموع الإجمالي:</span>
-                  <span className="font-mono">{receiptData.total.toFixed(2)} ج.م</span>
-                </div>
+                {invDiscount > 0 ? (
+                  <>
+                    <div className="flex justify-between text-emerald-200">
+                      <span>المجموع قبل الخصم:</span>
+                      <span className="font-mono">{invSubtotal.toFixed(2)} ج.م</span>
+                    </div>
+                    <div className="flex justify-between text-rose-300 font-bold">
+                      <span>الخصم:</span>
+                      <span className="font-mono">-{invDiscount.toFixed(2)} ج.م</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-white text-xs pt-0.5 border-t border-emerald-400/20">
+                      <span>الإجمالي بعد الخصم:</span>
+                      <span className="font-mono">{receiptData.total.toFixed(2)} ج.م</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between font-bold text-white text-xs">
+                    <span>المجموع الإجمالي:</span>
+                    <span className="font-mono">{receiptData.total.toFixed(2)} ج.م</span>
+                  </div>
+                )}
                 {receiptData.paidAmount !== undefined && (
                   <div className="flex justify-between text-emerald-200">
                     <span>المدفوع:</span>

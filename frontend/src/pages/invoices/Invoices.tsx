@@ -775,9 +775,20 @@ export const Invoices = () => {
       const p = store.getProduct(item.productId);
       const name = item.productName || p?.nameAr || p?.nameEn || 'منتج إكسسوارات';
       const count = item.quantity || 1;
-      const total = item.unitPrice * count;
-      return `• ${name} (عدد ${count}) : ${total.toFixed(2)} ج.م`;
+      const unitPrice = Number(item.unitPrice || 0);
+      const total = unitPrice * count;
+      return `• ${name} (عدد ${count} × ${unitPrice.toFixed(2)} ج.م) : ${total.toFixed(2)} ج.م`;
     }).join('\n');
+
+    const invDiscount = Number(inv.discount || 0);
+    const invSubtotal = inv.total + invDiscount;
+    const totalsCustomer = invDiscount > 0
+      ? `المجموع قبل الخصم: ${invSubtotal.toFixed(2)} ج.م\nالخصم: -${invDiscount.toFixed(2)} ج.م\nالإجمالي بعد الخصم: ${inv.total.toFixed(2)} ج.م`
+      : `المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م`;
+
+    const totalsAdmin = invDiscount > 0
+      ? `💰 المجموع قبل الخصم: ${invSubtotal.toFixed(2)} ج.م\n🏷️ الخصم: -${invDiscount.toFixed(2)} ج.م\n💵 الإجمالي بعد الخصم: ${inv.total.toFixed(2)} ج.م`
+      : `💰 المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م`;
 
     let msg = '';
     if (recipientType === 'customer') {
@@ -791,7 +802,7 @@ export const Invoices = () => {
 تفاصيل المشتريات:
 ${itemLines}
 -----------------------------------
-المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م
+${totalsCustomer}
 ${paid > 0 ? `المدفوع: ${paid.toFixed(2)} ج.م\n` : ''}${rem > 0 ? `المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}طريقة السداد: ${inv.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentMethod === 'instapay' ? 'إنستاباي' : inv.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
 -----------------------------------
 هدفنا إرضاء العميل وليس الربح ❤️
@@ -810,7 +821,7 @@ ${paid > 0 ? `المدفوع: ${paid.toFixed(2)} ج.م\n` : ''}${rem > 0 ? `ال
 ${itemLines}
 
 -----------------------------------
-💰 المجموع الإجمالي: ${inv.total.toFixed(2)} ج.م
+${totalsAdmin}
 💵 المدفوع: ${paid.toFixed(2)} ج.م
 ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}💳 طريقة السداد: ${inv.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentMethod === 'instapay' ? 'إنستاباي' : inv.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
 -----------------------------------
@@ -2468,15 +2479,23 @@ Salla Bola & Mina`;
                             </tr>
                           ))}
 
-                          {selectedInvoice.discount > 0 && (
-                            <tr className="text-gray-700 bg-gray-50 border-t border-gray-300">
-                              <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">الخصم</td>
-                              <td className="py-1.5 px-1 text-left font-mono font-bold text-rose-600">-{selectedInvoice.discount.toFixed(2)}</td>
-                            </tr>
+                          {Number(selectedInvoice.discount || 0) > 0 && (
+                            <>
+                              <tr className="text-gray-700 bg-gray-50 border-t border-gray-300">
+                                <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">المجموع قبل الخصم</td>
+                                <td className="py-1.5 px-1 text-left font-mono font-bold">{(selectedInvoice.total + Number(selectedInvoice.discount)).toFixed(2)}</td>
+                              </tr>
+                              <tr className="text-rose-600 bg-rose-50/50">
+                                <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">الخصم</td>
+                                <td className="py-1.5 px-1 text-left font-mono font-bold">-{Number(selectedInvoice.discount).toFixed(2)}</td>
+                              </tr>
+                            </>
                           )}
 
                           <tr className="font-bold text-gray-900 bg-gray-100 border-t-2 border-gray-400">
-                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">المجموع الإجمالي</td>
+                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">
+                              {Number(selectedInvoice.discount || 0) > 0 ? 'الإجمالي بعد الخصم' : 'المجموع الإجمالي'}
+                            </td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center font-mono text-sm">{totalQty}</td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center"></td>
                             <td className="py-2 px-1 text-left font-mono text-sm">{selectedInvoice.total.toFixed(2)}</td>

@@ -6,6 +6,7 @@ export interface WhatsAppInvoiceReceiptPayload {
   customerPhone: string;
   cashierName?: string;
   total: number;
+  discount?: number;
   paidAmount?: number;
   remainingAmount?: number;
   paymentMethod?: string;
@@ -60,11 +61,19 @@ export class WhatsAppService {
     
     items.forEach(item => {
       const lineTotal = item.totalPrice !== undefined ? item.totalPrice : (item.quantity * item.unitPrice);
-      msg += `- ${item.productName} (عدد ${item.quantity}) : ${lineTotal.toFixed(2)} ج.م\n`;
+      msg += `• ${item.productName} (عدد ${item.quantity} × ${Number(item.unitPrice).toFixed(2)} ج.م) : ${Number(lineTotal).toFixed(2)} ج.م\n`;
     });
 
     msg += `-----------------------------------\n`;
-    msg += `المجموع الإجمالي: ${Number(total).toFixed(2)} ج.م\n`;
+    const invDiscount = Number(payload.discount || 0);
+    if (invDiscount > 0) {
+      const invSubtotal = Number(total) + invDiscount;
+      msg += `المجموع قبل الخصم: ${invSubtotal.toFixed(2)} ج.م\n`;
+      msg += `الخصم: -${invDiscount.toFixed(2)} ج.م\n`;
+      msg += `الإجمالي بعد الخصم: ${Number(total).toFixed(2)} ج.م\n`;
+    } else {
+      msg += `المجموع الإجمالي: ${Number(total).toFixed(2)} ج.م\n`;
+    }
     if (paidAmount !== undefined) {
       msg += `المدفوع: ${Number(paidAmount).toFixed(2)} ج.م\n`;
     }

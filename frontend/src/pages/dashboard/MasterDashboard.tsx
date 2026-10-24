@@ -568,25 +568,30 @@ export const MasterDashboard = () => {
     const itemsList = (targetInv.items || []).map((item, idx) => {
       const p = store.getProduct(item.productId);
       const name = item.productName || p?.nameAr || p?.nameEn || 'منتج';
-      return `${idx + 1}. ${name}: ${item.unitPrice.toFixed(2)} ج.م`;
+      const count = Number(item.quantity || 1);
+      const unitPrice = Number(item.unitPrice || 0);
+      const total = count * unitPrice;
+      return `• ${name} (عدد ${count} × ${unitPrice.toFixed(2)} ج.م) : ${total.toFixed(2)} ج.م`;
     }).join('\n');
+
+    const invDiscount = Number(inv.discount || 0);
+    const invSubtotal = Number(inv.subtotal || (inv.total + invDiscount));
 
     const msg = `🧾 *فاتورة مبيعات جديدة - ${branchName}*
 ------------------------------
-• *رقم الفاتورة:* ${inv.invoiceNumber}
-• *التاريخ والوقت:* ${new Date(inv.date).toLocaleDateString('ar-EG')} - ${new Date(inv.date).toLocaleTimeString('ar-EG')}
+• *رقم الفاتورة:* #${inv.invoiceNumber}
+• *التاريخ والوقت:* ${new Date(inv.date).toLocaleDateString('ar-EG')} - ${new Date(inv.date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
 • *البائع:* ${sellerName}
 • *العميل:* ${customerInfo}
 
-📦 *البيانات والمنتجات:*
+📦 *تفاصيل الأصناف والمشتريات:*
 ${itemsList}
 
 ------------------------------
-💰 *المجموع الفرعي:* ${inv.subtotal.toFixed(2)} ج.م
-${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n` : ''}💵 *المجموع الإجمالي:* ${inv.total.toFixed(2)} ج.م
-💳 *طريقة الدفع:* ${inv.paymentMethod === 'cash' ? 'نقداً (في اليد)' : 'تحويل'}
+${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFixed(2)} ج.م\n🏷️ *الخصم:* -${invDiscount.toFixed(2)} ج.م\n💵 *الإجمالي بعد الخصم:* ${inv.total.toFixed(2)} ج.م` : `💵 *المجموع الإجمالي:* ${inv.total.toFixed(2)} ج.م`}
+💳 *طريقة الدفع:* ${inv.paymentMethod === 'vodafone_cash' ? 'فودافون كاش' : inv.paymentMethod === 'instapay' ? 'إنستاباي' : inv.paymentMethod === 'multi' ? 'دفع مقسم (متعدد)' : 'نقداً'}
 ------------------------------
-متجر الإكسسوارات الفاخرة LUMINA`;
+متجر Salla Bola & Mina للإكسسوارات`;
 
     const ownerPhone = '20100000000';
     const url = `https://api.whatsapp.com/send?phone=${ownerPhone}&text=${encodeURIComponent(msg)}`;
@@ -1793,9 +1798,24 @@ ${inv.discount > 0 ? `🏷️ *الخصم:* -${inv.discount.toFixed(2)} ج.م\n`
                             </tr>
                           ))}
 
+                          {Number(selectedInvoice.discount || 0) > 0 && (
+                            <>
+                              <tr className="text-gray-700 bg-gray-50 border-t border-gray-300">
+                                <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">المجموع قبل الخصم</td>
+                                <td className="py-1.5 px-1 text-left font-mono font-bold">{(selectedInvoice.total + Number(selectedInvoice.discount)).toFixed(2)}</td>
+                              </tr>
+                              <tr className="text-rose-600 bg-rose-50/50">
+                                <td colSpan={3} className="py-1.5 px-2 text-right font-medium text-[11px]">الخصم</td>
+                                <td className="py-1.5 px-1 text-left font-mono font-bold">-{Number(selectedInvoice.discount).toFixed(2)}</td>
+                              </tr>
+                            </>
+                          )}
+
                           {/* Totals Summary Row matching image */}
                           <tr className="font-bold text-gray-900 bg-gray-50 border-t-2 border-gray-400">
-                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">الإجمالي</td>
+                            <td className="py-2 px-2 border-l border-gray-300 text-right text-sm">
+                              {Number(selectedInvoice.discount || 0) > 0 ? 'الإجمالي بعد الخصم' : 'الإجمالي'}
+                            </td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center font-mono text-sm">{totalQty}</td>
                             <td className="py-2 px-1 border-l border-gray-300 text-center"></td>
                             <td className="py-2 px-1 text-left font-mono text-sm">{selectedInvoice.total.toFixed(2)}</td>
