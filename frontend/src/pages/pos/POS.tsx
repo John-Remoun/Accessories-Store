@@ -642,7 +642,11 @@ export const POS = () => {
       return Boolean(bd || phys.length > 0);
     });
   }, [rawProducts, currentBranchId]);
-  const categoriesList = useMemo(() => store.getCategories(), []);
+  const categoriesList = useMemo(() => {
+    const list = store.getCategories(currentBranchId);
+    const branchSpecific = list.filter(c => c.branchId === currentBranchId);
+    return branchSpecific.length > 0 ? branchSpecific : list;
+  }, [currentBranchId, rawProducts]);
   const customers = store.getCustomers();
   const availablePhysicalItems = store.getPhysicalItemsByBranch(currentBranchId).filter(i => i.status === 'available');
 

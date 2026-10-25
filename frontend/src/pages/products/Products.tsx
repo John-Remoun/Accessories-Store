@@ -220,7 +220,7 @@ export const Products = () => {
   const confirmDeleteCategoryAction = () => {
     if (!deleteConfirmCategory) return;
     store.deleteCategory(deleteConfirmCategory.id);
-    setCategories([...store.getCategories()]);
+    setCategories([...store.getCategories(activeBranchId)]);
     setDeleteConfirmCategory(null);
   };
 
@@ -547,7 +547,7 @@ export const Products = () => {
 
   // Open Add Modal & set initial defaults
   const openAddModal = () => {
-    const cats = store.getCategories();
+    const cats = store.getCategories(activeBranchId);
     const defaultCat = cats.length > 0 ? cats[0].id : '';
     setNpCategory(defaultCat);
     setNpNameAr('');
