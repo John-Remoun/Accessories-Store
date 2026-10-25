@@ -323,11 +323,27 @@ export class InvoiceService {
         }
 
         // Fetch product cost for accurate historical profit tracking
-        const branchData = validProductId ? await transactionalEntityManager.findOne(ProductBranchDataEntity, {
-          where: { productId: validProductId, branchId: targetBranchId },
-        }) : null;
+        // Authoritative source of truth is product_branch_data in the database.
+        let resolvedCost = 0;
+        if (validProductId) {
+          const branchData = await transactionalEntityManager.findOne(ProductBranchDataEntity, {
+            where: { productId: validProductId, branchId: targetBranchId },
+          });
+          if (branchData && Number(branchData.cost || 0) > 0) {
+            resolvedCost = Number(branchData.cost);
+          } else {
+            const anyBranchData = await transactionalEntityManager.findOne(ProductBranchDataEntity, {
+              where: { productId: validProductId },
+            });
+            if (anyBranchData && Number(anyBranchData.cost || 0) > 0) {
+              resolvedCost = Number(anyBranchData.cost);
+            }
+          }
+        }
 
-        const unitCost = itemPayload.unitCost !== undefined && itemPayload.unitCost !== null ? Number(itemPayload.unitCost) : Number(branchData?.cost || 0);
+        const unitCost = resolvedCost > 0
+          ? resolvedCost
+          : (itemPayload.unitCost !== undefined && itemPayload.unitCost !== null ? Number(itemPayload.unitCost) : 0);
         const unitPrice = Number(itemPayload.unitPrice || 0);
         const quantity = Number(itemPayload.quantity || 1);
         const lineCost = unitCost * quantity;
@@ -1075,16 +1091,26 @@ export class InvoiceService {
         const unitPrice = Number(itemPayload.unitPrice || 0);
         const quantity = Number(itemPayload.quantity || 1);
         
-        let unitCost = itemPayload.unitCost !== undefined && itemPayload.unitCost !== null
-          ? Number(itemPayload.unitCost)
-          : 0;
-
-        if (unitCost === 0 && itemPayload.productId) {
+        let resolvedCost = 0;
+        if (itemPayload.productId) {
           const bd = await transactionalEntityManager.findOne(ProductBranchDataEntity, {
             where: { productId: itemPayload.productId, branchId }
           });
-          unitCost = Number(bd?.cost || 0);
+          if (bd && Number(bd.cost || 0) > 0) {
+            resolvedCost = Number(bd.cost);
+          } else {
+            const anyBd = await transactionalEntityManager.findOne(ProductBranchDataEntity, {
+              where: { productId: itemPayload.productId }
+            });
+            if (anyBd && Number(anyBd.cost || 0) > 0) {
+              resolvedCost = Number(anyBd.cost);
+            }
+          }
         }
+
+        const unitCost = resolvedCost > 0
+          ? resolvedCost
+          : (itemPayload.unitCost !== undefined && itemPayload.unitCost !== null ? Number(itemPayload.unitCost) : 0);
 
         const lineTotal = unitPrice * quantity;
         const lineCost = unitCost * quantity;
