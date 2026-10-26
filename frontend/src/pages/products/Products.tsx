@@ -17,6 +17,7 @@ import {
   getPrinterConfig, 
   checkPrinterServiceStatus, 
   sendPrintJobToLocalService, 
+  openPrintJobInDesktopAgent,
   downloadTSPLFile,
   PrinterServiceConfig, 
   PrinterStatus 
@@ -1045,11 +1046,23 @@ export const Products = () => {
                     variant="outline" 
                     disabled={isOutOfStock}
                     className="flex-1 h-10 text-xs font-bold rounded-2xl gap-1.5 transition-all shadow-xs bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500 hover:text-black"
-                    onClick={() => {
-                      setPrintModalProduct(product);
-                      setPrintCopies(1);
-                      setPrintFeedback(null);
-                      setShowConfigSettings(false);
+                    onClick={async () => {
+                      const bd = store.getProductBranchData(product.id, activeBranchId);
+                      const rawPrice4 = bd?.price4 !== undefined && bd?.price4 !== null && bd?.price4 !== 0 
+                        ? bd.price4 
+                        : (bd?.price1 || '');
+                      const stock = Number(bd?.quantity || 1);
+
+                      await openPrintJobInDesktopAgent({
+                        product: {
+                          id: product.id,
+                          serial: product.sku,
+                          name: product.nameAr,
+                          price4: rawPrice4 ? String(rawPrice4) : '',
+                          stock,
+                          storeName: 'Salla'
+                        }
+                      });
                     }}
                   >
                     <Printer size={15} />
@@ -1414,9 +1427,9 @@ export const Products = () => {
       </Dialog>
 
       {/* ------------------------------------------------------------------------- */}
-      {/* ULTRA-CLEAN PRINT PRODUCT LABEL MODAL DIALOG */}
+      {/* ULTRA-CLEAN PRINT PRODUCT LABEL MODAL DIALOG - DISABLED IN FAVOR OF DESKTOP AGENT */}
       {/* ------------------------------------------------------------------------- */}
-      <Dialog open={!!printModalProduct} onOpenChange={(open) => !open && setPrintModalProduct(null)}>
+      <Dialog open={false} onOpenChange={(open) => !open && setPrintModalProduct(null)}>
         <DialogContent className="max-w-md w-[92vw] max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-5 shadow-2xl overflow-hidden" dir="rtl">
           
           {/* Header (Pinned) */}

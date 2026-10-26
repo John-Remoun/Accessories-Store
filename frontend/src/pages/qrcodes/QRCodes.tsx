@@ -11,6 +11,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect';
 import {
   checkPrinterServiceStatus,
   printBatchLabelsViaAgent,
+  openPrintJobInDesktopAgent,
   wakeDesktopAgent,
   BatchLabelItem
 } from '../../services/printerService';
@@ -81,6 +82,19 @@ export const QRCodes = () => {
 
     setIsPrinting(true);
     setPrintFeedback(null);
+
+    // If single item selected, open directly in desktop application overlay
+    if (batchItems.length === 1) {
+      await openPrintJobInDesktopAgent({ product: batchItems[0] });
+      setAgentStatus('connected');
+      setPrintFeedback({
+        type: 'success',
+        message: 'تم فتح أمر الطباعة في تطبيق الديسكتوب المكتبي 🖨️'
+      });
+      setTimeout(() => setPrintFeedback(null), 4000);
+      setIsPrinting(false);
+      return;
+    }
 
     try {
       const result = await printBatchLabelsViaAgent(batchItems, {

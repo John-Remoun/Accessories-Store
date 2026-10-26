@@ -92,6 +92,58 @@ export function wakeDesktopAgent(): void {
 }
 
 /**
+ * Invokes the desktop app protocol with encoded job data so it launches and opens the print dialog
+ */
+export function wakeDesktopAgentWithData(jobData: any): void {
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    const encoded = encodeURIComponent(JSON.stringify(jobData));
+    iframe.src = `posprint://open-job?data=${encoded}`;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 1500);
+  } catch (e) {
+    console.warn('Failed to invoke protocol posprint://open-job', e);
+  }
+}
+
+/**
+ * Sends a print job to the Desktop Agent and pops up its window for immediate printing
+ */
+export async function openPrintJobInDesktopAgent(jobData: any): Promise<{ success: boolean; message: string }> {
+  const config = getPrinterConfig();
+  const baseUrl = config.serviceUrl.replace(/\/incoming-job$/, '').replace(/\/print$/, '').replace(/\/+$/, '');
+  const url = `${baseUrl}/incoming-job`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(jobData),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      return { success: true, message: 'تم فتح أمر الطباعة في تطبيق الديسكتوب بنجاح 🖨️' };
+    }
+  } catch (e) {
+    // App not listening, fallback to protocol launch
+  }
+
+  // Fallback: launch through Windows registered protocol
+  wakeDesktopAgentWithData(jobData);
+  return { success: true, message: 'جاري تشغيل وفتح وسيط الطباعة المكتبي 🖨️' };
+}
+
+/**
  * Checks connection status of Local Desktop Printer Agent
  */
 export async function checkPrinterServiceStatus(): Promise<PrinterStatus> {
