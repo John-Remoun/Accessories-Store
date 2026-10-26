@@ -280,8 +280,8 @@ export const Products = () => {
     }
   }, [printModalProduct]);
 
-  // Isolated Thermal Label Printing (Exact 40x25mm single-ticket architecture)
-  const handleExecutePrintLabels = () => {
+  // Isolated Thermal Label Printing (Desktop Agent Bridge with Browser fallback)
+  const handleExecutePrintLabels = async () => {
     if (!printModalProduct) return;
     const copies = Math.max(1, Number(printCopies) || 1);
 
@@ -298,6 +298,37 @@ export const Products = () => {
       ? bd.price4 
       : (bd?.price1 || '');
     const price4Display = rawPrice4 !== '' ? String(rawPrice4) : '';
+
+    // First attempt: Silent print via Desktop Agent Bridge
+    setIsSendingJob(true);
+    setPrintFeedback(null);
+    try {
+      const agentRes = await sendPrintJobToLocalService({
+        printerName: printerConfig.printerName,
+        labelWidthMm: widthMm,
+        labelHeightMm: heightMm,
+        copies,
+        product: {
+          id: printModalProduct.id,
+          serial: printModalProduct.sku,
+          name: printModalProduct.nameAr,
+          price4: price4Display
+        }
+      });
+
+      if (agentRes.success) {
+        setPrintFeedback({ type: 'success', message: agentRes.message });
+        setTimeout(() => {
+          setPrintModalProduct(null);
+          setPrintFeedback(null);
+        }, 1200);
+        return;
+      }
+    } catch (e) {
+      console.warn('Agent print failed, falling back to browser print:', e);
+    } finally {
+      setIsSendingJob(false);
+    }
 
     // Grab the rendered QR SVG from preview
     const svgEl = document.querySelector('#label-qr-preview-container svg');

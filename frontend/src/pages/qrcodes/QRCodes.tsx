@@ -1,13 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { store } from '../../services/store';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent } from '../../components/ui/card';
-import { Printer, Filter } from 'lucide-react';
+import { Card } from '../../components/ui/card';
+import { Printer, RefreshCw, CheckCircle2, AlertCircle, Laptop, ExternalLink } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useStoreSync } from '../../hooks/useStoreSync';
 import { CustomSelect } from '../../components/ui/CustomSelect';
+import {
+  checkPrinterServiceStatus,
+  printBatchLabelsViaAgent,
+  wakeDesktopAgent,
+  BatchLabelItem
+} from '../../services/printerService';
 
 export const QRCodes = () => {
   useStoreSync();
@@ -21,9 +27,27 @@ export const QRCodes = () => {
   const [selectedBranch, setSelectedBranch] = useState<string>(isAdmin ? 'all' : user?.branchId || 'b1');
   const [selectedQRs, setSelectedQRs] = useState<Set<string>>(new Set());
 
+  // Desktop Print Agent Status & Feedback
+  const [agentStatus, setAgentStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [isPrinting, setIsPrinting] = useState<boolean>(false);
+  const [printFeedback, setPrintFeedback] = useState<{ type: 'success' | 'error'; message: string; showWakePrompt?: boolean } | null>(null);
+
   const products = store.getProducts();
   const branches = store.getBranches();
   const allPhysicalItems = store.getPhysicalItems();
+
+  // Check agent status on mount and periodically
+  const refreshAgentStatus = async () => {
+    setAgentStatus('checking');
+    const status = await checkPrinterServiceStatus();
+    setAgentStatus(status.connected ? 'connected' : 'disconnected');
+  };
+
+  useEffect(() => {
+    refreshAgentStatus();
+    const interval = setInterval(refreshAgentStatus, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredItems = useMemo(() => {
     return allPhysicalItems.filter(item => {
@@ -34,10 +58,69 @@ export const QRCodes = () => {
     });
   }, [allPhysicalItems, selectedProduct, selectedBranch]);
 
-  const printSelected = () => {
+  // Execute silent printing through Desktop Agent Bridge
+  const printSelected = async () => {
     const selectedItems = filteredItems.filter(i => selectedQRs.has(i.id));
     if (selectedItems.length === 0) return;
 
+    const batchItems: BatchLabelItem[] = selectedItems.map(item => {
+      const product = store.getProduct(item.productId);
+      const bd = store.getProductBranchData(item.productId, item.branchId || 'b1');
+      const rawPrice4 = bd?.price4 !== undefined && bd?.price4 !== null && bd?.price4 !== 0 
+        ? bd.price4 
+        : (bd?.price1 || '');
+      return {
+        id: item.id,
+        serial: item.id,
+        name: product?.nameAr || 'منتج',
+        price: rawPrice4 ? String(rawPrice4) : '',
+        storeName: 'Salla',
+        copies: 1
+      };
+    });
+
+    setIsPrinting(true);
+    setPrintFeedback(null);
+
+    try {
+      const result = await printBatchLabelsViaAgent(batchItems, {
+        widthMm: 50,
+        heightMm: 25,
+        storeName: 'Salla',
+        autoWake: true
+      });
+
+      if (result.success) {
+        setAgentStatus('connected');
+        setPrintFeedback({
+          type: 'success',
+          message: `تم إرسال ${batchItems.length} ملصق فوراً وبصمت إلى طابعة الاستيكرات (${result.printer || 'Xprinter XP-246B'})!`
+        });
+        setTimeout(() => setPrintFeedback(null), 5000);
+      } else {
+        setAgentStatus('disconnected');
+        setPrintFeedback({
+          type: 'error',
+          message: result.message,
+          showWakePrompt: true
+        });
+      }
+    } catch (err: any) {
+      setAgentStatus('disconnected');
+      setPrintFeedback({
+        type: 'error',
+        message: err.message || 'حدث خطأ غير متوقع أثناء إرسال أمر الطباعة',
+        showWakePrompt: true
+      });
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
+  // Browser Print Fallback (if agent is not installed on cashier machine)
+  const handleBrowserFallbackPrint = () => {
+    const selectedItems = filteredItems.filter(i => selectedQRs.has(i.id));
+    if (selectedItems.length === 0) return;
 
     const labelPagesHtml = selectedItems.map(item => {
       const product = store.getProduct(item.productId);
@@ -53,12 +136,9 @@ export const QRCodes = () => {
       return `
         <div class="ticket-page">
           <div class="ticket-content">
-            <!-- 1. الـ QR Code على اليسار -->
             <div class="qr-section">
               ${qrSvgString}
             </div>
-
-            <!-- 2. التفاصيل على اليمين -->
             <div class="info-section">
               <div class="serial-no">${item.id}</div>
               <div class="item-title">${product?.nameAr || 'منتج'}</div>
@@ -76,18 +156,10 @@ export const QRCodes = () => {
         <meta charset="utf-8" />
         <title> </title>
         <style>
-          /* 1. ضبط مقاس الصفحة وتصفير الهوامش وإجبار الوضع الأفقي لمنع الشقلبة */
           @page {
-            size: 40mm 25mm landscape;
+            size: 50mm 25mm;
             margin: 0 !important;
-            @top-left { content: none !important; }
-            @top-center { content: none !important; }
-            @top-right { content: none !important; }
-            @bottom-left { content: none !important; }
-            @bottom-center { content: none !important; }
-            @bottom-right { content: none !important; }
           }
-
           * {
             box-sizing: border-box !important;
             margin: 0 !important;
@@ -95,20 +167,15 @@ export const QRCodes = () => {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-
           html, body {
             margin: 0 !important;
             padding: 0 !important;
             background-color: #ffffff !important;
             font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
           }
-
-          /* 2. صفحة التيكت بالحجم الفعلي للورقة */
           .ticket-page {
-            width: 40mm !important;
+            width: 50mm !important;
             height: 25mm !important;
-            max-width: 40mm !important;
-            max-height: 25mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
@@ -117,49 +184,36 @@ export const QRCodes = () => {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             overflow: hidden !important;
-            box-sizing: border-box !important;
             background-color: #ffffff !important;
           }
-
           .ticket-page:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
-
-          /* 3. الحاوية الآمنة للمحتوى (بها هوامش أمان من جميع الأطراف لمنع تآكل أي جزء) */
           .ticket-content {
-            width: 35.5mm !important;
-            height: 20.5mm !important;
+            width: 46mm !important;
+            height: 22mm !important;
             display: flex !important;
-            flex-direction: row !important; /* الكيو آر يسار والنصوص يمين */
+            flex-direction: row !important;
             align-items: center !important;
             justify-content: space-between !important;
             overflow: hidden !important;
-            box-sizing: border-box !important;
-            padding: 0 !important;
           }
-
-          /* 4. حاوية الـ QR كود على الشمال */
           .qr-section {
-            width: 15mm !important;
-            height: 15mm !important;
+            width: 17mm !important;
+            height: 17mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             flex-shrink: 0 !important;
           }
-
-          .qr-section img, .qr-section svg {
+          .qr-section svg {
             width: 100% !important;
             height: 100% !important;
             object-fit: contain !important;
-            image-rendering: pixelated !important;
-            display: block !important;
           }
-
-          /* 5. حاوية البيانات على اليمين */
           .info-section {
-            width: 19.5mm !important;
+            width: 27mm !important;
             height: 100% !important;
             display: flex !important;
             flex-direction: column !important;
@@ -167,51 +221,24 @@ export const QRCodes = () => {
             direction: rtl !important;
             text-align: right !important;
             overflow: hidden !important;
-            padding-right: 0.8mm !important;
           }
-
-          /* السيريال نمبر */
           .serial-no {
-            font-size: 7pt !important;
+            font-size: 7.5pt !important;
             font-weight: 700 !important;
-            color: #000 !important;
             direction: ltr !important;
             text-align: right !important;
             font-family: monospace !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            margin-bottom: 0.5mm !important;
-            line-height: 1.1 !important;
           }
-
-          /* اسم الصنف */
           .item-title {
-            font-size: 6.5pt !important;
-            font-weight: 600 !important;
-            color: #000 !important;
+            font-size: 7pt !important;
+            font-weight: 700 !important;
             line-height: 1.15 !important;
-            margin-bottom: 0.7mm !important;
-            max-height: 6.5mm !important;
+            max-height: 7.5mm !important;
             overflow: hidden !important;
-            display: -webkit-box !important;
-            -webkit-line-clamp: 2 !important;
-            -webkit-box-orient: vertical !important;
-            word-break: break-word !important;
           }
-
-          /* السعر */
           .price-tag {
-            font-size: 9pt !important;
+            font-size: 9.5pt !important;
             font-weight: 900 !important;
-            color: #000 !important;
-            line-height: 1 !important;
-            white-space: nowrap !important;
-          }
-
-          .price-tag .currency {
-            font-size: 5.5pt !important;
-            font-weight: normal !important;
           }
         </style>
       </head>
@@ -233,7 +260,6 @@ export const QRCodes = () => {
       iframe.style.border = '0';
       iframe.style.opacity = '0';
       iframe.style.zIndex = '-9999';
-      iframe.style.pointerEvents = 'none';
       document.body.appendChild(iframe);
     }
 
@@ -243,22 +269,9 @@ export const QRCodes = () => {
       doc.write(printDocumentHtml);
       doc.close();
 
-      const originalParentTitle = document.title;
       setTimeout(() => {
-        try {
-          document.title = "";
-          if (iframe.contentDocument) {
-            iframe.contentDocument.title = "";
-          }
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          console.error("Print iframe error", e);
-        } finally {
-          setTimeout(() => {
-            document.title = originalParentTitle;
-          }, 1500);
-        }
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
       }, 350);
     }
   };
@@ -279,26 +292,108 @@ export const QRCodes = () => {
   };
 
   return (
-    <div className="space-y-8 pb-20 md:pb-0" dir="rtl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden bg-card p-6 rounded-xl shadow-sm border border-border">
+    <div className="space-y-6 pb-20 md:pb-0" dir="rtl">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden bg-card p-6 rounded-2xl shadow-sm border border-border">
         <div>
-          <h1 className="text-3xl font-bold mb-2">إدارة أكواد الـ QR Barcode</h1>
-          <p className="text-muted-foreground">إدارة وطباعة ملصقات الباركود والـ QR للقطع والمجوهرات.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground">إدارة وطباعة استيكرات الـ QR Barcode</h1>
+            {/* Agent Status Pill */}
+            <div 
+              onClick={refreshAgentStatus}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold cursor-pointer border transition-all ${
+                agentStatus === 'connected'
+                  ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
+                  : agentStatus === 'checking'
+                  ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+                  : 'bg-rose-500/10 text-rose-600 border-rose-500/30 hover:bg-rose-500/20'
+              }`}
+              title="حالة اتصال وسيط الطباعة المكتبي على جهاز الكاشير (اضغط للتحديث)"
+            >
+              <Laptop size={14} />
+              <span>
+                {agentStatus === 'connected' && 'وسيط الطباعة: متصل 🟢'}
+                {agentStatus === 'checking' && 'جاري الفحص...'}
+                {agentStatus === 'disconnected' && 'وسيط الطباعة: غير متصل 🔴'}
+              </span>
+              <RefreshCw size={12} className={agentStatus === 'checking' ? 'animate-spin' : ''} />
+            </div>
+          </div>
+          <p className="text-muted-foreground text-xs sm:text-sm">
+            طباعة حرارية صامتة وفورية لمقاس (50×25 مم) مباشرة لطابعة Xprinter XP-246B دون نوافذ المتصفح.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <Button onClick={toggleSelectAll} variant="outline">
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={toggleSelectAll} variant="outline" className="rounded-xl text-xs font-bold">
             {selectedQRs.size === filteredItems.length && filteredItems.length > 0 ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
           </Button>
-          <Button onClick={printSelected} size="lg" className="shadow-md gap-2" disabled={selectedQRs.size === 0}>
+
+          <Button 
+            onClick={printSelected} 
+            size="lg" 
+            disabled={selectedQRs.size === 0 || isPrinting}
+            className="rounded-xl shadow-md gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold"
+          >
             <Printer className="h-5 w-5" />
-            طباعة {selectedQRs.size} ملصق
+            <span>
+              {isPrinting ? 'جاري الإرسال للطابعة...' : `طباعة (${selectedQRs.size}) استيكر`}
+            </span>
           </Button>
         </div>
       </div>
 
+      {/* Feedback Banner (Success / Error / Wake Prompt) */}
+      {printFeedback && (
+        <div 
+          className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs sm:text-sm font-semibold transition-all shadow-sm ${
+            printFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {printFeedback.type === 'success' ? (
+              <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle size={20} className="shrink-0 text-rose-600" />
+            )}
+            <span>{printFeedback.message}</span>
+          </div>
+
+          {printFeedback.showWakePrompt && (
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  wakeDesktopAgent();
+                  setTimeout(refreshAgentStatus, 1500);
+                }}
+                className="bg-primary text-primary-foreground rounded-lg text-xs font-bold gap-1 shadow-sm"
+              >
+                <ExternalLink size={14} />
+                <span>فتح وسيط الطباعة المكتبي</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleBrowserFallbackPrint}
+                className="rounded-lg text-xs font-bold border-rose-300 dark:border-rose-800"
+              >
+                طباعة عبر المتصفح كبديل
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filters Row */}
       <div className="flex flex-col md:flex-row gap-4 print:hidden">
         <div className="flex-1 space-y-2">
-          <label className="text-sm font-medium">تصفية حسب المنتج</label>
+          <label className="text-xs font-bold text-muted-foreground">تصفية حسب المنتج</label>
           <CustomSelect
             value={selectedProduct}
             onChange={(val) => setSelectedProduct(val)}
@@ -310,7 +405,7 @@ export const QRCodes = () => {
         </div>
         {isAdmin && (
           <div className="w-64 space-y-2">
-            <label className="text-sm font-medium">تصفية حسب الفرع</label>
+            <label className="text-xs font-bold text-muted-foreground">تصفية حسب الفرع</label>
             <CustomSelect
               value={selectedBranch}
               onChange={(val) => setSelectedBranch(val)}
@@ -323,31 +418,40 @@ export const QRCodes = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+      {/* Grid of QR Items */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {filteredItems.map(item => {
           const product = store.getProduct(item.productId);
           const isSelected = selectedQRs.has(item.id);
-          // In print mode, only show selected QRs
-          const printClass = isSelected ? 'print:flex' : 'print:hidden';
 
           return (
             <Card 
               key={item.id} 
-              className={`flex flex-col items-center justify-center p-4 text-center border-border shadow-sm cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary bg-primary/5' : 'hover:border-primary/50'} ${printClass} print:shadow-none print:border-black print:rounded-none print:p-2`}
+              className={`flex flex-col items-center justify-center p-3 text-center border rounded-2xl cursor-pointer transition-all ${
+                isSelected 
+                  ? 'ring-2 ring-primary bg-primary/5 border-primary shadow-sm' 
+                  : 'hover:border-primary/50 bg-card'
+              }`}
               onClick={() => toggleSelect(item.id)}
             >
-              <div id={`qr-box-${item.id}`} className="bg-white p-2 rounded-lg mb-3 print:mb-1 print:p-0">
-                <QRCodeSVG value={item.id} size={100} level="M" />
+              <div id={`qr-box-${item.id}`} className="bg-white p-2 rounded-xl mb-2.5 shadow-xs">
+                <QRCodeSVG value={item.id} size={92} level="M" />
               </div>
-              <p className="text-xs font-bold truncate w-full px-2 text-foreground print:text-[10px]">{product?.nameAr}</p>
-              <p className="text-[11px] font-mono font-bold mt-2 tracking-wider bg-background px-2 py-1 rounded border border-border print:border-none print:bg-transparent print:mt-0">{item.id}</p>
+              <p className="text-xs font-bold truncate w-full px-1 text-foreground" title={product?.nameAr}>
+                {product?.nameAr || 'منتج'}
+              </p>
+              <p className="text-[11px] font-mono font-bold mt-1.5 tracking-wider bg-muted/60 px-2 py-0.5 rounded-md border border-border/60">
+                {item.id}
+              </p>
               {(() => {
                 const bd = store.getProductBranchData(item.productId, item.branchId || 'b1');
                 const rawPrice4 = bd?.price4 !== undefined && bd?.price4 !== null && bd?.price4 !== 0 
                   ? bd.price4 
                   : (bd?.price1 || '');
                 return rawPrice4 ? (
-                  <p className="font-mono font-black text-xs text-foreground mt-1.5">{rawPrice4}</p>
+                  <p className="font-mono font-black text-xs text-primary mt-1.5">
+                    {rawPrice4} <span className="text-[10px] font-normal text-muted-foreground">ج.م</span>
+                  </p>
                 ) : null;
               })()}
             </Card>
@@ -356,7 +460,7 @@ export const QRCodes = () => {
       </div>
       
       {filteredItems.length === 0 && (
-        <div className="text-center py-20 text-muted-foreground print:hidden">
+        <div className="text-center py-20 text-muted-foreground bg-card rounded-2xl border border-dashed border-border">
           لا توجد قطع متاحة تطابق الفلاتر المحددة.
         </div>
       )}

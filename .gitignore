@@ -47,3 +47,7 @@ Thumbs.db
 # Uploads
 backend/uploads/
 uploads/
+
+# Desktop application (offline print agent)
+desktop application/
+desktop\ application/
