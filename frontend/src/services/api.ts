@@ -284,4 +284,17 @@ export const api = {
   updateSupplierPurchase: (id: string, updates: any) => request<any>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
   deleteSupplier: (id: string) => request<any>(`/suppliers/${id}`, { method: 'DELETE' }),
   deleteSupplierPurchase: (id: string) => request<any>(`/suppliers/${id}`, { method: 'DELETE' }),
+
+  // Salary Withdrawals
+  getSalaryWithdrawals: (params?: { branchId?: string; userId?: string; year?: number; month?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.branchId) q.set('branchId', params.branchId);
+    if (params?.userId) q.set('userId', params.userId);
+    if (params?.year) q.set('year', String(params.year));
+    if (params?.month) q.set('month', String(params.month));
+    const queryStr = q.toString();
+    return request<any[]>(queryStr ? `/salary-withdrawals?${queryStr}` : '/salary-withdrawals');
+  },
+  createSalaryWithdrawal: (data: any) => request<any>('/salary-withdrawals', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSalaryWithdrawal: (id: string) => request<any>(`/salary-withdrawals/${id}`, { method: 'DELETE' }),
 };

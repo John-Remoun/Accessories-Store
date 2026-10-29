@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, User, Package, QrCode, ShoppingCart, 
   MapPin, TrendingUp, Box, Layers, AlertTriangle, Tag, Sparkles, DollarSign,
-  Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar,
+  Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar, Wallet, Banknote,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, FileText
 } from 'lucide-react';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
@@ -85,6 +85,12 @@ export const Branches = () => {
   const [expenseType] = useState<'daily' | 'monthly'>('daily');
   const [expensesVersion, setExpensesVersion] = useState(0);
 
+  // Salary Advances & Personal Withdrawals State
+  const [withdrawalReason, setWithdrawalReason] = useState('');
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
+  const [withdrawalError, setWithdrawalError] = useState('');
+
   if (!user) {
     return (
       <div className="p-8 font-bold text-destructive text-center">
@@ -122,6 +128,85 @@ export const Branches = () => {
   }, [todayFixedExpensesList]);
 
   const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0), [fixedExpensesList]);
+
+  // Current user record from store (to ensure latest salary value is reflected)
+  const currentUserRecord = useMemo(() => {
+    return store.getUsers().find(u => u.id === user.id || (u.username && u.username.toLowerCase() === (user.username || '').toLowerCase())) || user;
+  }, [user, expensesVersion]);
+
+  // Current user's monthly salary withdrawals
+  const userWithdrawals = useMemo(() => {
+    return store.getSalaryWithdrawalsByUser(currentUserRecord.id);
+  }, [currentUserRecord.id, expensesVersion]);
+
+  const currentMonthWithdrawals = useMemo(() => {
+    const now = new Date();
+    const currYear = now.getFullYear();
+    const currMonth = now.getMonth();
+    return userWithdrawals.filter(w => {
+      const d = new Date(w.date);
+      return d.getFullYear() === currYear && d.getMonth() === currMonth;
+    });
+  }, [userWithdrawals]);
+
+  const currentMonthWithdrawalsTotal = useMemo(() => {
+    return currentMonthWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+  }, [currentMonthWithdrawals]);
+
+  const employeeBaseSalary = Number(currentUserRecord.salary) || 0;
+  const netDueSalary = employeeBaseSalary - currentMonthWithdrawalsTotal;
+
+  // Branch withdrawals list (for Admin to view all employees' withdrawals in this branch)
+  const branchSalaryWithdrawals = useMemo(() => {
+    const now = new Date();
+    const currYear = now.getFullYear();
+    const currMonth = now.getMonth();
+    return store.getSalaryWithdrawalsByBranch(branch.id).filter(w => {
+      const d = new Date(w.date);
+      return d.getFullYear() === currYear && d.getMonth() === currMonth;
+    });
+  }, [branch.id, expensesVersion]);
+
+  const displayedWithdrawals = isAdmin ? branchSalaryWithdrawals : currentMonthWithdrawals;
+
+  const handleAddWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!withdrawalReason.trim()) {
+      setWithdrawalError('يرجى كتابة سبب السحب أو السلفة.');
+      return;
+    }
+    const amt = parseFloat(withdrawalAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setWithdrawalError('يرجى إدخال مبلغ صحيح أكبر من 0.');
+      return;
+    }
+
+    setWithdrawalSubmitting(true);
+    setWithdrawalError('');
+    try {
+      await store.addSalaryWithdrawal({
+        id: `sw_${Date.now()}`,
+        userId: currentUserRecord.id,
+        userName: currentUserRecord.name || currentUserRecord.username,
+        branchId: branch.id,
+        amount: amt,
+        reason: withdrawalReason.trim(),
+        date: new Date().toISOString()
+      });
+      setWithdrawalReason('');
+      setWithdrawalAmount('');
+      setExpensesVersion(v => v + 1);
+    } catch (err: any) {
+      setWithdrawalError(err.message || 'حدث خطأ أثناء تسجيل السحب');
+    } finally {
+      setWithdrawalSubmitting(false);
+    }
+  };
+
+  const handleRemoveWithdrawal = async (id: string) => {
+    await store.removeSalaryWithdrawal(id);
+    setExpensesVersion(v => v + 1);
+  };
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -960,6 +1045,213 @@ export const Branches = () => {
           ) : (
             <div className="py-8 text-center text-xs text-muted-foreground">
               لا توجد مصاريف ثابتة مسجلة لليوم حتى الآن.
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {/* 3.1 SALARY ADVANCES & WITHDRAWALS SECTION */}
+      <div className="space-y-4 pt-4 mt-8">
+        
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-border/60 pb-2">
+          <div>
+            <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
+              <Wallet className="text-amber-500" size={20} />
+              <span>مسحوبات وسلف المرتب الشخصي</span>
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              يتم خصم المبالغ المسحوبة تلقائياً من المرتب الأساسي لحساب صافي المستحق عند استلام الراتب.
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold font-mono">
+              صافي المستحق: {netDueSalary.toLocaleString()} ج.م
+            </span>
+          </div>
+        </div>
+
+        {/* Top 3 KPI Cards for Salary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          
+          {/* Base Salary */}
+          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-muted-foreground">المرتب الشهري الأساسي</p>
+                <h3 className="text-xl font-bold font-mono text-foreground mt-1">
+                  {employeeBaseSalary > 0 ? `${employeeBaseSalary.toLocaleString()} ج.م` : 'غير محدد'}
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-semibold">المحدد لحسابك بالسيستم</span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Banknote size={20} />
+              </div>
+            </div>
+          </Card>
+
+          {/* Current Month Withdrawals */}
+          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-muted-foreground">إجمالي المسحوبات (هذا الشهر)</p>
+                <h3 className="text-xl font-bold font-mono text-rose-400 mt-1">
+                  {currentMonthWithdrawalsTotal.toLocaleString()} ج.م
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-semibold">
+                  {currentMonthWithdrawals.length} عملية سحب / سلفة
+                </span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                <Wallet size={20} />
+              </div>
+            </div>
+          </Card>
+
+          {/* Net Due Salary Remaining */}
+          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-muted-foreground">صافي المرتب المستحق للصرف</p>
+                <h3 className={`text-xl font-bold font-mono mt-1 ${
+                  netDueSalary > 0 ? 'text-emerald-400' :
+                  netDueSalary === 0 ? 'text-amber-400' : 'text-rose-400'
+                }`}>
+                  {netDueSalary.toLocaleString()} ج.م
+                </h3>
+                <span className="text-[10px] text-muted-foreground font-semibold">
+                  {netDueSalary > 0 ? 'متبقي للاستلام نهاية الشهر' : netDueSalary === 0 ? 'تم استنفاد كامل المرتب' : 'تجاوزت قيمة المرتب'}
+                </span>
+              </div>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                netDueSalary > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+              }`}>
+                <Coins size={20} />
+              </div>
+            </div>
+          </Card>
+
+        </div>
+
+        {/* Withdrawal Form & History Card */}
+        <div className="bg-card shadow-md border border-border/80 rounded-3xl p-6 space-y-5">
+          
+          {/* Error Alert */}
+          {withdrawalError && (
+            <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl">
+              {withdrawalError}
+            </div>
+          )}
+
+          {/* Withdrawal Input Form */}
+          <form onSubmit={handleAddWithdrawal} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+            
+            {/* Field 1: Reason */}
+            <div className="sm:col-span-7 space-y-1">
+              <label className="text-xs font-bold text-muted-foreground block">
+                سبب السحب أو السلفة الشخصية
+              </label>
+              <Input 
+                type="text"
+                placeholder="سبب سحب الفلوس الشخصية (مثال: سلفة شخصية، مصاريف خاصة...)"
+                value={withdrawalReason}
+                onChange={(e) => { setWithdrawalReason(e.target.value); setWithdrawalError(''); }}
+                className="h-11 text-xs rounded-xl bg-background border-border/80 focus:border-amber-500 px-4 font-bold"
+              />
+            </div>
+
+            {/* Field 2: Amount */}
+            <div className="sm:col-span-3 space-y-1">
+              <label className="text-xs font-bold text-muted-foreground block">
+                المبلغ المسحوب (ج.م)
+              </label>
+              <Input 
+                type="number"
+                min="0"
+                step="any"
+                placeholder="المبلغ (ج.م)"
+                value={withdrawalAmount}
+                onChange={(e) => { setWithdrawalAmount(e.target.value); setWithdrawalError(''); }}
+                className="h-11 text-xs rounded-xl bg-background border-border/80 focus:border-amber-500 px-4 font-mono font-bold"
+              />
+            </div>
+
+            {/* Submit Button */}
+            <div className="sm:col-span-2">
+              <Button 
+                type="submit"
+                disabled={withdrawalSubmitting}
+                className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs rounded-xl gap-1.5 shadow-md transition-all flex items-center justify-center"
+              >
+                <Banknote size={16} />
+                <span>{withdrawalSubmitting ? 'جاري السحب...' : 'سحب من المرتب'}</span>
+              </Button>
+            </div>
+
+          </form>
+
+          {/* History of Withdrawals Table */}
+          {displayedWithdrawals.length > 0 ? (
+            <div className="pt-2 overflow-x-auto">
+              <table className="w-full text-xs text-right border-collapse">
+                <thead>
+                  <tr className="border-b border-border/60 text-muted-foreground font-bold">
+                    <th className="py-2.5 px-3 text-right">سبب السحب</th>
+                    <th className="py-2.5 px-3 text-center">التاريخ والوقت</th>
+                    <th className="py-2.5 px-3 text-center">المبلغ</th>
+                    <th className="py-2.5 px-3 text-center">الموظف</th>
+                    <th className="py-2.5 px-3 text-center w-16">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {displayedWithdrawals.map((w) => {
+                    const isOwner = w.userId === currentUserRecord.id;
+                    const canDelete = isAdmin || isOwner;
+
+                    return (
+                      <tr key={w.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-3 font-bold text-foreground">{w.reason}</td>
+                        <td className="py-3 px-3 text-center font-mono text-muted-foreground">
+                          {new Date(w.date).toLocaleDateString('ar-EG', {
+                            year: 'numeric',
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
+                          -{Number(w.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold text-xs">
+                            <User size={13} className="shrink-0" />
+                            <span>{w.userName || 'موظف'}</span>
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {canDelete && (
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemoveWithdrawal(w.id)}
+                              className="text-muted-foreground hover:text-rose-500 transition-colors p-2 rounded-xl hover:bg-rose-500/10 active:scale-95"
+                              title="حذف عملية السحب"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              لا توجد مسحوبات أو سلف مسجلة من المرتب خلال هذا الشهر حتى الآن.
             </div>
           )}
 

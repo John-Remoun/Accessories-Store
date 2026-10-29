@@ -31,6 +31,9 @@ export class UserEntity {
   @Column({ type: 'int', default: 0 })
   salesCount!: number;
 
+  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  salary!: number;
+
   @Column({ type: 'varchar', length: 50, nullable: true })
   phone?: string;
 

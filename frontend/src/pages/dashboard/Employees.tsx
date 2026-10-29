@@ -38,6 +38,7 @@ export const Employees = () => {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [salary, setSalary] = useState('');
   const [addError, setAddError] = useState('');
 
   // Edit Modal States
@@ -45,6 +46,7 @@ export const Employees = () => {
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editSalary, setEditSalary] = useState('');
   const [editError, setEditError] = useState('');
 
   // Delete Modal State (Popup Alert)
@@ -57,6 +59,7 @@ export const Employees = () => {
     setName('');
     setUsername('');
     setPassword('');
+    setSalary('');
     setAddError('');
     setIsModalOpen(true);
   };
@@ -82,7 +85,8 @@ export const Employees = () => {
       role: 'employee',
       branchId: activeBranchId,
       joinDate: new Date().toISOString().split('T')[0],
-      salesCount: 0
+      salesCount: 0,
+      salary: parseFloat(salary) || 0
     });
 
     setVersion(v => v + 1);
@@ -95,6 +99,7 @@ export const Employees = () => {
     setEditName(emp.name);
     setEditUsername(emp.username);
     setEditPassword(emp.password || '');
+    setEditSalary(emp.salary ? String(emp.salary) : '');
     setEditError('');
   };
 
@@ -118,6 +123,7 @@ export const Employees = () => {
       name: editName.trim(),
       username: editUsername.trim(),
       password: editPassword.trim(),
+      salary: parseFloat(editSalary) || 0,
       role: 'employee'
     });
 
@@ -166,6 +172,7 @@ export const Employees = () => {
               <TableHead className="text-right text-xs font-bold py-3.5">اسم المستخدم</TableHead>
               <TableHead className="text-right text-xs font-bold py-3.5">الدور الوظيفي</TableHead>
               <TableHead className="text-right text-xs font-bold py-3.5">الفرع</TableHead>
+              <TableHead className="text-right text-xs font-bold py-3.5">المرتب الأساسي</TableHead>
               <TableHead className="text-center text-xs font-bold py-3.5">عدد المبيعات</TableHead>
               <TableHead className="text-center text-xs font-bold py-3.5">الإجراءات</TableHead>
             </TableRow>
@@ -173,7 +180,7 @@ export const Employees = () => {
           <TableBody>
             {employees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-xs">
+                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-xs">
                   لا يوجد موظفون مسجلون في {activeBranchName} حتى الآن.
                 </TableCell>
               </TableRow>
@@ -192,6 +199,9 @@ export const Employees = () => {
                       <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-xs font-bold">
                         {activeBranchName}
                       </span>
+                    </TableCell>
+                    <TableCell className="py-3.5 text-right font-mono font-bold text-xs text-foreground">
+                      {(emp.salary || 0).toLocaleString()} ج.م
                     </TableCell>
                     <TableCell className="text-center font-mono font-bold text-xs text-foreground py-3.5">
                       {emp.salesCount || 0}
@@ -297,6 +307,19 @@ export const Employees = () => {
                 className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">
+                المرتب الشهري الأساسي (ج.م)
+              </Label>
+              <Input 
+                type="number"
+                value={salary} 
+                onChange={e => setSalary(e.target.value)} 
+                placeholder="مثال: 5000" 
+                className="h-11 rounded-xl text-xs font-mono bg-background"
+              />
+            </div>
           </div>
 
           <DialogFooter className="p-4 border-t border-border flex justify-end gap-2 bg-card shrink-0">
@@ -351,6 +374,17 @@ export const Employees = () => {
                 type="text"
                 value={editPassword} 
                 onChange={e => { setEditPassword(e.target.value); setEditError(''); }} 
+                className="h-11 rounded-xl text-xs font-mono bg-background"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">المرتب الشهري الأساسي (ج.م)</Label>
+              <Input 
+                type="number"
+                value={editSalary} 
+                onChange={e => setEditSalary(e.target.value)} 
+                placeholder="مثال: 5000" 
                 className="h-11 rounded-xl text-xs font-mono bg-background"
               />
             </div>

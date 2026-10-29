@@ -58,6 +58,9 @@ export class UserController {
       if (updates.role && currentUser.role !== 'admin') {
         throw new AppError('Forbidden: Only administrators can modify roles', 403);
       }
+      if (updates.salary !== undefined && currentUser.role !== 'admin') {
+        delete updates.salary;
+      }
 
       const user = await userService.updateUser(id, updates);
       return sendResponse(res, 200, 'User updated successfully', user);

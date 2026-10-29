@@ -77,6 +77,7 @@ export const MasterDashboard = () => {
   const [empName, setEmpName] = useState('');
   const [empUsername, setEmpUsername] = useState('');
   const [empPassword, setEmpPassword] = useState('');
+  const [empSalary, setEmpSalary] = useState('');
   const [empConfirmPassword, setEmpConfirmPassword] = useState('');
   const [empBranchId, setEmpBranchId] = useState('b1');
   const [formError, setFormError] = useState('');
@@ -618,11 +619,25 @@ export const MasterDashboard = () => {
       const totalInvoicesCount = sEmp ? Number(sEmp.totalInvoicesCount || 0) : empInvoices.length;
       const empBranch = branches.find(b => b.id === emp.branchId);
 
+      const baseSalary = Number(emp.salary) || 0;
+      const now = new Date();
+      const currYear = now.getFullYear();
+      const currMonth = now.getMonth();
+      const empWithdrawals = store.getSalaryWithdrawalsByUser(emp.id).filter(w => {
+        const d = new Date(w.date);
+        return d.getFullYear() === currYear && d.getMonth() === currMonth;
+      });
+      const totalWithdrawn = empWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+      const netSalary = baseSalary - totalWithdrawn;
+
       return {
         ...emp,
         totalSalesAmount,
         totalInvoicesCount,
         branchName: empBranch ? empBranch.nameAr : 'غير محدد',
+        baseSalary,
+        totalWithdrawn,
+        netSalary,
       };
     });
 
@@ -663,6 +678,7 @@ export const MasterDashboard = () => {
       branchId: empBranchId,
       joinDate: new Date().toISOString().split('T')[0],
       salesCount: 0,
+      salary: parseFloat(empSalary) || 0,
     };
 
     store.addUser(newEmp);
@@ -675,6 +691,7 @@ export const MasterDashboard = () => {
       setEmpName('');
       setEmpUsername('');
       setEmpPassword('');
+      setEmpSalary('');
       setFormSuccess('');
     }, 1200);
   };
@@ -1770,12 +1787,15 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                 <TableHead className="text-right">الفرع</TableHead>
                 <TableHead className="text-center">عدد الفواتير</TableHead>
                 <TableHead className="text-right">إجمالي مبلغ المبيعات</TableHead>
+                <TableHead className="text-right">المرتب الأساسي</TableHead>
+                <TableHead className="text-right">المسحوبات (هذا الشهر)</TableHead>
+                <TableHead className="text-right">صافي المرتب المستحق</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employeeRankings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     لا يوجد موظفين مسجلين حالياً. يمكنك إضافة موظفين جدد من زر "إدارة وإضافة موظف جديد".
                   </TableCell>
                 </TableRow>
@@ -1832,6 +1852,46 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                           <span className="text-primary">{emp.totalSalesAmount.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">EGP</span></span>
                         ) : (
                           <span className="text-muted-foreground text-xs font-sans font-normal">0 EGP (لا مبيعات)</span>
+                        )}
+                      </TableCell>
+
+                      {/* Base Salary */}
+                      <TableCell className="text-right font-mono font-bold text-xs text-foreground">
+                        {emp.baseSalary > 0 ? (
+                          <span>{emp.baseSalary.toLocaleString()} <span className="text-[10px] text-muted-foreground font-sans">ج.م</span></span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-normal">غير محدد</span>
+                        )}
+                      </TableCell>
+
+                      {/* Total Withdrawn */}
+                      <TableCell className="text-right font-mono font-bold text-xs">
+                        {emp.totalWithdrawn > 0 ? (
+                          <span className="text-rose-400">-{emp.totalWithdrawn.toLocaleString()} <span className="text-[10px] text-muted-foreground font-sans">ج.م</span></span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-normal">لا توجد سلف</span>
+                        )}
+                      </TableCell>
+
+                      {/* Net Due Salary */}
+                      <TableCell className="text-right font-mono font-bold text-xs">
+                        {emp.baseSalary > 0 ? (
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-mono font-bold ${
+                              emp.netSalary > 0 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                              emp.netSalary === 0 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                              'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
+                              {emp.netSalary.toLocaleString()} ج.م
+                            </span>
+                            {emp.totalWithdrawn > 0 && (
+                              <span className="text-[10px] text-muted-foreground font-sans">
+                                سحب {emp.totalWithdrawn.toLocaleString()} من {emp.baseSalary.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-normal">0 ج.م</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -1897,6 +1957,20 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                 placeholder="••••••••" 
                 className="h-11 rounded-xl text-xs font-mono bg-background"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold">المرتب الشهري الأساسي (ج.م)</Label>
+              <Input 
+                type="number"
+                value={empSalary} 
+                onChange={e => setEmpSalary(e.target.value)} 
+                placeholder="مثال: 5000" 
+                className="h-11 rounded-xl text-xs font-mono bg-background"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                المرتب الثابت شهرياً والذي سيتم خصم السلف والمسحوبات الشخصية منه تلقائياً.
+              </p>
             </div>
 
             {/* SELECTABLE BRANCH DROPDOWN (ADMIN CHOOSES THE BRANCH) */}

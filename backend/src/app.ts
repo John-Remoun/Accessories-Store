@@ -22,6 +22,7 @@ import fixedExpenseRoutes from './modules/fixed-expenses/fixed-expense.routes';
 import compositionRoutes from './modules/compositions/composition.routes';
 import uploadRoutes from './modules/upload/upload.routes';
 import supplierRoutes from './modules/suppliers/supplier.routes';
+import salaryWithdrawalRoutes from './modules/salary-withdrawals/salary-withdrawal.routes';
 
 const app: Application = express();
 
@@ -156,6 +157,7 @@ apiRouter.use('/fixed-expenses', fixedExpenseRoutes);
 apiRouter.use('/compositions', compositionRoutes);
 apiRouter.use('/upload', uploadRoutes);
 apiRouter.use('/suppliers', supplierRoutes);
+apiRouter.use('/salary-withdrawals', salaryWithdrawalRoutes);
 
 // Support all possible Vercel / Express request path variations:
 app.use('/api/v1', apiRouter);

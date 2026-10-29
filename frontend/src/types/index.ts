@@ -12,6 +12,7 @@ export interface User {
   salesCount?: number;
   phone?: string;
   email?: string;
+  salary?: number;
 }
 
 export interface Branch {
@@ -126,6 +127,17 @@ export interface FixedExpense {
   date: string;
   userId?: string;
   userName?: string;
+}
+
+export interface SalaryWithdrawal {
+  id: string;
+  userId: string;
+  userName: string;
+  branchId: string;
+  amount: number;
+  reason: string;
+  date: string;
+  createdAt?: string;
 }
 
 export interface InternalComponent {

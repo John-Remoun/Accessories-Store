@@ -1,5 +1,5 @@
 import { mockBranches, mockCategories, mockCustomers, mockPhysicalItems, mockInvoices, mockProducts, mockUsers, mockProductBranchData } from '../mock/data';
-import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
+import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, SalaryWithdrawal, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
 import { api } from './api';
 
 const STORE_KEY = 'accessories_store_data_v14';
@@ -14,6 +14,7 @@ export interface AppState {
   customers: Customer[];
   invoices: Invoice[];
   fixedExpenses: FixedExpense[];
+  salaryWithdrawals?: SalaryWithdrawal[];
   compositions: ProductComposition[];
   suppliers: SupplierPurchase[];
 }
@@ -83,6 +84,15 @@ class StoreService {
               }
             } else if (type === 'EXPENSE_DELETED' && payload) {
               this.state.fixedExpenses = (this.state.fixedExpenses || []).filter(e => e.id !== payload.id);
+              this.saveState(true);
+            } else if (type === 'SALARY_WITHDRAWAL_CREATED' && payload) {
+              if (!this.state.salaryWithdrawals) this.state.salaryWithdrawals = [];
+              if (!this.state.salaryWithdrawals.some(w => w.id === payload.id)) {
+                this.state.salaryWithdrawals.unshift(payload);
+                this.saveState(true);
+              }
+            } else if (type === 'SALARY_WITHDRAWAL_DELETED' && payload) {
+              this.state.salaryWithdrawals = (this.state.salaryWithdrawals || []).filter(w => w.id !== payload.id);
               this.saveState(true);
             } else if (type === 'PRODUCT_CREATED' && payload) {
               if (!this.state.products) this.state.products = [];
@@ -321,7 +331,8 @@ class StoreService {
           branchList,
           customerList,
           userList,
-          supplierList
+          supplierList,
+          salaryWithList
         ] = await Promise.allSettled([
           api.getFixedExpenses(branchToSync),
           api.getPaginatedInvoices({ page: 1, limit: 100, branchId: branchToSync }),
@@ -333,12 +344,20 @@ class StoreService {
           api.getCustomers(branchToSync),
           api.getUsers(),
           api.getSuppliers(branchToSync),
+          api.getSalaryWithdrawals(branchToSync ? { branchId: branchToSync } : undefined),
         ]);
 
         if (fixedExp.status === 'fulfilled' && Array.isArray(fixedExp.value)) {
           this.state.fixedExpenses = fixedExp.value.map(e => ({
             ...e,
             amount: Number(e.amount) || 0,
+          }));
+        }
+
+        if (salaryWithList && salaryWithList.status === 'fulfilled' && Array.isArray(salaryWithList.value)) {
+          this.state.salaryWithdrawals = salaryWithList.value.map(w => ({
+            ...w,
+            amount: Number(w.amount) || 0,
           }));
         }
 
@@ -527,6 +546,9 @@ class StoreService {
           fixedExpenses: Array.isArray(parsed.fixedExpenses)
             ? parsed.fixedExpenses.map((e: any) => ({ ...e, amount: Number(e.amount) || 0 }))
             : [],
+          salaryWithdrawals: Array.isArray(parsed.salaryWithdrawals)
+            ? parsed.salaryWithdrawals.map((w: any) => ({ ...w, amount: Number(w.amount) || 0 }))
+            : [],
           compositions: Array.isArray(parsed.compositions) ? parsed.compositions : [],
           suppliers: Array.isArray(parsed.suppliers) ? parsed.suppliers : [],
         };
@@ -579,6 +601,7 @@ class StoreService {
       customers: [],
       invoices: [],
       fixedExpenses: [],
+      salaryWithdrawals: [],
       compositions: [],
       suppliers: [],
     };
@@ -1370,6 +1393,64 @@ class StoreService {
         amount: Number(expense.amount) || 0,
       });
       this.saveState(true);
+    }
+  }
+
+  // --- Salary Withdrawals ---
+  public getAllSalaryWithdrawals(): SalaryWithdrawal[] {
+    if (!this.state.salaryWithdrawals) this.state.salaryWithdrawals = [];
+    return this.state.salaryWithdrawals;
+  }
+  public getSalaryWithdrawalsByBranch(branchId: string): SalaryWithdrawal[] {
+    return this.getAllSalaryWithdrawals().filter(w => w?.branchId === branchId);
+  }
+  public getSalaryWithdrawalsByUser(userId: string): SalaryWithdrawal[] {
+    return this.getAllSalaryWithdrawals().filter(w => w?.userId === userId);
+  }
+  public async addSalaryWithdrawal(item: SalaryWithdrawal) {
+    if (!this.state.salaryWithdrawals) this.state.salaryWithdrawals = [];
+    const normalized: SalaryWithdrawal = {
+      ...item,
+      amount: Number(item.amount) || 0,
+    };
+    this.state.salaryWithdrawals = this.state.salaryWithdrawals.filter(w => w.id !== item.id);
+    this.state.salaryWithdrawals.unshift(normalized);
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'SALARY_WITHDRAWAL_CREATED',
+          payload: normalized,
+        });
+      } catch {}
+    }
+
+    try {
+      await api.createSalaryWithdrawal(item);
+    } catch (err) {
+      console.warn('DB sync warning (createSalaryWithdrawal):', err);
+    }
+  }
+
+  public async removeSalaryWithdrawal(id: string) {
+    if (!this.state.salaryWithdrawals) return;
+    this.state.salaryWithdrawals = this.state.salaryWithdrawals.filter(w => w?.id !== id);
+    this.saveState(true);
+
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'SALARY_WITHDRAWAL_DELETED',
+          payload: { id },
+        });
+      } catch {}
+    }
+
+    try {
+      await api.deleteSalaryWithdrawal(id);
+    } catch (err) {
+      console.warn('DB sync warning (deleteSalaryWithdrawal):', err);
     }
   }
 
