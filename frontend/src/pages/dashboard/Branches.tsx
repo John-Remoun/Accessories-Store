@@ -87,7 +87,6 @@ export const Branches = () => {
 
   // Super Admin Employee Salary Ledger & Statement State
   const [selectedEmpId, setSelectedEmpId] = useState<string>('');
-  const [deductionType, setDeductionType] = useState<string>('سحب / سلفة');
   const [deductionReason, setDeductionReason] = useState<string>('');
   const [deductionAmount, setDeductionAmount] = useState<string>('');
   const [deductionSubmitting, setDeductionSubmitting] = useState<boolean>(false);
@@ -237,7 +236,7 @@ export const Branches = () => {
     setDeductionSubmitting(true);
     setDeductionError('');
     try {
-      const fullReason = `[${deductionType}] ${deductionReason.trim()}`;
+      const fullReason = deductionReason.trim();
       const now = new Date();
       let txDate = now.toISOString();
       if (now.getFullYear() !== currentYear || now.getMonth() !== currentMonth) {
@@ -1094,7 +1093,7 @@ export const Branches = () => {
                 <span>كشف حساب وتسوية مرتبات موظفي الفرع</span>
               </h2>
               <p className="text-xs text-muted-foreground mt-1">
-                إدارة وسجل الحركات المالية المخصومة من مرتبات الموظفين (سلف، مسحوبات، خصومات) مع احتساب صافي المستحق تلقائياً.
+                إدارة  الحركات المالية المخصومة من مرتبات الموظفين
               </p>
             </div>
 
@@ -1222,9 +1221,6 @@ export const Branches = () => {
                         <Plus size={16} className="text-amber-500" />
                         <span>تسجيل قيد جديد بكشف حساب ({activeEmployee.name})</span>
                       </h4>
-                      <span className="text-[11px] text-muted-foreground">
-                        خاص بالسوبر أدمن فقط
-                      </span>
                     </div>
 
                     {deductionError && (
@@ -1236,31 +1232,7 @@ export const Branches = () => {
 
                     <form onSubmit={handleAddDeduction} className="space-y-3.5">
                       
-                      {/* Operation Type Chips */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-bold text-muted-foreground block">نوع العملية:</label>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { label: 'سحب / سلفة نقدية', value: 'سحب / سلفة', color: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
-                            { label: 'خصم جزائي / غياب', value: 'خصم جزائي', color: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
-                            { label: 'خصم تلفيات / كسر', value: 'خصم تلفيات', color: 'bg-orange-500/10 text-orange-500 border-orange-500/30' },
-                            { label: 'أخرى', value: 'أخرى', color: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
-                          ].map(t => (
-                            <button
-                              key={t.value}
-                              type="button"
-                              onClick={() => setDeductionType(t.value)}
-                              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
-                                deductionType === t.value
-                                  ? 'bg-amber-500 text-black border-amber-500 shadow-2xs font-extrabold'
-                                  : 'bg-background hover:bg-muted text-muted-foreground border-border'
-                              }`}
-                            >
-                              {t.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+
 
                       {/* Reason & Amount Inputs */}
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
@@ -1325,8 +1297,7 @@ export const Branches = () => {
                             <tr className="text-muted-foreground font-bold">
                               <th className="py-2.5 px-3 text-center w-12">#</th>
                               <th className="py-2.5 px-3 text-center">التاريخ والوقت</th>
-                              <th className="py-2.5 px-3 text-center">نوع القيد</th>
-                              <th className="py-2.5 px-3 text-right">البيان / السبب</th>
+                              <th className="py-2.5 px-3 text-right">البيان / سبب الخصم</th>
                               <th className="py-2.5 px-3 text-center">المبلغ المخصوم</th>
                               <th className="py-2.5 px-3 text-center">الرصيد المتبقي (الصافي)</th>
                               <th className="py-2.5 px-3 text-center w-16">إجراء</th>
@@ -1334,10 +1305,6 @@ export const Branches = () => {
                           </thead>
                           <tbody className="divide-y divide-border/40">
                             {ledgerRows.map((row) => {
-                              const badgeClass =
-                                row.type.includes('جزائي') ? 'bg-rose-500/10 text-rose-500 border-rose-500/25' :
-                                row.type.includes('تلفيات') ? 'bg-orange-500/10 text-orange-500 border-orange-500/25' :
-                                'bg-amber-500/10 text-amber-500 border-amber-500/25';
 
                               return (
                                 <tr key={row.id} className="hover:bg-muted/30 transition-colors">
@@ -1352,11 +1319,6 @@ export const Branches = () => {
                                       hour: '2-digit',
                                       minute: '2-digit'
                                     })}
-                                  </td>
-                                  <td className="py-3 px-3 text-center">
-                                    <span className={`inline-block px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}`}>
-                                      {row.type}
-                                    </span>
                                   </td>
                                   <td className="py-3 px-3 font-bold text-foreground">
                                     {row.cleanReason}
@@ -1383,7 +1345,7 @@ export const Branches = () => {
                           </tbody>
                           <tfoot className="bg-muted/40 border-t border-border font-bold">
                             <tr>
-                              <td colSpan={4} className="py-3 px-4 text-left font-bold text-muted-foreground text-xs">
+                              <td colSpan={3} className="py-3 px-4 text-left font-bold text-muted-foreground text-xs">
                                 الإجمالي النهائي لكشف الحساب ({MONTH_NAMES_AR[currentMonth]} {currentYear}):
                               </td>
                               <td className="py-3 px-3 text-center font-mono font-bold text-rose-400 text-xs">
