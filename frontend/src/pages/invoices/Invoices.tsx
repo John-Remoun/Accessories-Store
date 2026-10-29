@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { 
   Printer, Eye, 
   ChevronLeft, ChevronRight, Search, RotateCcw, 
-  Send, Trash2, Building2, Sparkles, X, AlertTriangle,
+  Send, Trash2, Building2, Sparkles, X, AlertTriangle, AlertCircle,
   Star, BookOpen, CreditCard, Phone, CheckCircle2, Clock, FileText,
   User, DollarSign, ArrowLeftRight, MessageSquareText, ShieldCheck,
   Pencil, Plus, Minus, Save, PackageCheck, Receipt, Coins
@@ -848,6 +848,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
 
   // --- SUPER ADMIN: EDIT INVOICE & RETURNS STATE ---
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [openingInvoiceId, setOpeningInvoiceId] = useState<string | null>(null);
   const [editCustomerName, setEditCustomerName] = useState<string>('');
   const [editCustomerPhone, setEditCustomerPhone] = useState<string>('');
   const [editPaymentMethod, setEditPaymentMethod] = useState<'cash' | 'card' | 'transfer' | 'vodafone_cash' | 'instapay' | 'multi'>('cash');
@@ -870,14 +871,17 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
 
   const handleOpenEditModal = async (inv: Invoice) => {
+    setOpeningInvoiceId(inv.id);
     let fullInv = inv;
-    try {
-      const fetched = await api.getInvoiceById(inv.id || inv.invoiceNumber);
-      if (fetched && fetched.items && fetched.items.length > 0) {
-        fullInv = fetched;
+    if (!inv.items || inv.items.length === 0) {
+      try {
+        const fetched = await api.getInvoiceById(inv.id || inv.invoiceNumber);
+        if (fetched && fetched.items && fetched.items.length > 0) {
+          fullInv = fetched;
+        }
+      } catch (err) {
+        console.warn('Could not load full invoice items for edit modal:', err);
       }
-    } catch (err) {
-      console.warn('Could not load full invoice items for edit modal:', err);
     }
 
     setEditingInvoice(fullInv);
@@ -886,9 +890,24 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     const initialMethod = (fullInv.paymentSubMethod || fullInv.paymentMethod || 'cash') as any;
     setEditPaymentMethod(initialMethod);
     setEditVodafoneNumber(fullInv.vodafoneNumber || VODAFONE_CASH_NUMBERS[0]);
-    const isPartial = (fullInv.remainingAmount && fullInv.remainingAmount > 0) || fullInv.paymentStatus === 'partial' || fullInv.paymentStatus === 'deferred';
-    setEditPaymentStatus(isPartial ? 'partial' : 'paid');
-    setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
+
+    // 3 distinct payment statuses: paid, partial, deferred
+    let initialStatus: 'paid' | 'partial' | 'deferred' = 'paid';
+    if (fullInv.paymentStatus === 'deferred' || (!fullInv.paidAmount && fullInv.remainingAmount && fullInv.remainingAmount >= fullInv.total && fullInv.total > 0)) {
+      initialStatus = 'deferred';
+    } else if (fullInv.paymentStatus === 'partial' || (fullInv.remainingAmount && fullInv.remainingAmount > 0)) {
+      initialStatus = 'partial';
+    }
+    setEditPaymentStatus(initialStatus);
+
+    if (initialStatus === 'paid') {
+      setEditPaidAmount(fullInv.total);
+    } else if (initialStatus === 'deferred') {
+      setEditPaidAmount(0);
+    } else {
+      setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
+    }
+
     setEditDiscount(fullInv.discount || 0);
 
     // Populate split payments
@@ -897,9 +916,10 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
       setEditSplitVodafone(Number(fullInv.splitPayments.vodafone_cash || 0));
       setEditSplitInstapay(Number(fullInv.splitPayments.instapay || 0));
     } else {
-      setEditSplitCash(initialMethod === 'cash' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
-      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
-      setEditSplitInstapay(initialMethod === 'instapay' ? (fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total) : 0);
+      const pTotal = initialStatus === 'paid' ? fullInv.total : (fullInv.paidAmount || 0);
+      setEditSplitCash(initialMethod === 'cash' ? pTotal : 0);
+      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? pTotal : 0);
+      setEditSplitInstapay(initialMethod === 'instapay' ? pTotal : 0);
     }
 
     const cloned = (fullInv.items || []).map(it => {
@@ -917,6 +937,7 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
       };
     });
     setEditItems(cloned);
+    setOpeningInvoiceId(null);
   };
 
   const handleRemoveEditItem = (idx: number) => {
@@ -930,6 +951,11 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
         else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
         else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else if (editPaymentStatus === 'deferred') {
+        setEditPaidAmount(0);
+        setEditSplitCash(0);
+        setEditSplitVodafone(0);
+        setEditSplitInstapay(0);
       } else {
         setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
       }
@@ -937,32 +963,15 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
     });
   };
 
-  const handleSetEditItemQuantity = (idx: number, newQty: number) => {
-    const safeQty = Math.max(1, newQty);
-    setEditItems(prev => {
-      const copy = [...prev];
-      copy[idx] = { ...copy[idx], quantity: safeQty };
-
-      const newSub = copy.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
-      const newTot = Math.max(0, newSub - (Number(editDiscount) || 0));
-
-      if (editPaymentStatus === 'paid') {
-        setEditPaidAmount(newTot);
-        if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
-        else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
-        else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
-      } else {
-        setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
-      }
-      return copy;
-    });
-  };
-
   const handleUpdateEditItemQuantity = (idx: number, delta: number) => {
     setEditItems(prev => {
       const copy = [...prev];
       const curQty = Number(copy[idx].quantity) || 1;
-      const newQty = Math.max(1, curQty + delta);
+      const maxAllowed = Number(copy[idx].originalQuantity) || curQty;
+      // Cannot increase above original sold quantity!
+      const newQty = Math.min(maxAllowed, Math.max(1, curQty + delta));
+      if (newQty === curQty) return prev;
+
       copy[idx] = { ...copy[idx], quantity: newQty };
 
       const newSub = copy.reduce((acc, it) => acc + (Number(it.unitPrice || 0) * (Number(it.quantity) || 1)), 0);
@@ -973,11 +982,36 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
         else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
         else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+      } else if (editPaymentStatus === 'deferred') {
+        setEditPaidAmount(0);
+        setEditSplitCash(0);
+        setEditSplitVodafone(0);
+        setEditSplitInstapay(0);
       } else {
         setEditPaidAmount(prevPaid => Math.min(prevPaid, newTot));
       }
       return copy;
     });
+  };
+
+  const handleEditDiscountChange = (newDiscount: number) => {
+    const safeD = Math.max(0, newDiscount);
+    setEditDiscount(safeD);
+    const newTot = Math.max(0, editSubtotal - safeD);
+
+    if (editPaymentStatus === 'paid') {
+      setEditPaidAmount(newTot);
+      if (editPaymentMethod === 'cash') setEditSplitCash(newTot);
+      else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(newTot);
+      else if (editPaymentMethod === 'instapay') setEditSplitInstapay(newTot);
+    } else if (editPaymentStatus === 'deferred') {
+      setEditPaidAmount(0);
+      setEditSplitCash(0);
+      setEditSplitVodafone(0);
+      setEditSplitInstapay(0);
+    } else {
+      setEditPaidAmount(prev => Math.min(prev, newTot));
+    }
   };
 
   const handleUpdateEditItemPrice = (idx: number, newPrice: number) => {
@@ -1170,19 +1204,25 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const paymentStatusOptions = useMemo(() => [
     {
       value: 'paid',
-      label: 'مدفوعة بالكامل',
+      label: 'مدفوع بالكامل',
       sublabel: 'تم سداد كامل قيمة الفاتورة',
       icon: <CheckCircle2 size={16} className="text-emerald-500" />,
     },
     {
       value: 'partial',
-      label: 'آجل / دفع جزئي',
-      sublabel: 'سداد جزء والباقي آجل',
+      label: 'دفع جزئي',
+      sublabel: 'تم دفع جزء من المبلغ والباقي آجل على العميل',
       icon: <Clock size={16} className="text-amber-500" />,
+    },
+    {
+      value: 'deferred',
+      label: 'آجل بالكامل',
+      sublabel: 'المبلغ غير مدفوع بالكامل وآجل على العميل',
+      icon: <AlertCircle size={16} className="text-rose-500" />,
     },
   ], []);
 
-  const handleSaveInvoiceEdit = async () => {
+  const handleSaveInvoiceEdit = async (openWhatsApp = false) => {
     if (!editingInvoice) return;
     if (editItems.length === 0) {
       setIsSubmittingEdit(true);
@@ -1215,17 +1255,28 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
       const splitSum = splitCash + splitVoda + splitInsta;
 
       let effectivePaid: number;
+      let effectiveRemaining: number;
+      let effectiveStatus: 'paid' | 'partial' | 'deferred';
+
       if (editPaymentStatus === 'paid') {
         effectivePaid = cleanTotal;
-      } else if (isMulti) {
-        effectivePaid = Math.min(splitSum, cleanTotal);
+        effectiveRemaining = 0;
+        effectiveStatus = 'paid';
+      } else if (editPaymentStatus === 'deferred') {
+        effectivePaid = 0;
+        effectiveRemaining = cleanTotal;
+        effectiveStatus = 'deferred';
       } else {
-        const pAmt = Number(editPaidAmount);
-        effectivePaid = Math.min(isNaN(pAmt) ? cleanTotal : Math.max(0, pAmt), cleanTotal);
+        // partial
+        if (isMulti) {
+          effectivePaid = Math.min(splitSum, cleanTotal);
+        } else {
+          const pAmt = Number(editPaidAmount);
+          effectivePaid = Math.min(isNaN(pAmt) ? cleanTotal : Math.max(0, pAmt), cleanTotal);
+        }
+        effectiveRemaining = Math.max(0, cleanTotal - effectivePaid);
+        effectiveStatus = effectiveRemaining <= 0 ? 'paid' : (effectivePaid <= 0 ? 'deferred' : 'partial');
       }
-
-      const effectiveRemaining = editPaymentStatus === 'paid' ? 0 : Math.max(0, cleanTotal - effectivePaid);
-      const effectiveStatus = effectiveRemaining <= 0 ? 'paid' : 'partial';
 
       const finalSplitPayments = isMulti ? {
         cash: splitCash,
@@ -1276,16 +1327,21 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
         quantity: r.returnCount
       }));
 
-      await store.updateInvoice(updatedInvoicePayload, returnedStockPayload);
+      const savedInvoice = await store.updateInvoice(updatedInvoicePayload, returnedStockPayload);
 
       toast.success(
         returnedStockPayload.length > 0
           ? `تم حفظ تعديلات الفاتورة بنجاح، وإرجاع ${returnedStockPayload.reduce((a, b) => a + b.quantity, 0)} قطعة للمخزن وتحديث الأرباح.`
-          : 'تم حفظ تعديلات الفاتورة بنجاح.'
+          : 'تم حفظ تعديلات الفاتورة بنجاح وتحديث الأرباح.'
       );
 
       setEditingInvoice(null);
+      setSelectedInvoice(savedInvoice || updatedInvoicePayload);
       setRefreshKey(prev => prev + 1);
+
+      if (openWhatsApp) {
+        handleSendWhatsAppInvoice(savedInvoice || updatedInvoicePayload);
+      }
     } catch (err: any) {
       toast.error(err?.message || 'حدث خطأ أثناء تعديل الفاتورة');
     } finally {
@@ -1804,11 +1860,21 @@ Salla Bola & Mina`;
                         {isAdmin && (
                           <button
                             onClick={() => handleOpenEditModal(inv)}
-                            className="h-8 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs"
-                            title="تعديل الفاتورة وإرجاع المنتجات (سوبر أدمن فقط)"
+                            disabled={openingInvoiceId === inv.id}
+                            className="h-8 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
+                            title="تعديل الفاتورة وإرجاع المنتجات"
                           >
-                            <Pencil size={13} />
-                            <span>تعديل</span>
+                            {openingInvoiceId === inv.id ? (
+                              <>
+                                <RotateCcw className="animate-spin" size={13} />
+                                <span>جاري الفتح...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Pencil size={13} />
+                                <span>تعديل</span>
+                              </>
+                            )}
                           </button>
                         )}
 
@@ -2009,11 +2075,21 @@ Salla Bola & Mina`;
                         {isAdmin && (
                           <button
                             onClick={() => handleOpenEditModal(inv)}
-                            className="h-9 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs"
-                            title="تعديل الفاتورة وإرجاع المنتجات (سوبر أدمن فقط)"
+                            disabled={openingInvoiceId === inv.id}
+                            className="h-9 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
+                            title="تعديل الفاتورة وإرجاع المنتجات"
                           >
-                            <Pencil size={14} />
-                            <span>تعديل</span>
+                            {openingInvoiceId === inv.id ? (
+                              <>
+                                <RotateCcw className="animate-spin" size={14} />
+                                <span>جاري الفتح...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Pencil size={14} />
+                                <span>تعديل</span>
+                              </>
+                            )}
                           </button>
                         )}
 
@@ -2963,16 +3039,28 @@ Salla Bola & Mina`;
                     />
                   </div>
 
-                  {/* Payment Status (Styled with CustomSelect) */}
+                  {/* Payment Status (3 Options: Paid in full / Partial / Deferred) */}
                   <div className="space-y-1.5">
                     <label className="font-bold text-foreground block">حالة السداد</label>
                     <CustomSelect
                       value={editPaymentStatus}
                       onChange={(val) => {
-                        const sVal = val as 'paid' | 'partial';
+                        const sVal = val as 'paid' | 'partial' | 'deferred';
                         setEditPaymentStatus(sVal);
                         if (sVal === 'paid') {
                           setEditPaidAmount(editTotal);
+                          if (editPaymentMethod === 'cash') setEditSplitCash(editTotal);
+                          else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(editTotal);
+                          else if (editPaymentMethod === 'instapay') setEditSplitInstapay(editTotal);
+                        } else if (sVal === 'deferred') {
+                          setEditPaidAmount(0);
+                          setEditSplitCash(0);
+                          setEditSplitVodafone(0);
+                          setEditSplitInstapay(0);
+                        } else {
+                          if (editPaidAmount === editTotal || editPaidAmount === 0) {
+                            setEditPaidAmount(Math.round(editTotal / 2));
+                          }
                         }
                       }}
                       options={paymentStatusOptions}
@@ -2986,33 +3074,55 @@ Salla Bola & Mina`;
                       type="number"
                       min={0}
                       value={editDiscount}
-                      onChange={(e) => setEditDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                      onChange={(e) => handleEditDiscountChange(parseFloat(e.target.value) || 0)}
                       className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
                     />
                   </div>
 
-                  {/* Paid & Remaining if Partial */}
-                  {editPaymentStatus === 'partial' && (
-                    <>
-                      <div className="space-y-1.5">
-                        <label className="font-bold text-foreground block">المبلغ المدفوع حالياً (ج.م)</label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={editTotal}
-                          value={editPaidAmount}
-                          onChange={(e) => setEditPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
-                          className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
-                        />
+                  {/* Status Indicator & Partial Inputs */}
+                  <div className="sm:col-span-2">
+                    {editPaymentStatus === 'paid' && (
+                      <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-xs flex items-center justify-between">
+                        <span>حالة السداد: مدفوع بالكامل نقداً / إلكترونياً</span>
+                        <span className="font-mono text-sm">{editTotal.toFixed(2)} ج.م</span>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="font-bold text-rose-400 block">المبلغ المتبقي (آجل) (ج.م)</label>
-                        <div className="h-10 px-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-mono font-bold flex items-center">
-                          {Math.max(0, editTotal - editPaidAmount).toFixed(2)} ج.م
+                    )}
+
+                    {editPaymentStatus === 'deferred' && (
+                      <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-xs flex items-center justify-between">
+                        <span>حالة السداد: آجل بالكامل (المبلغ المدفوع: 0.00 ج.م)</span>
+                        <span className="font-mono text-sm">كامل الفاتورة دين آجل على العميل: {editTotal.toFixed(2)} ج.م</span>
+                      </div>
+                    )}
+
+                    {editPaymentStatus === 'partial' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1.5">
+                          <label className="font-bold text-foreground block">المبلغ المدفوع حالياً (ج.م)</label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={editTotal}
+                            value={editPaidAmount}
+                            onChange={(e) => {
+                              const pAmt = Math.max(0, parseFloat(e.target.value) || 0);
+                              setEditPaidAmount(pAmt);
+                              if (editPaymentMethod === 'cash') setEditSplitCash(pAmt);
+                              else if (editPaymentMethod === 'vodafone_cash') setEditSplitVodafone(pAmt);
+                              else if (editPaymentMethod === 'instapay') setEditSplitInstapay(pAmt);
+                            }}
+                            className="h-10 text-xs font-mono font-bold rounded-xl bg-background"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="font-bold text-rose-400 block">المبلغ المتبقي (آجل على العميل) (ج.م)</label>
+                          <div className="h-10 px-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-mono font-bold flex items-center">
+                            {Math.max(0, editTotal - editPaidAmount).toFixed(2)} ج.م
+                          </div>
                         </div>
                       </div>
-                    </>
-                  )}
+                    )}
+                  </div>
 
                   {/* Payment Method Section - Distinctive POS Buttons + Custom Theme Select */}
                   <div className="space-y-3 sm:col-span-2 pt-2 border-t border-border/50">
@@ -3288,43 +3398,33 @@ Salla Bola & Mina`;
                               </td>
 
                               <td className="p-2.5 text-center">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={item.unitPrice}
-                                  onChange={(e) => handleUpdateEditItemPrice(idx, parseFloat(e.target.value) || 0)}
-                                  className="w-20 h-8 text-center text-xs font-mono font-bold bg-muted/40 border border-border rounded-lg outline-none focus:ring-1 focus:ring-amber-500"
-                                />
+                                <span className="inline-block px-3 py-1 rounded-xl bg-muted/60 border border-border/80 text-xs font-mono font-bold text-foreground">
+                                  {item.unitPrice.toFixed(2)} ج.م
+                                </span>
                               </td>
 
                               <td className="p-2.5 text-center">
-                                <div className="inline-flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/60">
+                                <div className="inline-flex items-center gap-2 bg-muted/40 p-1 rounded-xl border border-border/60">
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateEditItemQuantity(idx, -1)}
                                     disabled={item.quantity <= 1}
-                                    className="w-6 h-6 rounded flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-40 transition-colors"
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
                                     title="تقليل الكمية وإرجاع قطعة للمخزن"
                                   >
-                                    <Minus size={12} />
+                                    <Minus size={13} />
                                   </button>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={item.quantity}
-                                    onChange={(e) => {
-                                      const v = parseInt(e.target.value, 10);
-                                      handleSetEditItemQuantity(idx, isNaN(v) || v < 1 ? 1 : v);
-                                    }}
-                                    className="font-mono font-bold text-xs w-10 text-center bg-transparent border-0 outline-none"
-                                  />
+                                  <span className="font-mono font-bold text-xs w-7 text-center text-foreground">
+                                    {item.quantity}
+                                  </span>
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateEditItemQuantity(idx, 1)}
-                                    className="w-6 h-6 rounded flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                    title="زيادة الكمية"
+                                    disabled={item.quantity >= item.originalQuantity}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center bg-card text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
+                                    title={item.quantity >= item.originalQuantity ? "لا يمكن زيادة الكمية عن الكمية الأصلية بالفاتورة" : "زيادة الكمية"}
                                   >
-                                    <Plus size={12} />
+                                    <Plus size={13} />
                                   </button>
                                 </div>
                               </td>
@@ -3401,13 +3501,13 @@ Salla Bola & Mina`;
           )}
 
           {/* Modal Footer */}
-          <DialogFooter className="p-4 border-t border-border/80 bg-muted/10 flex items-center justify-end gap-2 shrink-0">
+          <DialogFooter className="p-4 border-t border-border/80 bg-muted/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 shrink-0">
             <Button
               type="button"
               variant="outline"
               disabled={isSubmittingEdit}
               onClick={() => setEditingInvoice(null)}
-              className="rounded-xl text-xs font-bold h-10 px-5"
+              className="rounded-xl text-xs font-bold h-11 px-4"
             >
               إلغاء
             </Button>
@@ -3415,18 +3515,28 @@ Salla Bola & Mina`;
             <Button
               type="button"
               disabled={isSubmittingEdit}
-              onClick={handleSaveInvoiceEdit}
-              className="bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs h-10 px-6 rounded-xl gap-2 shadow-lg shadow-amber-950/20"
+              onClick={() => handleSaveInvoiceEdit(false)}
+              className="bg-muted hover:bg-muted/80 text-foreground border border-border font-bold text-xs h-11 px-5 rounded-xl gap-2 transition-all shadow-2xs"
+            >
+              <Save size={16} />
+              <span>حفظ التعديل</span>
+            </Button>
+
+            <Button
+              type="button"
+              disabled={isSubmittingEdit}
+              onClick={() => handleSaveInvoiceEdit(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs h-11 px-5 rounded-xl gap-2 shadow-md shadow-emerald-950/20"
             >
               {isSubmittingEdit ? (
                 <>
-                  <RotateCcw className="animate-spin" size={15} />
+                  <RotateCcw className="animate-spin" size={16} />
                   <span>جاري الحفظ...</span>
                 </>
               ) : (
                 <>
-                  <Save size={15} />
-                  <span>حفظ التعديل وتحديث المخزون والأرباح</span>
+                  <Send size={16} />
+                  <span>حفظ وإرسال الفاتورة عبر الواتساب</span>
                 </>
               )}
             </Button>
