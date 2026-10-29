@@ -1307,16 +1307,28 @@ export class InvoiceService {
     }
 
     // If year and month are specified without custom dates, bound SQL query to that target month +- 1 day safety margin
-    if (!options.startDate && !options.endDate && targetMonth !== undefined) {
-      const qStart = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0));
-      qStart.setUTCDate(qStart.getUTCDate() - 1);
-      const qEnd = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
-      qEnd.setUTCDate(qEnd.getUTCDate() + 1);
+    if (!options.startDate && !options.endDate) {
+      if (targetMonth !== undefined) {
+        const qStart = new Date(Date.UTC(targetYear, targetMonth, 1, 0, 0, 0));
+        qStart.setUTCDate(qStart.getUTCDate() - 1);
+        const qEnd = new Date(Date.UTC(targetYear, targetMonth + 1, 0, 23, 59, 59, 999));
+        qEnd.setUTCDate(qEnd.getUTCDate() + 1);
 
-      qb = qb.andWhere('invoice.date >= :qStart AND invoice.date <= :qEnd', {
-        qStart: qStart.toISOString(),
-        qEnd: qEnd.toISOString(),
-      });
+        qb = qb.andWhere('invoice.date >= :qStart AND invoice.date <= :qEnd', {
+          qStart: qStart.toISOString(),
+          qEnd: qEnd.toISOString(),
+        });
+      } else if (options.year !== undefined) {
+        const qStart = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
+        qStart.setUTCDate(qStart.getUTCDate() - 1);
+        const qEnd = new Date(Date.UTC(targetYear, 12, 0, 23, 59, 59, 999));
+        qEnd.setUTCDate(qEnd.getUTCDate() + 1);
+
+        qb = qb.andWhere('invoice.date >= :qStart AND invoice.date <= :qEnd', {
+          qStart: qStart.toISOString(),
+          qEnd: qEnd.toISOString(),
+        });
+      }
     }
 
     const invoices = await qb
@@ -1382,6 +1394,25 @@ export class InvoiceService {
       totalInvoicesCount: number;
     }>();
 
+    const monthsMap = new Map<number, {
+      monthIndex: number;
+      revenue: number;
+      cost: number;
+      netProfit: number;
+      remainingDebt: number;
+      invoicesCount: number;
+    }>();
+    for (let i = 0; i < 12; i++) {
+      monthsMap.set(i, {
+        monthIndex: i,
+        revenue: 0,
+        cost: 0,
+        netProfit: 0,
+        remainingDebt: 0,
+        invoicesCount: 0,
+      });
+    }
+
     const daysMap = new Map<number, {
       dayNum: number;
       revenue: number;
@@ -1403,6 +1434,11 @@ export class InvoiceService {
       const cDate = getCairoDateParts(inv.date);
       if (!cDate) continue;
 
+      // Strictly ensure targetYear matches if year filter was requested
+      if (options.year !== undefined && cDate.year !== targetYear) {
+        continue;
+      }
+
       // If filtering for a specific targetMonth, strictly ensure the Cairo date matches targetMonth and targetYear
       const isTargetMonth = targetMonth !== undefined
         ? (cDate.year === targetYear && cDate.month === targetMonth)
@@ -1411,6 +1447,19 @@ export class InvoiceService {
       // Invoices that fall outside the target month (e.g. from the SQL padding margin) are excluded
       if (targetMonth !== undefined && !isTargetMonth) {
         continue;
+      }
+
+      // Accumulate into monthlyMetrics for the year
+      const mIdx = cDate.month;
+      if (monthsMap.has(mIdx)) {
+        const mEntry = monthsMap.get(mIdx)!;
+        const pVal = getPaid(inv);
+        const cVal = getCost(inv);
+        mEntry.revenue += pVal;
+        mEntry.cost += cVal;
+        mEntry.netProfit += (pVal - cVal);
+        mEntry.remainingDebt += getRemaining(inv);
+        mEntry.invoicesCount += 1;
       }
 
       relevantInvoiceCount++;
@@ -1495,6 +1544,7 @@ export class InvoiceService {
       },
       employeeRankings: Array.from(employeeMap.values()).sort((a, b) => b.totalSalesAmount - a.totalSalesAmount),
       dailyMetrics: Array.from(daysMap.values()).sort((a, b) => a.dayNum - b.dayNum),
+      monthlyMetrics: Array.from(monthsMap.values()).sort((a, b) => a.monthIndex - b.monthIndex),
     };
 
     if (isAdmin) {
@@ -1508,6 +1558,10 @@ export class InvoiceService {
       result.dailyMetrics = result.dailyMetrics.map((d: any) => {
         const { cost, netProfit, ...safeD } = d;
         return safeD;
+      });
+      result.monthlyMetrics = result.monthlyMetrics.map((m: any) => {
+        const { cost, netProfit, ...safeM } = m;
+        return safeM;
       });
     }
 

@@ -156,6 +156,7 @@ export const Branches = () => {
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
 
   const [serverSummary, setServerSummary] = useState<any>(null);
+  const [yearServerSummary, setYearServerSummary] = useState<any>(null);
 
   useEffect(() => {
     let active = true;
@@ -170,6 +171,20 @@ export const Branches = () => {
       });
     return () => { active = false; };
   }, [branch.id, currentYear, currentMonth]);
+
+  useEffect(() => {
+    let active = true;
+    api.getReportsSummary({ branchId: branch.id, year: currentYear })
+      .then(res => {
+        if (active && res) {
+          setYearServerSummary(res);
+        }
+      })
+      .catch(err => {
+        console.warn('Branch year reports summary failed:', err);
+      });
+    return () => { active = false; };
+  }, [branch.id, currentYear]);
 
   // Branch Specific Financial Stats
   const bInvs = store.getInvoicesByBranch(branch.id);
@@ -435,6 +450,49 @@ export const Branches = () => {
 
   // Year Metrics for Active Branch
   const yearMetrics = useMemo(() => {
+    const yearExpenses = fixedExpensesList.filter(exp => {
+      const d = new Date(exp.date);
+      return d.getFullYear() === currentYear;
+    });
+    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+    if (yearServerSummary?.overall) {
+      const totalRevenue = Number(yearServerSummary.overall.revenue || 0);
+      const totalRemaining = Number(yearServerSummary.overall.remainingDebt || 0);
+      const totalCost = Number(yearServerSummary.overall.cost || 0);
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+
+      const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
+        const sMonth = yearServerSummary.monthlyMetrics?.find((m: any) => m.monthIndex === mIdx);
+        const mRev = Number(sMonth?.revenue || 0);
+        const mRem = Number(sMonth?.remainingDebt || 0);
+        const mCost = Number(sMonth?.cost || 0);
+        const mExp = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx)
+                                 .reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+        const mNet = (mRev - mCost) - mExp;
+        return {
+          monthName: mName,
+          monthIndex: mIdx,
+          revenue: mRev,
+          remaining: mRem,
+          netProfit: mNet,
+          invoicesCount: Number(sMonth?.invoicesCount || 0),
+        };
+      });
+
+      return {
+        invoicesCount: Number(yearServerSummary.overall.invoicesCount || 0),
+        totalRevenue,
+        totalRemaining,
+        totalCost,
+        totalFixedExp,
+        grossProfit,
+        netProfit,
+        monthlyBreakdown,
+      };
+    }
+
     const yearInvoices = bInvs.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear;
@@ -442,12 +500,6 @@ export const Branches = () => {
     const totalRevenue = yearInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const totalRemaining = yearInvoices.reduce((acc, inv) => acc + getInvoiceRemaining(inv), 0);
     const totalCost = yearInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
-
-    const yearExpenses = fixedExpensesList.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === currentYear;
-    });
-    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -459,7 +511,7 @@ export const Branches = () => {
       const mCost = mInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const mExp = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx)
                                .reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
-      const mNet = mRev - mCost - mExp;
+      const mNet = (mRev - mCost) - mExp;
       return {
         monthName: mName,
         monthIndex: mIdx,
@@ -480,7 +532,7 @@ export const Branches = () => {
       netProfit,
       monthlyBreakdown,
     };
-  }, [bInvs, fixedExpensesList, currentYear]);
+  }, [yearServerSummary, bInvs, fixedExpensesList, currentYear]);
 
   const daysInMonth = useMemo(() => {
     return new Date(currentYear, currentMonth + 1, 0).getDate();

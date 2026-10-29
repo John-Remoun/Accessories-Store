@@ -19,7 +19,7 @@ import {
   ArrowRight, MapPin, DollarSign, TrendingUp, TrendingDown, Package, 
   FileText, Printer, Diamond, Store, ShieldCheck, Box, Layers, Eye, X,
   Trophy, Users, UserPlus, CheckCircle2, AlertCircle, Send, AlertTriangle,
-  Calendar, ChevronLeft, ChevronRight, Clock, Coins, Receipt
+  Calendar, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Clock, Coins, Receipt
 } from 'lucide-react';
 import lightLogo from '../../assets/light-logo.png';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
@@ -32,6 +32,15 @@ const MONTH_NAMES_AR = [
 
 const WEEKDAY_NAMES_AR = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
 const FULL_WEEKDAY_NAMES_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+
+const getIsoDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const getInvoicePaid = (inv: Invoice): number => {
   if (inv.paidAmount !== undefined && inv.paidAmount !== null) {
@@ -78,7 +87,7 @@ export const MasterDashboard = () => {
   const allPhysicalItems = store.getPhysicalItems();
   const allProducts = store.getProducts();
   const allUsers = store.getUsers();
-  const allFixedExpenses = useMemo(() => store.getAllFixedExpenses(), []);
+  const allFixedExpenses = store.getAllFixedExpenses();
 
   // Aggregated Calendar & Performance State for All Branches Combined
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
@@ -102,12 +111,15 @@ export const MasterDashboard = () => {
       dayInstapay: number;
       dayVodafone: number;
       netCashInDrawer: number;
+      dayExpenses?: any[];
     };
   } | null>(null);
+  const [isDayExpensesExpanded, setIsDayExpensesExpanded] = useState(false);
 
   useStoreSync();
 
   const [serverSummary, setServerSummary] = useState<any | null>(null);
+  const [yearServerSummary, setYearServerSummary] = useState<any | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -123,32 +135,54 @@ export const MasterDashboard = () => {
     return () => { active = false; };
   }, [currentYear, currentMonth]);
 
+  useEffect(() => {
+    let active = true;
+    api.getReportsSummary({ year: currentYear })
+      .then(res => {
+        if (active && res) {
+          setYearServerSummary(res);
+        }
+      })
+      .catch(err => {
+        console.warn('Dashboard year reports summary failed:', err);
+      });
+    return () => { active = false; };
+  }, [currentYear]);
+
   const getDayMetrics = (dayNum: number) => {
+    const datePrefix = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    const dayExpenses = allFixedExpenses.filter(exp => getIsoDate(exp.date) === datePrefix);
+    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
     const sDay = serverSummary?.dailyMetrics?.find((d: any) => d.dayNum === dayNum);
     if (sDay) {
-      const dayFixedExp = allFixedExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0) / 30;
-      const grossProfit = Number(sDay.revenue || 0) - Number(sDay.cost || 0);
-      const netProfit = grossProfit - dayFixedExp;
-      const netCashInDrawer = Number(sDay.cash || 0) - dayFixedExp;
+      const totalRevenue = Number(sDay.revenue || 0);
+      const dayRemaining = Number(sDay.remainingDebt || 0);
+      const totalCost = Number(sDay.cost || 0);
+      const dayCash = Number(sDay.cash || 0);
+      const dayInstapay = Number(sDay.instapay || 0);
+      const dayVodafone = Number(sDay.vodafone || 0);
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+      const netCashInDrawer = dayCash - totalFixedExp;
+
       return {
         invoicesCount: Number(sDay.invoicesCount || 0),
-        totalRevenue: Number(sDay.revenue || 0),
-        dayRemaining: Number(sDay.remainingDebt || 0),
-        totalCost: Number(sDay.cost || 0),
-        totalFixedExp: dayFixedExp,
+        totalRevenue,
+        dayRemaining,
+        totalCost,
+        totalFixedExp,
         grossProfit,
         netProfit,
-        dayCash: Number(sDay.cash || 0),
-        dayInstapay: Number(sDay.instapay || 0),
-        dayVodafone: Number(sDay.vodafone || 0),
+        dayCash,
+        dayInstapay,
+        dayVodafone,
         netCashInDrawer,
+        dayExpenses,
       };
     }
 
-    const dayInvoices = allInvoices.filter(inv => {
-      const d = new Date(inv.date);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === dayNum;
-    });
+    const dayInvoices = allInvoices.filter(inv => getIsoDate(inv.date) === datePrefix);
 
     const totalRevenue = dayInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
     const dayRemaining = dayInvoices.reduce((acc, inv) => {
@@ -188,12 +222,6 @@ export const MasterDashboard = () => {
       }
     });
 
-    const dayExpenses = allFixedExpenses.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth && d.getDate() === dayNum;
-    });
-
-    const totalFixedExp = dayExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
     const netCashInDrawer = dayCash - totalFixedExp;
@@ -210,10 +238,52 @@ export const MasterDashboard = () => {
       dayInstapay,
       dayVodafone,
       netCashInDrawer,
+      dayExpenses,
     };
   };
 
   const monthMetrics = useMemo(() => {
+    const monthExpenses = allFixedExpenses.filter(exp => {
+      const d = new Date(exp.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+    if (serverSummary?.overall) {
+      const totalRevenue = Number(serverSummary.overall.revenue || 0);
+      const totalRemaining = Number(serverSummary.overall.remainingDebt || 0);
+      const totalCost = Number(serverSummary.overall.cost || 0);
+      let monthCash = 0;
+      let monthInstapay = 0;
+      let monthVodafone = 0;
+
+      if (Array.isArray(serverSummary.dailyMetrics)) {
+        serverSummary.dailyMetrics.forEach((d: any) => {
+          monthCash += Number(d.cash || 0);
+          monthInstapay += Number(d.instapay || 0);
+          monthVodafone += Number(d.vodafone || 0);
+        });
+      }
+
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+      const netCashInDrawer = monthCash - totalFixedExp;
+
+      return {
+        invoicesCount: Number(serverSummary.overall.invoicesCount || 0),
+        totalRevenue,
+        totalRemaining,
+        totalCost,
+        totalFixedExp,
+        grossProfit,
+        netProfit,
+        monthCash,
+        monthInstapay,
+        monthVodafone,
+        netCashInDrawer,
+      };
+    }
+
     const monthInvoices = allInvoices.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
@@ -256,12 +326,6 @@ export const MasterDashboard = () => {
       }
     });
 
-    const monthExpenses = allFixedExpenses.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
-    });
-    const totalFixedExp = monthExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
-
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
     const netCashInDrawer = monthCash - totalFixedExp;
@@ -279,21 +343,62 @@ export const MasterDashboard = () => {
       monthVodafone,
       netCashInDrawer,
     };
-  }, [allInvoices, allFixedExpenses, currentYear, currentMonth]);
+  }, [serverSummary, allInvoices, allFixedExpenses, currentYear, currentMonth]);
 
   const yearMetrics = useMemo(() => {
+    const yearExpenses = allFixedExpenses.filter(exp => {
+      const d = new Date(exp.date);
+      return d.getFullYear() === currentYear;
+    });
+    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+    if (yearServerSummary?.overall) {
+      const totalRevenue = Number(yearServerSummary.overall.revenue || 0);
+      const totalRemaining = Number(yearServerSummary.overall.remainingDebt || 0);
+      const totalCost = Number(yearServerSummary.overall.cost || 0);
+      const grossProfit = totalRevenue - totalCost;
+      const netProfit = grossProfit - totalFixedExp;
+
+      const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
+        const sMonth = yearServerSummary.monthlyMetrics?.find((m: any) => m.monthIndex === mIdx);
+        const rev = Number(sMonth?.revenue || 0);
+        const rem = Number(sMonth?.remainingDebt || 0);
+        const cst = Number(sMonth?.cost || 0);
+        const mExps = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx);
+        const fExp = mExps.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+        const mNet = (rev - cst) - fExp;
+
+        return {
+          monthIndex: mIdx,
+          monthName: mName,
+          revenue: rev,
+          remaining: rem,
+          cost: cst,
+          fixedExp: fExp,
+          netProfit: mNet,
+          invoicesCount: Number(sMonth?.invoicesCount || 0),
+        };
+      });
+
+      return {
+        totalRevenue,
+        totalRemaining,
+        totalCost,
+        totalFixedExp,
+        grossProfit,
+        netProfit,
+        invoicesCount: Number(yearServerSummary.overall.invoicesCount || 0),
+        monthlyBreakdown,
+      };
+    }
+
     const yearInvoices = allInvoices.filter(inv => {
       const d = new Date(inv.date);
       return d.getFullYear() === currentYear;
     });
     const totalRevenue = yearInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+    const totalRemaining = yearInvoices.reduce((acc, inv) => acc + (Number(inv.remainingAmount) || 0), 0);
     const totalCost = yearInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
-
-    const yearExpenses = allFixedExpenses.filter(exp => {
-      const d = new Date(exp.date);
-      return d.getFullYear() === currentYear;
-    });
-    const totalFixedExp = yearExpenses.reduce((acc, exp) => acc + (exp.amount || 0), 0);
 
     const grossProfit = totalRevenue - totalCost;
     const netProfit = grossProfit - totalFixedExp;
@@ -301,14 +406,16 @@ export const MasterDashboard = () => {
     const monthlyBreakdown = MONTH_NAMES_AR.map((mName, mIdx) => {
       const mInvs = yearInvoices.filter(inv => new Date(inv.date).getMonth() === mIdx);
       const rev = mInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
+      const rem = mInvs.reduce((acc, inv) => acc + (Number(inv.remainingAmount) || 0), 0);
       const cst = mInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
       const mExps = yearExpenses.filter(exp => new Date(exp.date).getMonth() === mIdx);
-      const fExp = mExps.reduce((acc, exp) => acc + (exp.amount || 0), 0);
+      const fExp = mExps.reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
 
       return {
         monthIndex: mIdx,
         monthName: mName,
         revenue: rev,
+        remaining: rem,
         cost: cst,
         fixedExp: fExp,
         netProfit: (rev - cst) - fExp,
@@ -318,13 +425,15 @@ export const MasterDashboard = () => {
 
     return {
       totalRevenue,
+      totalRemaining,
       totalCost,
       totalFixedExp,
       grossProfit,
       netProfit,
+      invoicesCount: yearInvoices.length,
       monthlyBreakdown,
     };
-  }, [allInvoices, allFixedExpenses, currentYear]);
+  }, [yearServerSummary, allInvoices, allFixedExpenses, currentYear]);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayWeekdayIndex = new Date(currentYear, currentMonth, 1).getDay();
@@ -353,19 +462,18 @@ export const MasterDashboard = () => {
     setCurrentMonth(today.getMonth());
   };
 
-  // Global Financial Calculations for Super Admin
+  // Global Financial Calculations for Super Admin (Accurate Annual Aggregation Across All Branches)
   const globalMetrics = useMemo(() => {
-    const totalRevenue = allInvoices.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
-    const totalCost = allInvoices.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
-    const totalNetProfit = totalRevenue - totalCost;
+    const totalRevenue = yearMetrics.totalRevenue;
+    const totalCost = yearMetrics.totalCost;
+    const totalFixedExpenses = yearMetrics.totalFixedExp;
+    const totalNetProfit = yearMetrics.netProfit;
     const profitMargin = totalRevenue > 0 ? ((totalNetProfit / totalRevenue) * 100).toFixed(1) : '0';
 
+    const allBranchData = store.getAllProductBranchData();
     let availableItemsCount = 0;
-    allProducts.forEach(p => {
-      branches.forEach(b => {
-        const bd = store.getProductBranchData(p.id, b.id);
-        availableItemsCount += Number(bd?.quantity || 0);
-      });
+    allBranchData.forEach(bd => {
+      availableItemsCount += Number(bd?.quantity || 0);
     });
 
     const soldItemsCount = allInvoices.reduce((acc, inv) => {
@@ -377,14 +485,15 @@ export const MasterDashboard = () => {
     return {
       totalRevenue,
       totalCost,
+      totalFixedExpenses,
       totalNetProfit,
       profitMargin,
       availableItemsCount,
       soldItemsCount,
       totalItemsCount,
-      totalInvoicesCount: allInvoices.length,
+      totalInvoicesCount: yearMetrics.invoicesCount,
     };
-  }, [allInvoices, allProducts, branches]);
+  }, [yearMetrics, allInvoices, allProducts, branches]);
 
   // Low Stock Items Summary per branch
   const lowStockSummary = useMemo(() => {
@@ -423,11 +532,12 @@ export const MasterDashboard = () => {
     };
   }, [branches, allProducts]);
 
-  // Per-Branch Financial & Inventory Breakdown
+  // Per-Branch Financial & Inventory Breakdown (Accurate Year Aggregations)
   const branchPerformanceData = useMemo(() => {
     return branches.map((b, idx) => {
       const bInvs = store.getInvoicesByBranch(b.id);
-      const sBranch = serverSummary?.branchSummaries?.find((s: any) => s.branchId === b.id);
+      const sBranchYear = yearServerSummary?.branchSummaries?.find((s: any) => s.branchId === b.id);
+      const sBranch = sBranchYear || serverSummary?.branchSummaries?.find((s: any) => s.branchId === b.id);
 
       const bRevenue = sBranch ? Number(sBranch.revenue || 0) : bInvs.reduce((acc, inv) => acc + getInvoicePaid(inv), 0);
       const bRemaining = sBranch ? Number(sBranch.remainingDebt || 0) : bInvs.reduce((acc, inv) => {
@@ -436,16 +546,20 @@ export const MasterDashboard = () => {
         return acc + Math.max(0, (inv.total || 0) - (inv.paidAmount || 0));
       }, 0);
       const bCost = sBranch ? Number(sBranch.cost || 0) : bInvs.reduce((acc, inv) => acc + getInvoiceRecognizedCost(inv), 0);
-      const bNetProfit = sBranch ? Number(sBranch.netProfit || 0) : (bRevenue - bCost);
+      const bGrossProfit = bRevenue - bCost;
+      
+      const bExpenses = allFixedExpenses
+        .filter(exp => exp.branchId === b.id && (!currentYear || new Date(exp.date).getFullYear() === currentYear))
+        .reduce((acc, exp) => acc + (Number(exp.amount) || 0), 0);
+
+      const bNetProfit = bGrossProfit - bExpenses;
       const bProfitMargin = bRevenue > 0 ? ((bNetProfit / bRevenue) * 100).toFixed(1) : '0';
       const bInvoicesCount = sBranch ? Number(sBranch.invoicesCount || 0) : bInvs.length;
       
+      const bBranchData = store.getProductBranchDataByBranch(b.id);
       let bAvailablePieces = 0;
-      allProducts.forEach(p => {
-        const bd = store.getProductBranchData(p.id, b.id);
-        if (bd) {
-          bAvailablePieces += Number(bd.quantity || 0);
-        }
+      bBranchData.forEach(bd => {
+        bAvailablePieces += Number(bd?.quantity || 0);
       });
 
       const bSoldItemsCount = bInvs.reduce((acc, inv) => {
@@ -463,6 +577,8 @@ export const MasterDashboard = () => {
         revenue: bRevenue,
         remainingDebt: bRemaining,
         cost: bCost,
+        expenses: bExpenses,
+        grossProfit: bGrossProfit,
         netProfit: bNetProfit,
         profitMargin: bProfitMargin,
         availableStock: bAvailablePieces,
@@ -471,7 +587,24 @@ export const MasterDashboard = () => {
         staffCount: bStaff.length,
       };
     });
-  }, [branches, allInvoices, allProducts, allUsers, serverSummary]);
+  }, [branches, allInvoices, allProducts, allUsers, serverSummary, yearServerSummary, allFixedExpenses, currentYear]);
+
+  const branchesTotalSummary = useMemo(() => {
+    let revenue = 0;
+    let cost = 0;
+    let expenses = 0;
+    let netProfit = 0;
+    let availableStock = 0;
+    branchPerformanceData.forEach(b => {
+      revenue += b.revenue;
+      cost += b.cost;
+      expenses += b.expenses;
+      netProfit += b.netProfit;
+      availableStock += b.availableStock;
+    });
+    const profitMargin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : '0';
+    return { revenue, cost, expenses, netProfit, profitMargin, availableStock };
+  }, [branchPerformanceData]);
 
   // Employee Performance & Ranking (Sorted descending by total sales amount)
   const employeeRankings = useMemo(() => {
@@ -750,6 +883,7 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                 <TableHead className="text-right py-3 px-3 sm:px-4 font-bold text-xs">الفرع</TableHead>
                 <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">إجمالي المبيعات</TableHead>
                 <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">التكلفة</TableHead>
+                <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">المصاريف</TableHead>
                 <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">صافي المكسب</TableHead>
                 <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">هامش الربح %</TableHead>
                 <TableHead className="text-center py-3 px-3 sm:px-4 font-bold text-xs">قطع المخزون</TableHead>
@@ -773,6 +907,10 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                       {b.cost.toLocaleString()} EGP
                     </TableCell>
 
+                    <TableCell className="text-center font-mono text-[11px] sm:text-xs text-rose-500 font-bold py-3 sm:py-4 px-3 sm:px-4">
+                      {b.expenses > 0 ? `-${b.expenses.toLocaleString()} EGP` : '0 EGP'}
+                    </TableCell>
+
                     <TableCell className="text-center font-bold font-mono text-xs sm:text-sm py-3 sm:py-4 px-3 sm:px-4">
                       <span className={`inline-flex items-center gap-1 ${isProfitable ? 'text-emerald-500' : 'text-red-500'}`}>
                         {isProfitable ? '+' : ''}{b.netProfit.toLocaleString()} EGP
@@ -792,6 +930,33 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                   </TableRow>
                 );
               })}
+
+              {/* Summary Row Across All Branches Combined */}
+              <TableRow className="bg-primary/10 font-bold border-t-2 border-primary/30">
+                <TableCell className="text-right py-3.5 px-3 sm:px-4 text-xs sm:text-sm font-black text-primary">
+                  الإجمالي العام لجميع الفروع
+                </TableCell>
+                <TableCell className="text-center font-black text-foreground font-mono text-xs sm:text-sm py-3.5 px-3 sm:px-4">
+                  {branchesTotalSummary.revenue.toLocaleString()} EGP
+                </TableCell>
+                <TableCell className="text-center font-mono text-[11px] sm:text-xs text-muted-foreground py-3.5 px-3 sm:px-4">
+                  {branchesTotalSummary.cost.toLocaleString()} EGP
+                </TableCell>
+                <TableCell className="text-center font-mono text-[11px] sm:text-xs text-rose-500 font-bold py-3.5 px-3 sm:px-4">
+                  -{branchesTotalSummary.expenses.toLocaleString()} EGP
+                </TableCell>
+                <TableCell className="text-center font-black font-mono text-xs sm:text-sm py-3.5 px-3 sm:px-4 text-emerald-500">
+                  +{branchesTotalSummary.netProfit.toLocaleString()} EGP
+                </TableCell>
+                <TableCell className="text-center py-3.5 px-3 sm:px-4">
+                  <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold bg-primary/20 text-primary border border-primary/30 font-mono">
+                    %{branchesTotalSummary.profitMargin}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center font-black text-foreground font-mono text-[11px] sm:text-xs py-3.5 px-3 sm:px-4">
+                  {branchesTotalSummary.availableStock} قطعة
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </div>
@@ -1213,22 +1378,80 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
                 </div>
 
-                {/* 3. Fixed Expenses Daily Card */}
-                <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-rose-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 sm:gap-3">
-                    <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-rose-950/80 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-xs">
-                      <Receipt size={18} className="sm:w-[22px] sm:h-[22px]" />
+                {/* 3. Fixed Expenses Daily Card - Clickable to see what was spent across all branches */}
+                <div 
+                  onClick={() => setIsDayExpensesExpanded(prev => !prev)}
+                  className="bg-card shadow-xs border border-border/80 border-l-4 border-l-rose-500 rounded-2xl p-3.5 sm:p-4 cursor-pointer hover:bg-rose-500/5 transition-all group select-none"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5 sm:gap-3">
+                      <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-rose-950/80 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                        <Receipt size={18} className="sm:w-[22px] sm:h-[22px]" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <span className="text-xs font-bold text-muted-foreground">إجمالي المصاريف اليومية</span>
+                          <span className="text-[9px] sm:text-[10px] bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap">
+                            {selectedDayModalData.metrics.dayExpenses?.length || 0} مصروف
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-rose-400/90 font-medium block mt-0.5 group-hover:text-rose-300 transition-colors">
+                          اضغط لعرض تفاصيل المنصرف 🔍
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs font-bold text-muted-foreground block">إجمالي المصاريف اليومية</span>
+                    <div className="flex items-center gap-2">
+                      <div className="text-left font-mono">
+                        <span className="text-lg sm:text-2xl font-extrabold text-rose-400">
+                          -{selectedDayModalData.metrics.totalFixedExp.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                        <span className="text-[10px] sm:text-xs font-bold text-muted-foreground mr-1">ج.م</span>
+                      </div>
+                      <div className="text-muted-foreground group-hover:text-rose-400 transition-colors">
+                        {isDayExpensesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-left font-mono">
-                    <span className="text-lg sm:text-2xl font-extrabold text-rose-400">
-                      -{selectedDayModalData.metrics.totalFixedExp.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                    <span className="text-[10px] sm:text-xs font-bold text-muted-foreground mr-1">ج.م</span>
-                  </div>
+
+                  {/* Expanded List of Day Expenses */}
+                  {isDayExpensesExpanded && (
+                    <div className="mt-3 pt-3 border-t border-rose-500/20 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200" onClick={(e) => e.stopPropagation()}>
+                      <div className="text-[11px] font-bold text-rose-300 flex items-center justify-between px-1">
+                        <span>قائمة ما تم صرفه بالفروع في هذا اليوم:</span>
+                        <span>{selectedDayModalData.metrics.dayExpenses?.length || 0} مصروف</span>
+                      </div>
+                      {(!selectedDayModalData.metrics.dayExpenses || selectedDayModalData.metrics.dayExpenses.length === 0) ? (
+                        <div className="p-3 rounded-xl bg-background/50 border border-border/50 text-center text-xs text-muted-foreground">
+                          لم يتم تسجيل أي مصاريف في هذا اليوم 🎉
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {selectedDayModalData.metrics.dayExpenses.map(exp => {
+                            const branchObj = store.getBranch(exp.branchId);
+                            const branchName = branchObj ? branchObj.nameAr : 'فرع';
+                            return (
+                              <div key={exp.id} className="p-2 sm:p-2.5 rounded-xl bg-background/80 border border-rose-500/20 flex items-center justify-between text-xs">
+                                <div className="space-y-0.5 text-right">
+                                  <div className="font-bold text-foreground flex items-center gap-1.5">
+                                    <span>{exp.title}</span>
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-primary/10 text-primary border border-primary/20">
+                                      {branchName}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-muted-foreground font-mono">
+                                    {exp.userName ? `المسجل: ${exp.userName}` : ''}
+                                  </div>
+                                </div>
+                                <span className="font-mono font-bold text-rose-400">
+                                  -{Number(exp.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 4. Net Cash in Drawer Box */}
