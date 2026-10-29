@@ -29,3 +29,4 @@ export class SalaryWithdrawalEntity {
   @UpdateDateColumn()
   updatedAt!: Date;
 }
+

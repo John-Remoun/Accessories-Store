@@ -74,3 +74,4 @@ export class SalaryWithdrawalController {
     }
   }
 }
+
