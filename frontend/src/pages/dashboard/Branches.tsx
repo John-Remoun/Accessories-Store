@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { 
   Users, User, Package, QrCode, ShoppingCart, 
   MapPin, TrendingUp, Box, Layers, AlertTriangle, Tag, Sparkles, DollarSign,
-  Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar, Wallet, Banknote,
+  Droplet, Warehouse, Coins, ShoppingBag, Receipt, Plus, Trash2, Calendar, Wallet, Banknote, FileSpreadsheet, ShieldCheck,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, FileText
 } from 'lucide-react';
 import vodafoneLogo from '../../assets/vodafone-logo.png';
@@ -85,11 +85,13 @@ export const Branches = () => {
   const [expenseType] = useState<'daily' | 'monthly'>('daily');
   const [expensesVersion, setExpensesVersion] = useState(0);
 
-  // Salary Advances & Personal Withdrawals State
-  const [withdrawalReason, setWithdrawalReason] = useState('');
-  const [withdrawalAmount, setWithdrawalAmount] = useState('');
-  const [withdrawalSubmitting, setWithdrawalSubmitting] = useState(false);
-  const [withdrawalError, setWithdrawalError] = useState('');
+  // Super Admin Employee Salary Ledger & Statement State
+  const [selectedEmpId, setSelectedEmpId] = useState<string>('');
+  const [deductionType, setDeductionType] = useState<string>('سحب / سلفة');
+  const [deductionReason, setDeductionReason] = useState<string>('');
+  const [deductionAmount, setDeductionAmount] = useState<string>('');
+  const [deductionSubmitting, setDeductionSubmitting] = useState<boolean>(false);
+  const [deductionError, setDeductionError] = useState<string>('');
 
   if (!user) {
     return (
@@ -129,84 +131,7 @@ export const Branches = () => {
 
   const totalFixedExpenses = useMemo(() => fixedExpensesList.reduce((acc, item) => acc + (Number(item.amount) || 0), 0), [fixedExpensesList]);
 
-  // Current user record from store (to ensure latest salary value is reflected)
-  const currentUserRecord = useMemo(() => {
-    return store.getUsers().find(u => u.id === user.id || (u.username && u.username.toLowerCase() === (user.username || '').toLowerCase())) || user;
-  }, [user, expensesVersion]);
 
-  // Current user's monthly salary withdrawals
-  const userWithdrawals = useMemo(() => {
-    return store.getSalaryWithdrawalsByUser(currentUserRecord.id);
-  }, [currentUserRecord.id, expensesVersion]);
-
-  const currentMonthWithdrawals = useMemo(() => {
-    const now = new Date();
-    const currYear = now.getFullYear();
-    const currMonth = now.getMonth();
-    return userWithdrawals.filter(w => {
-      const d = new Date(w.date);
-      return d.getFullYear() === currYear && d.getMonth() === currMonth;
-    });
-  }, [userWithdrawals]);
-
-  const currentMonthWithdrawalsTotal = useMemo(() => {
-    return currentMonthWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
-  }, [currentMonthWithdrawals]);
-
-  const employeeBaseSalary = Number(currentUserRecord.salary) || 0;
-  const netDueSalary = employeeBaseSalary - currentMonthWithdrawalsTotal;
-
-  // Branch withdrawals list (for Admin to view all employees' withdrawals in this branch)
-  const branchSalaryWithdrawals = useMemo(() => {
-    const now = new Date();
-    const currYear = now.getFullYear();
-    const currMonth = now.getMonth();
-    return store.getSalaryWithdrawalsByBranch(branch.id).filter(w => {
-      const d = new Date(w.date);
-      return d.getFullYear() === currYear && d.getMonth() === currMonth;
-    });
-  }, [branch.id, expensesVersion]);
-
-  const displayedWithdrawals = isAdmin ? branchSalaryWithdrawals : currentMonthWithdrawals;
-
-  const handleAddWithdrawal = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!withdrawalReason.trim()) {
-      setWithdrawalError('يرجى كتابة سبب السحب أو السلفة.');
-      return;
-    }
-    const amt = parseFloat(withdrawalAmount);
-    if (isNaN(amt) || amt <= 0) {
-      setWithdrawalError('يرجى إدخال مبلغ صحيح أكبر من 0.');
-      return;
-    }
-
-    setWithdrawalSubmitting(true);
-    setWithdrawalError('');
-    try {
-      await store.addSalaryWithdrawal({
-        id: `sw_${Date.now()}`,
-        userId: currentUserRecord.id,
-        userName: currentUserRecord.name || currentUserRecord.username,
-        branchId: branch.id,
-        amount: amt,
-        reason: withdrawalReason.trim(),
-        date: new Date().toISOString()
-      });
-      setWithdrawalReason('');
-      setWithdrawalAmount('');
-      setExpensesVersion(v => v + 1);
-    } catch (err: any) {
-      setWithdrawalError(err.message || 'حدث خطأ أثناء تسجيل السحب');
-    } finally {
-      setWithdrawalSubmitting(false);
-    }
-  };
-
-  const handleRemoveWithdrawal = async (id: string) => {
-    await store.removeSalaryWithdrawal(id);
-    setExpensesVersion(v => v + 1);
-  };
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,6 +162,112 @@ export const Branches = () => {
   // Calendar State for Branch Dashboard
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
+
+  // Branch Employees (non-admin staff assigned to this branch)
+  const branchEmployees = useMemo(() => {
+    return store.getUsers().filter(u => u.role !== 'admin' && (u.branchId === branch.id || (!u.branchId && branch.id === 'b1')));
+  }, [branch.id, expensesVersion]);
+
+  // Selected Employee for Statement
+  const activeEmployee = useMemo(() => {
+    if (branchEmployees.length === 0) return null;
+    return branchEmployees.find(e => e.id === selectedEmpId) || branchEmployees[0];
+  }, [branchEmployees, selectedEmpId]);
+
+  const empBaseSalary = Number(activeEmployee?.salary) || 0;
+
+  // Monthly withdrawals/deductions for active employee in current selected month
+  const empMonthlyWithdrawals = useMemo(() => {
+    if (!activeEmployee) return [];
+    return store.getSalaryWithdrawalsByUser(activeEmployee.id)
+      .filter(w => {
+        const d = new Date(w.date);
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [activeEmployee, currentYear, currentMonth, expensesVersion]);
+
+  // Running Ledger calculation
+  const ledgerRows = useMemo(() => {
+    let running = empBaseSalary;
+    return empMonthlyWithdrawals.map((w, idx) => {
+      const amt = Number(w.amount) || 0;
+      running -= amt;
+      let type = 'سحب / سلفة';
+      let cleanReason = w.reason;
+      if (w.reason.startsWith('[') && w.reason.includes(']')) {
+        const closeIdx = w.reason.indexOf(']');
+        type = w.reason.substring(1, closeIdx);
+        cleanReason = w.reason.substring(closeIdx + 1).trim();
+      }
+      return {
+        ...w,
+        index: idx + 1,
+        type,
+        cleanReason,
+        amountNum: amt,
+        balanceAfter: running
+      };
+    });
+  }, [empBaseSalary, empMonthlyWithdrawals]);
+
+  const totalEmpDeductions = useMemo(() => {
+    return empMonthlyWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+  }, [empMonthlyWithdrawals]);
+
+  const netPayableSalary = empBaseSalary - totalEmpDeductions;
+
+  // Handler for Super Admin to record a new deduction/advance
+  const handleAddDeduction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeEmployee) {
+      setDeductionError('يرجى اختيار موظف أولاً من القائمة');
+      return;
+    }
+    if (!deductionReason.trim()) {
+      setDeductionError('يرجى كتابة بيان أو سبب الخصم / السلفة');
+      return;
+    }
+    const amt = parseFloat(deductionAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setDeductionError('يرجى إدخال مبلغ صحيح أكبر من 0');
+      return;
+    }
+
+    setDeductionSubmitting(true);
+    setDeductionError('');
+    try {
+      const fullReason = `[${deductionType}] ${deductionReason.trim()}`;
+      const now = new Date();
+      let txDate = now.toISOString();
+      if (now.getFullYear() !== currentYear || now.getMonth() !== currentMonth) {
+        txDate = new Date(currentYear, currentMonth, 15, 12, 0, 0).toISOString();
+      }
+
+      await store.addSalaryWithdrawal({
+        id: `sw_${Date.now()}`,
+        userId: activeEmployee.id,
+        userName: activeEmployee.name || activeEmployee.username,
+        branchId: branch.id,
+        amount: amt,
+        reason: fullReason,
+        date: txDate
+      });
+
+      setDeductionReason('');
+      setDeductionAmount('');
+      setExpensesVersion(v => v + 1);
+    } catch (err: any) {
+      setDeductionError(err.message || 'حدث خطأ أثناء تسجيل العملية');
+    } finally {
+      setDeductionSubmitting(false);
+    }
+  };
+
+  const handleRemoveDeduction = async (id: string) => {
+    await store.removeSalaryWithdrawal(id);
+    setExpensesVersion(v => v + 1);
+  };
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
 
@@ -1051,213 +1082,335 @@ export const Branches = () => {
         </div>
       </div>
 
-      {/* 3.1 SALARY ADVANCES & WITHDRAWALS SECTION (Visible ONLY to branch employees, NOT Super Admin) */}
-      {!isAdmin && (
-        <div className="space-y-4 pt-4 mt-8">
-        
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-border/60 pb-2">
-          <div>
-            <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2">
-              <Wallet className="text-amber-500" size={20} />
-              <span>مسحوبات وسلف المرتب الشخصي</span>
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              يتم خصم المبالغ المسحوبة تلقائياً من المرتب الأساسي لحساب صافي المستحق عند استلام الراتب.
-            </p>
+      {/* 3.1 SUPER ADMIN EMPLOYEE SALARY STATEMENT & DEDUCTIONS LEDGER */}
+      {isAdmin && (
+        <div className="bg-card border border-border/80 rounded-3xl p-5 sm:p-7 shadow-sm space-y-6 mt-8">
+          
+          {/* Top Section Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-border/60 pb-4">
+            <div>
+              <h2 className="text-xl font-serif font-bold text-foreground flex items-center gap-2.5">
+                <FileSpreadsheet className="text-amber-500" size={24} />
+                <span>كشف حساب وتسوية مرتبات موظفي الفرع</span>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                إدارة وسجل الحركات المالية المخصومة من مرتبات الموظفين (سلف، مسحوبات، خصومات) مع احتساب صافي المستحق تلقائياً.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold font-mono">
+                كشف شهر {MONTH_NAMES_AR[currentMonth]} {currentYear}
+              </span>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="px-3.5 py-1.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 text-xs font-bold font-mono">
-              صافي المستحق: {netDueSalary.toLocaleString()} ج.م
-            </span>
-          </div>
-        </div>
 
-        {/* Top 3 KPI Cards for Salary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          
-          {/* Base Salary */}
-          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-muted-foreground">المرتب الشهري الأساسي</p>
-                <h3 className="text-xl font-bold font-mono text-foreground mt-1">
-                  {employeeBaseSalary > 0 ? `${employeeBaseSalary.toLocaleString()} ج.م` : 'غير محدد'}
-                </h3>
-                <span className="text-[10px] text-muted-foreground font-semibold">المحدد لحسابك بالسيستم</span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <Banknote size={20} />
-              </div>
-            </div>
-          </Card>
-
-          {/* Current Month Withdrawals */}
-          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-muted-foreground">إجمالي المسحوبات (هذا الشهر)</p>
-                <h3 className="text-xl font-bold font-mono text-rose-400 mt-1">
-                  {currentMonthWithdrawalsTotal.toLocaleString()} ج.م
-                </h3>
-                <span className="text-[10px] text-muted-foreground font-semibold">
-                  {currentMonthWithdrawals.length} عملية سحب / سلفة
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                <Wallet size={20} />
-              </div>
-            </div>
-          </Card>
-
-          {/* Net Due Salary Remaining */}
-          <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-muted-foreground">صافي المرتب المستحق للصرف</p>
-                <h3 className={`text-xl font-bold font-mono mt-1 ${
-                  netDueSalary > 0 ? 'text-emerald-400' :
-                  netDueSalary === 0 ? 'text-amber-400' : 'text-rose-400'
-                }`}>
-                  {netDueSalary.toLocaleString()} ج.م
-                </h3>
-                <span className="text-[10px] text-muted-foreground font-semibold">
-                  {netDueSalary > 0 ? 'متبقي للاستلام نهاية الشهر' : netDueSalary === 0 ? 'تم استنفاد كامل المرتب' : 'تجاوزت قيمة المرتب'}
-                </span>
-              </div>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                netDueSalary > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-              }`}>
-                <Coins size={20} />
-              </div>
-            </div>
-          </Card>
-
-        </div>
-
-        {/* Withdrawal Form & History Card */}
-        <div className="bg-card shadow-md border border-border/80 rounded-3xl p-6 space-y-5">
-          
-          {/* Error Alert */}
-          {withdrawalError && (
-            <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl">
-              {withdrawalError}
-            </div>
-          )}
-
-          {/* Withdrawal Input Form */}
-          <form onSubmit={handleAddWithdrawal} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-            
-            {/* Field 1: Reason */}
-            <div className="sm:col-span-7 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground block">
-                سبب السحب أو السلفة الشخصية
-              </label>
-              <Input 
-                type="text"
-                placeholder="سبب سحب الفلوس الشخصية (مثال: سلفة شخصية، مصاريف خاصة...)"
-                value={withdrawalReason}
-                onChange={(e) => { setWithdrawalReason(e.target.value); setWithdrawalError(''); }}
-                className="h-11 text-xs rounded-xl bg-background border-border/80 focus:border-amber-500 px-4 font-bold"
-              />
-            </div>
-
-            {/* Field 2: Amount */}
-            <div className="sm:col-span-3 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground block">
-                المبلغ المسحوب (ج.م)
-              </label>
-              <Input 
-                type="number"
-                min="0"
-                step="any"
-                placeholder="المبلغ (ج.م)"
-                value={withdrawalAmount}
-                onChange={(e) => { setWithdrawalAmount(e.target.value); setWithdrawalError(''); }}
-                className="h-11 text-xs rounded-xl bg-background border-border/80 focus:border-amber-500 px-4 font-mono font-bold"
-              />
-            </div>
-
-            {/* Submit Button */}
-            <div className="sm:col-span-2">
-              <Button 
-                type="submit"
-                disabled={withdrawalSubmitting}
-                className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs rounded-xl gap-1.5 shadow-md transition-all flex items-center justify-center"
-              >
-                <Banknote size={16} />
-                <span>{withdrawalSubmitting ? 'جاري السحب...' : 'سحب من المرتب'}</span>
-              </Button>
-            </div>
-
-          </form>
-
-          {/* History of Withdrawals Table */}
-          {displayedWithdrawals.length > 0 ? (
-            <div className="pt-2 overflow-x-auto">
-              <table className="w-full text-xs text-right border-collapse">
-                <thead>
-                  <tr className="border-b border-border/60 text-muted-foreground font-bold">
-                    <th className="py-2.5 px-3 text-right">سبب السحب</th>
-                    <th className="py-2.5 px-3 text-center">التاريخ والوقت</th>
-                    <th className="py-2.5 px-3 text-center">المبلغ</th>
-                    <th className="py-2.5 px-3 text-center">الموظف</th>
-                    <th className="py-2.5 px-3 text-center w-16">إجراء</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {displayedWithdrawals.map((w) => {
-                    const isOwner = w.userId === currentUserRecord.id;
-                    const canDelete = isAdmin || isOwner;
-
-                    return (
-                      <tr key={w.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-3 font-bold text-foreground">{w.reason}</td>
-                        <td className="py-3 px-3 text-center font-mono text-muted-foreground">
-                          {new Date(w.date).toLocaleDateString('ar-EG', {
-                            year: 'numeric',
-                            month: 'numeric',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
-                          -{Number(w.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-bold text-xs">
-                            <User size={13} className="shrink-0" />
-                            <span>{w.userName || 'موظف'}</span>
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {canDelete && (
-                            <button 
-                              type="button" 
-                              onClick={() => handleRemoveWithdrawal(w.id)}
-                              className="text-muted-foreground hover:text-rose-500 transition-colors p-2 rounded-xl hover:bg-rose-500/10 active:scale-95"
-                              title="حذف عملية السحب"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          {/* Employee Selection Bar */}
+          {branchEmployees.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-muted/30 border border-border/80 text-center space-y-2">
+              <User size={32} className="mx-auto text-muted-foreground/60" />
+              <p className="text-sm font-bold text-foreground">لا يوجد موظفون مسجلون في {branch.nameAr} حالياً</p>
+              <p className="text-xs text-muted-foreground">
+                يمكنك إضافة وتعيين موظفين جدد لهذا الفرع من صفحة "إدارة الموظفين" أو من الشاشة الرئيسية.
+              </p>
             </div>
           ) : (
-            <div className="py-8 text-center text-xs text-muted-foreground">
-              لا توجد مسحوبات أو سلف مسجلة من المرتب خلال هذا الشهر حتى الآن.
+            <div className="space-y-6">
+              
+              {/* Employee Selector Pills */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground block">
+                  اختر الموظف لعرض كشف حسابه وإضافة الخصم أو السلفة:
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {branchEmployees.map(emp => {
+                    const isSelected = activeEmployee?.id === emp.id;
+                    return (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        onClick={() => { setSelectedEmpId(emp.id); setDeductionError(''); }}
+                        className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all shadow-2xs ${
+                          isSelected
+                            ? 'bg-amber-500 text-black border-amber-500 font-extrabold shadow-sm scale-102 ring-2 ring-amber-500/20'
+                            : 'bg-muted/40 hover:bg-muted text-foreground border-border/70 hover:border-border'
+                        }`}
+                      >
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                          isSelected ? 'bg-black/20 text-black' : 'bg-primary/10 text-primary'
+                        }`}>
+                          {emp.name.charAt(0)}
+                        </span>
+                        <span>{emp.name}</span>
+                        <span className="text-[10px] opacity-75 font-mono">(@{emp.username})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {activeEmployee && (
+                <>
+                  {/* Selected Employee Summary Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    
+                    {/* Base Salary */}
+                    <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-muted-foreground">المرتب الشهري الأساسي</p>
+                          <h3 className="text-xl font-bold font-mono text-foreground mt-1">
+                            {empBaseSalary > 0 ? `${empBaseSalary.toLocaleString()} ج.م` : 'غير محدد'}
+                          </h3>
+                          <span className="text-[10px] text-muted-foreground font-semibold">
+                            المحدد للموظف بالسيستم
+                          </span>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <Banknote size={20} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Total Deductions / Withdrawals */}
+                    <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-muted-foreground">إجمالي الخصومات والسلف</p>
+                          <h3 className="text-xl font-bold font-mono text-rose-400 mt-1">
+                            {totalEmpDeductions > 0 ? `-${totalEmpDeductions.toLocaleString()} ج.م` : '0.00 ج.م'}
+                          </h3>
+                          <span className="text-[10px] text-muted-foreground font-semibold">
+                            {empMonthlyWithdrawals.length} حركة مسجلة هذا الشهر
+                          </span>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                          <Wallet size={20} />
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Net Payable Salary */}
+                    <Card className="bg-card border-border/80 p-4 rounded-2xl shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold text-muted-foreground">صافي المرتب المستحق للصرف</p>
+                          <h3 className={`text-xl font-bold font-mono mt-1 ${
+                            netPayableSalary > 0 ? 'text-emerald-400' :
+                            netPayableSalary === 0 ? 'text-amber-400' : 'text-rose-400'
+                          }`}>
+                            {netPayableSalary.toLocaleString()} ج.م
+                          </h3>
+                          <span className="text-[10px] text-muted-foreground font-semibold">
+                            {netPayableSalary > 0 ? 'مستحق التسليم بنهاية الشهر' : netPayableSalary === 0 ? 'تم استنفاد كامل الراتب' : 'تجاوزت الخصومات قيمة الراتب'}
+                          </span>
+                        </div>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          netPayableSalary > 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          <Coins size={20} />
+                        </div>
+                      </div>
+                    </Card>
+
+                  </div>
+
+                  {/* Super Admin Action Box: Add Deduction / Advance */}
+                  <div className="bg-muted/20 border border-border/80 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <Plus size={16} className="text-amber-500" />
+                        <span>تسجيل قيد جديد بكشف حساب ({activeEmployee.name})</span>
+                      </h4>
+                      <span className="text-[11px] text-muted-foreground">
+                        خاص بالسوبر أدمن فقط
+                      </span>
+                    </div>
+
+                    {deductionError && (
+                      <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-500 text-xs font-bold rounded-xl flex items-center gap-2">
+                        <AlertTriangle size={15} className="shrink-0" />
+                        <span>{deductionError}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleAddDeduction} className="space-y-3.5">
+                      
+                      {/* Operation Type Chips */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-muted-foreground block">نوع العملية:</label>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { label: 'سحب / سلفة نقدية', value: 'سحب / سلفة', color: 'bg-amber-500/10 text-amber-500 border-amber-500/30' },
+                            { label: 'خصم جزائي / غياب', value: 'خصم جزائي', color: 'bg-rose-500/10 text-rose-500 border-rose-500/30' },
+                            { label: 'خصم تلفيات / كسر', value: 'خصم تلفيات', color: 'bg-orange-500/10 text-orange-500 border-orange-500/30' },
+                            { label: 'أخرى', value: 'أخرى', color: 'bg-blue-500/10 text-blue-500 border-blue-500/30' },
+                          ].map(t => (
+                            <button
+                              key={t.value}
+                              type="button"
+                              onClick={() => setDeductionType(t.value)}
+                              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                                deductionType === t.value
+                                  ? 'bg-amber-500 text-black border-amber-500 shadow-2xs font-extrabold'
+                                  : 'bg-background hover:bg-muted text-muted-foreground border-border'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Reason & Amount Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                        <div className="sm:col-span-7 space-y-1">
+                          <label className="text-xs font-bold text-muted-foreground block">
+                            البيان / سبب العملية
+                          </label>
+                          <Input
+                            type="text"
+                            placeholder="مثال: سلفة نقدية شخصية، خصم يوم تأخير، إلخ..."
+                            value={deductionReason}
+                            onChange={(e) => { setDeductionReason(e.target.value); setDeductionError(''); }}
+                            className="h-11 text-xs rounded-xl bg-background border-border focus:border-amber-500 px-4 font-bold"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3 space-y-1">
+                          <label className="text-xs font-bold text-muted-foreground block">
+                            المبلغ المخصوم (ج.م)
+                          </label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="المبلغ (ج.م)"
+                            value={deductionAmount}
+                            onChange={(e) => { setDeductionAmount(e.target.value); setDeductionError(''); }}
+                            className="h-11 text-xs rounded-xl bg-background border-border focus:border-amber-500 px-4 font-mono font-bold"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <Button
+                            type="submit"
+                            disabled={deductionSubmitting}
+                            className="w-full h-11 bg-amber-500 hover:bg-amber-600 text-black font-extrabold text-xs rounded-xl gap-1.5 shadow-md transition-all flex items-center justify-center"
+                          >
+                            <ShieldCheck size={16} />
+                            <span>{deductionSubmitting ? 'جاري الإضافة...' : 'إضافة القيد'}</span>
+                          </Button>
+                        </div>
+                      </div>
+
+                    </form>
+                  </div>
+
+                  {/* Account Statement Ledger Table */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center px-1">
+                      <h4 className="text-xs font-bold text-foreground">
+                        كشف الحساب التفصيلي لشهر {MONTH_NAMES_AR[currentMonth]} {currentYear}
+                      </h4>
+                      <span className="text-[11px] text-muted-foreground font-mono">
+                        المرتب الافتتاحي: {empBaseSalary.toLocaleString()} ج.م
+                      </span>
+                    </div>
+
+                    {ledgerRows.length > 0 ? (
+                      <div className="rounded-2xl border border-border/80 overflow-hidden overflow-x-auto">
+                        <table className="w-full text-xs text-right border-collapse">
+                          <thead className="bg-muted/50 border-b border-border/80">
+                            <tr className="text-muted-foreground font-bold">
+                              <th className="py-2.5 px-3 text-center w-12">#</th>
+                              <th className="py-2.5 px-3 text-center">التاريخ والوقت</th>
+                              <th className="py-2.5 px-3 text-center">نوع القيد</th>
+                              <th className="py-2.5 px-3 text-right">البيان / السبب</th>
+                              <th className="py-2.5 px-3 text-center">المبلغ المخصوم</th>
+                              <th className="py-2.5 px-3 text-center">الرصيد المتبقي (الصافي)</th>
+                              <th className="py-2.5 px-3 text-center w-16">إجراء</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/40">
+                            {ledgerRows.map((row) => {
+                              const badgeClass =
+                                row.type.includes('جزائي') ? 'bg-rose-500/10 text-rose-500 border-rose-500/25' :
+                                row.type.includes('تلفيات') ? 'bg-orange-500/10 text-orange-500 border-orange-500/25' :
+                                'bg-amber-500/10 text-amber-500 border-amber-500/25';
+
+                              return (
+                                <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="py-3 px-3 text-center font-mono text-muted-foreground text-[11px]">
+                                    {row.index}
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-mono text-muted-foreground text-[11px]">
+                                    {new Date(row.date).toLocaleDateString('ar-EG', {
+                                      year: 'numeric',
+                                      month: 'numeric',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded-lg border text-[11px] font-bold ${badgeClass}`}>
+                                      {row.type}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 font-bold text-foreground">
+                                    {row.cleanReason}
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-rose-400">
+                                    -{row.amountNum.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-foreground">
+                                    {row.balanceAfter.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveDeduction(row.id)}
+                                      className="text-muted-foreground hover:text-rose-500 transition-colors p-1.5 rounded-lg hover:bg-rose-500/10 active:scale-95"
+                                      title="حذف هذا القيد من كشف الحساب"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className="bg-muted/40 border-t border-border font-bold">
+                            <tr>
+                              <td colSpan={4} className="py-3 px-4 text-left font-bold text-muted-foreground text-xs">
+                                الإجمالي النهائي لكشف الحساب ({MONTH_NAMES_AR[currentMonth]} {currentYear}):
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-rose-400 text-xs">
+                                -{totalEmpDeductions.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold text-emerald-400 text-xs">
+                                {netPayableSalary.toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center text-xs text-muted-foreground bg-muted/20 border border-border/60 rounded-2xl">
+                        لا توجد خصومات أو سلف مسجلة لـ ({activeEmployee.name}) في شهر {MONTH_NAMES_AR[currentMonth]} {currentYear}. المرتب مستحق بالكامل ({empBaseSalary.toLocaleString()} ج.م).
+                      </div>
+                    )}
+                  </div>
+
+                </>
+              )}
+
             </div>
           )}
 
         </div>
-      </div>
       )}
 
       {/* 4. CALENDAR & PERFORMANCE TRACKING SECTION (Admin Only) */}
