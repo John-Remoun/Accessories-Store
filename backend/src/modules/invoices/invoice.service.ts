@@ -10,6 +10,7 @@ import { AppError } from '../../common/exceptions/app-error';
 import { broadcastStockUpdate, broadcastInvoiceCreated, broadcastInvoicesDeleted, broadcastInvoiceUpdated, StockUpdateItem } from '../../common/socket/socket.service';
 import { whatsappService } from '../whatsapp/whatsapp.service';
 import { memoryCache } from '../../common/cache/cache.service';
+import { customerDebtPaymentService } from '../customers/customer-debt-payment.service';
 
 /**
  * Normalizes customer phone or identifier into exact candidate representations
@@ -702,7 +703,7 @@ export class InvoiceService {
     return this.formatInvoiceResponse(invoice, isAdmin);
   }
 
-  public async payInvoice(id: string, amount: number) {
+  public async payInvoice(id: string, amount: number, paymentMethod?: 'cash' | 'vodafone_cash' | 'instapay', vodafoneNumber?: string, userName?: string) {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new AppError('Payment amount must be greater than zero', 400);
     }
@@ -736,6 +737,25 @@ export class InvoiceService {
       invoice.paymentStatus = newStatus;
 
       await transactionalEntityManager.save(invoice);
+
+      if (payAmt > 0) {
+        try {
+          await customerDebtPaymentService.createDebtPayment({
+            branchId: invoice.branchId,
+            invoiceId: invoice.id,
+            customerPhone: invoice.customerPhone,
+            customerName: invoice.customerName,
+            amount: payAmt,
+            paymentMethod: paymentMethod || 'cash',
+            vodafoneNumber,
+            userName,
+            date: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.warn('Failed to record debt payment in payInvoice:', err);
+        }
+      }
+
       return invoice;
     });
 
@@ -743,7 +763,7 @@ export class InvoiceService {
     return this.formatInvoiceResponse(updated);
   }
 
-  public async payCustomerDebt(customerPhone: string, amount: number, branchId?: string) {
+  public async payCustomerDebt(customerPhone: string, amount: number, branchId?: string, paymentMethod?: 'cash' | 'vodafone_cash' | 'instapay', vodafoneNumber?: string, userName?: string) {
     if (!customerPhone || !customerPhone.trim()) {
       throw new AppError('Customer phone or ID is required', 400);
     }
@@ -818,6 +838,25 @@ export class InvoiceService {
         updatedInvoices: updatedInvoices.map((inv) => this.formatInvoiceResponse(inv)),
       };
     });
+
+    if (result.amountApplied > 0) {
+      try {
+        const targetBranch = branchId || (result.updatedInvoices[0]?.branchId || 'b4');
+        const custName = result.updatedInvoices[0]?.customerName || 'عميل';
+        await customerDebtPaymentService.createDebtPayment({
+          branchId: targetBranch,
+          customerPhone,
+          customerName: custName,
+          amount: result.amountApplied,
+          paymentMethod: paymentMethod || 'cash',
+          vodafoneNumber,
+          userName,
+          date: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Failed to record debt payment in payCustomerDebt:', err);
+      }
+    }
 
     memoryCache.invalidate('invoices');
     return result;
@@ -1530,6 +1569,79 @@ export class InvoiceService {
             else if (method === 'instapay') dEntry.instapay += paid;
             else dEntry.cash += paid;
           }
+        }
+        daysMap.set(dayNum, dEntry);
+      }
+    }
+
+    // Integrate customer debt collections into cash drawer and revenue
+    const debtPayments = await customerDebtPaymentService.getDebtPayments({
+      branchId: options.branchId,
+      year: options.year !== undefined ? targetYear : undefined,
+      month: targetMonth !== undefined ? targetMonth + 1 : undefined,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    });
+
+    for (const dp of debtPayments) {
+      const cDate = getCairoDateParts(dp.date);
+      if (!cDate) continue;
+
+      if (options.year !== undefined && cDate.year !== targetYear) continue;
+
+      const isTargetMonth = targetMonth !== undefined
+        ? (cDate.year === targetYear && cDate.month === targetMonth)
+        : true;
+
+      if (targetMonth !== undefined && !isTargetMonth) continue;
+
+      const dpAmt = Number(dp.amount || 0);
+      if (dpAmt <= 0) continue;
+
+      totalRevenue += dpAmt;
+
+      const mIdx = cDate.month;
+      if (monthsMap.has(mIdx)) {
+        const mEntry = monthsMap.get(mIdx)!;
+        mEntry.revenue += dpAmt;
+        mEntry.netProfit += dpAmt;
+      }
+
+      if (dp.branchId) {
+        const bEntry = branchMap.get(dp.branchId) || {
+          branchId: dp.branchId,
+          revenue: 0,
+          cost: 0,
+          netProfit: 0,
+          remainingDebt: 0,
+          invoicesCount: 0,
+        };
+        bEntry.revenue += dpAmt;
+        bEntry.netProfit += dpAmt;
+        branchMap.set(dp.branchId, bEntry);
+      }
+
+      if (isTargetMonth) {
+        const dayNum = cDate.day;
+        const dEntry = daysMap.get(dayNum) || {
+          dayNum,
+          revenue: 0,
+          cost: 0,
+          netProfit: 0,
+          remainingDebt: 0,
+          invoicesCount: 0,
+          cash: 0,
+          vodafone: 0,
+          instapay: 0,
+        };
+        dEntry.revenue += dpAmt;
+        dEntry.netProfit += dpAmt;
+        if (dp.paymentMethod === 'vodafone_cash') {
+          dEntry.vodafone += dpAmt;
+        } else if (dp.paymentMethod === 'instapay') {
+          dEntry.instapay += dpAmt;
+        } else {
+          dEntry.cash += dpAmt;
         }
         daysMap.set(dayNum, dEntry);
       }

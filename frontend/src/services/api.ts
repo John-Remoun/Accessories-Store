@@ -250,14 +250,22 @@ export const api = {
     if (Array.isArray(ids)) ids.forEach(id => invalidateInvoiceCache(id));
     return request<any>('/invoices/delete-many', { method: 'POST', body: JSON.stringify({ ids }) });
   },
-  payInvoice: (id: string, amount: number) => {
+  payInvoice: (id: string, amount: number, paymentMethod?: string, vodafoneNumber?: string) => {
     invalidateInvoiceCache(id);
-    return request<any>(`/invoices/${id}/pay`, { method: 'PATCH', body: JSON.stringify({ amount }) });
+    return request<any>(`/invoices/${id}/pay`, { method: 'PATCH', body: JSON.stringify({ amount, paymentMethod, vodafoneNumber }) });
   },
-  payCustomerDebt: (customerPhone: string, amount: number, branchId?: string) => {
+  payCustomerDebt: (customerPhone: string, amount: number, branchId?: string, paymentMethod?: string, vodafoneNumber?: string) => {
     invalidateInvoiceCache();
-    return request<any>('/invoices/pay-customer-debt', { method: 'POST', body: JSON.stringify({ customerPhone, amount, branchId }) });
+    return request<any>('/invoices/pay-customer-debt', { method: 'POST', body: JSON.stringify({ customerPhone, amount, branchId, paymentMethod, vodafoneNumber }) });
   },
+
+  // Customer Debt Payments
+  getCustomerDebtPayments: (branchId?: string) =>
+    request<any[]>(branchId ? `/customer-debt-payments?branchId=${encodeURIComponent(branchId)}` : '/customer-debt-payments'),
+  saveCustomerDebtPayment: (payment: any) =>
+    request<any>('/customer-debt-payments', { method: 'POST', body: JSON.stringify(payment) }),
+  deleteCustomerDebtPayment: (id: string) =>
+    request<any>(`/customer-debt-payments/${id}`, { method: 'DELETE' }),
 
   // Customers
   getCustomers: (branchId?: string) =>

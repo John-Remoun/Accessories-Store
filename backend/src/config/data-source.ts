@@ -13,6 +13,7 @@ import { FixedExpenseEntity } from '../modules/fixed-expenses/fixed-expense.enti
 import { ProductCompositionEntity } from '../modules/compositions/composition.entity';
 import { SupplierEntity } from '../modules/suppliers/supplier.entity';
 import { SalaryWithdrawalEntity } from '../modules/salary-withdrawals/salary-withdrawal.entity';
+import { CustomerDebtPaymentEntity } from '../modules/customers/customer-debt-payment.entity';
 import { InitialMigration1700000000000 } from '../db/migrations/1700000000000-InitialMigration';
 import { EnableRLSAndHardenPermissions1700000000001 } from '../db/migrations/1700000000001-EnableRLSAndHardenPermissions';
 import { AddPerformanceIndexes1700000000002 } from '../db/migrations/1700000000002-AddPerformanceIndexes';
@@ -37,6 +38,7 @@ const entities = [
   ProductCompositionEntity,
   SupplierEntity,
   SalaryWithdrawalEntity,
+  CustomerDebtPaymentEntity,
 ];
 
 const migrations = [

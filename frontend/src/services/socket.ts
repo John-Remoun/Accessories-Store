@@ -107,6 +107,12 @@ export function initSocketClient(): Socket {
     }
   });
 
+  socket.on('debt-payment:created', (payment: any) => {
+    if (payment) {
+      store.addCustomerDebtPayment(payment);
+    }
+  });
+
   socket.on('product:deleted', (data: { id: string }) => {
     console.log('⚡ [Socket.io Client] Real-time product:deleted received:', data?.id);
     if (data && data.id) {

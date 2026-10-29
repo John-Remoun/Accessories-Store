@@ -196,3 +196,17 @@ export interface SupplierPurchase {
 
 export const VODAFONE_CASH_NUMBERS = ['01210866936', '01070722762', '01028514926'] as const;
 export type VodafoneCashNumber = (typeof VODAFONE_CASH_NUMBERS)[number];
+
+export interface CustomerDebtPayment {
+  id: string;
+  branchId: string;
+  invoiceId?: string;
+  customerPhone?: string;
+  customerName?: string;
+  amount: number;
+  paymentMethod: 'cash' | 'vodafone_cash' | 'instapay';
+  vodafoneNumber?: string;
+  date: string;
+  userName?: string;
+  createdAt?: string;
+}

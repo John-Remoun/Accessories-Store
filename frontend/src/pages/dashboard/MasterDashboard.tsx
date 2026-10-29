@@ -1270,10 +1270,10 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
       {/* DAY PERFORMANCE DETAILS MODAL */}
       <Dialog open={selectedDayModalData !== null} onOpenChange={(open) => !open && setSelectedDayModalData(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
           {selectedDayModalData && (
             <>
-              <DialogHeader className="border-b border-border/60 pb-2.5">
+              <div className="p-4 sm:p-5 border-b border-border/60 shrink-0">
                 <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
                   <Calendar size={18} className="text-emerald-500 shrink-0" />
                   <span>تقرير الأداء اليومي — (جميع الفروع)</span>
@@ -1281,9 +1281,9 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                 <p className="text-xs text-muted-foreground font-bold font-mono mt-0.5">
                   {selectedDayModalData.weekdayName} {selectedDayModalData.dayNum} {MONTH_NAMES_AR[currentMonth]} {currentYear}
                 </p>
-              </DialogHeader>
+              </div>
 
-              <div className="space-y-3 sm:space-y-3.5">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3.5">
                 
                 {/* 1. Net Profit Card */}
                 <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">
@@ -1489,15 +1489,15 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
       {/* MONTH PERFORMANCE DETAILS MODAL */}
       <Dialog open={isMonthModalOpen} onOpenChange={setIsMonthModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
-          <DialogHeader className="border-b border-border/60 pb-2.5">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
+          <div className="p-4 sm:p-5 border-b border-border/60 shrink-0">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Calendar size={18} className="text-cyan-500 shrink-0" />
               <span>تقرير أداء شهر {MONTH_NAMES_AR[currentMonth]} {currentYear} — (جميع الفروع)</span>
             </DialogTitle>
-          </DialogHeader>
+          </div>
 
-          <div className="space-y-3 sm:space-y-3.5">
+          <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3.5">
             
             {/* 1. Monthly Net Profit Card */}
             <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">

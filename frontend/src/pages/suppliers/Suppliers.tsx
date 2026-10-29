@@ -65,15 +65,15 @@ export const Suppliers = () => {
   const viewParam = queryParams.get('view');
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
-    if (viewParam === 'all') return 'all';
-    return branchParam || localStorage.getItem('last_active_branch') || 'all';
+    if (branchParam && branchParam !== 'all') return branchParam;
+    return 'all';
   });
 
   useEffect(() => {
-    if (viewParam === 'all') {
-      setSelectedBranchId('all');
-    } else if (branchParam) {
+    if (branchParam && branchParam !== 'all') {
       setSelectedBranchId(branchParam);
+    } else {
+      setSelectedBranchId('all');
     }
   }, [branchParam, viewParam]);
 
@@ -705,12 +705,10 @@ export const Suppliers = () => {
             </div>
             <div className="min-w-0 flex-1">
               <h1 className="text-sm sm:text-2xl font-serif font-black text-foreground truncate">
-                {activeBranchObj ? `سجل موردين ${activeBranchObj.nameAr}` : 'سجل وحسابات الموردين'}
+                {activeBranchObj ? `سجل فواتير الموردين — ${activeBranchObj.nameAr}` : 'سجل وحسابات فواتير الموردين (المشتريات العامة)'}
               </h1>
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                {activeBranchObj 
-                  ? `متابعة فواتير وحسابات ${activeBranchObj.nameAr}`
-                  : 'كافة الفروع • متابعة الفواتير والديون'}
+                صفحة مستقلة لإدارة فواتير شراء البضاعة ومستحقات الموردين — جهة الاستلام توثيقية لمكان البضاعة ولا تؤثر على حسابات الفروع
               </p>
             </div>
           </div>

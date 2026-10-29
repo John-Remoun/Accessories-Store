@@ -315,10 +315,19 @@ export const Branches = () => {
     return bInvs.filter(inv => getIsoDate(inv.date) === todayIso);
   }, [bInvs, todayIso]);
 
+  // Customer debt payments collected today for this branch (توريدات سداد الديون القديمة)
+  const todayDebtPayments = useMemo(() => {
+    return store.getCustomerDebtPayments(branch.id).filter(p => getIsoDate(p.date) === todayIso);
+  }, [branch.id, store.getCustomerDebtPayments(branch.id), todayIso]);
+
+  const todayDebtPaymentsTotal = useMemo(() => {
+    return todayDebtPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+  }, [todayDebtPayments]);
+
   const todayCollectedRev = todayInvs.reduce((acc, inv) => {
     const val = getInvoicePaid(inv);
     return acc + (isNaN(val) ? 0 : val);
-  }, 0);
+  }, 0) + todayDebtPaymentsTotal;
 
   const todayCost = todayInvs.reduce((acc, inv) => {
     const val = getInvoiceRecognizedCost(inv);
@@ -392,6 +401,23 @@ export const Branches = () => {
       }
     });
 
+    // Incorporate today's customer debt collections into respective cash/vodafone/instapay buckets
+    todayDebtPayments.forEach(dp => {
+      const amt = Number(dp.amount || 0);
+      if (amt <= 0) return;
+      if (dp.paymentMethod === 'instapay') {
+        instapayTotal += amt;
+      } else if (dp.paymentMethod === 'vodafone_cash') {
+        vodafoneTotal += amt;
+        const targetNum = dp.vodafoneNumber && vodafoneNumbersBreakdown[dp.vodafoneNumber] !== undefined
+          ? dp.vodafoneNumber
+          : '01210866936';
+        vodafoneNumbersBreakdown[targetNum] += amt;
+      } else {
+        cashTotal += amt;
+      }
+    });
+
     // Deduct today's fixed expenses from Cash in Drawer first
     const safeExpenses = Number(todayTotalFixedExpenses) || 0;
     const netCashTotal = Math.max(0, (isNaN(cashTotal) ? 0 : cashTotal) - safeExpenses);
@@ -401,9 +427,11 @@ export const Branches = () => {
       instapayTotal: isNaN(instapayTotal) ? 0 : instapayTotal, 
       vodafoneTotal: isNaN(vodafoneTotal) ? 0 : vodafoneTotal, 
       remainingTotal: isNaN(remainingTotal) ? 0 : remainingTotal,
+      todayDebtPaymentsTotal,
+      todayDebtPaymentsCount: todayDebtPayments.length,
       vodafoneNumbersBreakdown
     };
-  }, [todayInvs, todayTotalFixedExpenses]);
+  }, [todayInvs, todayDebtPayments, todayTotalFixedExpenses]);
 
   useEffect(() => {
     if (branch?.id) {
@@ -1699,10 +1727,10 @@ export const Branches = () => {
 
       {/* DAY PERFORMANCE DETAILS MODAL */}
       <Dialog open={selectedDayModalData !== null} onOpenChange={(open) => !open && setSelectedDayModalData(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
           {selectedDayModalData && (
             <>
-              <DialogHeader className="border-b border-border/60 pb-2.5">
+              <div className="p-4 sm:p-5 border-b border-border/60 shrink-0">
                 <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
                   <Calendar size={18} className="text-emerald-500 shrink-0" />
                   <span>تقرير الأداء اليومي — ({branch.nameAr})</span>
@@ -1710,9 +1738,9 @@ export const Branches = () => {
                 <p className="text-xs text-muted-foreground font-bold font-mono mt-0.5">
                   {selectedDayModalData.weekdayName} {selectedDayModalData.dayNum} {MONTH_NAMES_AR[currentMonth]} {currentYear}
                 </p>
-              </DialogHeader>
+              </div>
 
-              <div className="space-y-3 sm:space-y-3.5">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3.5">
                 
                 {/* 1. Net Profit Card (FIRST - Image 2 Style) */}
                 <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">
@@ -1917,15 +1945,15 @@ export const Branches = () => {
 
       {/* MONTH PERFORMANCE DETAILS MODAL */}
       <Dialog open={isMonthModalOpen} onOpenChange={setIsMonthModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
-          <DialogHeader className="border-b border-border/60 pb-2.5">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] flex flex-col bg-card border-border rounded-3xl p-0 overflow-hidden shadow-2xl" dir="rtl">
+          <div className="p-4 sm:p-5 border-b border-border/60 shrink-0">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Calendar size={18} className="text-cyan-500 shrink-0" />
               <span>تقرير أداء شهر {MONTH_NAMES_AR[currentMonth]} {currentYear} — ({branch.nameAr})</span>
             </DialogTitle>
-          </DialogHeader>
+          </div>
 
-          <div className="space-y-3 sm:space-y-3.5">
+          <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-3.5">
             
             {/* 1. Monthly Net Profit Card (FIRST) */}
             <div className="bg-card shadow-xs border border-border/80 border-l-4 border-l-teal-500 rounded-2xl p-3.5 sm:p-4 flex items-center justify-between">

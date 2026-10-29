@@ -248,3 +248,13 @@ export function broadcastProductDeleted(id: string, branchId?: string): void {
 
 
 
+
+export function broadcastDebtPaymentCreated(payment: any): void {
+  bumpSyncVersion();
+  if (!io) return;
+  if (payment?.branchId) {
+    io.to("branch:" + payment.branchId).to('admin').emit('debt-payment:created', payment);
+  } else {
+    io.emit('debt-payment:created', payment);
+  }
+}

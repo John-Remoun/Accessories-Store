@@ -271,6 +271,8 @@ export const Invoices = () => {
   const [paymentModalCustomerPhone, setPaymentModalCustomerPhone] = useState<string | null>(null);
   const [paymentModalCustomerName, setPaymentModalCustomerName] = useState<string>('');
   const [paymentAmountInput, setPaymentAmountInput] = useState<string>('');
+  const [debtPayMethod, setDebtPayMethod] = useState<'cash' | 'vodafone_cash' | 'instapay'>('cash');
+  const [debtVodafoneNumber, setDebtVodafoneNumber] = useState<string>(VODAFONE_CASH_NUMBERS[0]);
 
   // Single / Batch Delete Modals State
   const [singleDeleteId, setSingleDeleteId] = useState<string | null>(null);
@@ -667,15 +669,17 @@ export const Invoices = () => {
     const effBranch = (!isAdmin && user?.branchId) ? user.branchId : activeBranchId;
     setIsSubmittingPayment(true);
     try {
+      const chosenVodafone = debtPayMethod === 'vodafone_cash' ? debtVodafoneNumber : undefined;
       if (paymentModalInvoice) {
-        await store.payInvoice(paymentModalInvoice.id, amt);
+        await store.payInvoice(paymentModalInvoice.id, amt, debtPayMethod, chosenVodafone);
         setPaymentModalInvoice(null);
-        toast.success('تم تسجيل سداد الفاتورة بنجاح');
+        toast.success('تم تسجيل سداد الفاتورة وتوريد المبلغ بالدرج بنجاح');
       } else if (paymentModalCustomerPhone) {
-        await store.payCustomerDebt(paymentModalCustomerPhone, amt, effBranch);
+        await store.payCustomerDebt(paymentModalCustomerPhone, amt, effBranch, debtPayMethod, chosenVodafone);
         setPaymentModalCustomerPhone(null);
-        toast.success('تم تسجيل سداد مديونية العميل بنجاح');
+        toast.success('تم تسجيل سداد مديونية العميل وتوريد المبلغ بالدرج بنجاح');
       }
+      setDebtPayMethod('cash');
       setRefreshKey(prev => prev + 1);
 
       // Refresh authoritative statement if statement modal is active
@@ -871,73 +875,93 @@ ${rem > 0 ? `⚠️ المتبقي (آجل): ${rem.toFixed(2)} ج.م\n` : ''}�
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
 
   const handleOpenEditModal = async (inv: Invoice) => {
-    setOpeningInvoiceId(inv.id);
-    let fullInv = inv;
-    if (!inv.items || inv.items.length === 0) {
-      try {
-        const fetched = await api.getInvoiceById(inv.id || inv.invoiceNumber);
-        if (fetched && fetched.items && fetched.items.length > 0) {
-          fullInv = fetched;
+    const invKey = String(inv.id || inv.invoiceNumber || '');
+    if (!invKey) return;
+    setOpeningInvoiceId(invKey);
+    try {
+      let fullInv = inv;
+      // 1. Check local store first for fast instant open with items
+      if (!fullInv.items || fullInv.items.length === 0) {
+        const fromStore = store.getInvoices().find(i =>
+          (i.id && i.id === inv.id) ||
+          (i.invoiceNumber && i.invoiceNumber === inv.invoiceNumber)
+        );
+        if (fromStore?.items && fromStore.items.length > 0) {
+          fullInv = fromStore;
         }
-      } catch (err) {
-        console.warn('Could not load full invoice items for edit modal:', err);
       }
+
+      // 2. Fetch from server if items are still missing
+      if (!fullInv.items || fullInv.items.length === 0) {
+        try {
+          const fetched = await api.getInvoiceById(invKey);
+          if (fetched && Array.isArray(fetched.items) && fetched.items.length > 0) {
+            fullInv = fetched;
+          }
+        } catch (err) {
+          console.warn('Could not load full invoice items for edit modal:', err);
+        }
+      }
+
+      setEditingInvoice(fullInv);
+      setEditCustomerName(fullInv.customerName || '');
+      setEditCustomerPhone(fullInv.customerPhone || '');
+      const initialMethod = (fullInv.paymentSubMethod || fullInv.paymentMethod || 'cash') as any;
+      setEditPaymentMethod(initialMethod);
+      setEditVodafoneNumber(fullInv.vodafoneNumber || VODAFONE_CASH_NUMBERS[0]);
+
+      // 3 distinct payment statuses: paid, partial, deferred
+      let initialStatus: 'paid' | 'partial' | 'deferred' = 'paid';
+      if (fullInv.paymentStatus === 'deferred' || (!fullInv.paidAmount && fullInv.remainingAmount && fullInv.remainingAmount >= fullInv.total && fullInv.total > 0)) {
+        initialStatus = 'deferred';
+      } else if (fullInv.paymentStatus === 'partial' || (fullInv.remainingAmount && fullInv.remainingAmount > 0)) {
+        initialStatus = 'partial';
+      }
+      setEditPaymentStatus(initialStatus);
+
+      if (initialStatus === 'paid') {
+        setEditPaidAmount(fullInv.total);
+      } else if (initialStatus === 'deferred') {
+        setEditPaidAmount(0);
+      } else {
+        setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
+      }
+
+      setEditDiscount(fullInv.discount || 0);
+
+      // Populate split payments
+      if (fullInv.splitPayments) {
+        setEditSplitCash(Number(fullInv.splitPayments.cash || 0));
+        setEditSplitVodafone(Number(fullInv.splitPayments.vodafone_cash || 0));
+        setEditSplitInstapay(Number(fullInv.splitPayments.instapay || 0));
+      } else {
+        const pTotal = initialStatus === 'paid' ? fullInv.total : (fullInv.paidAmount || 0);
+        setEditSplitCash(initialMethod === 'cash' ? pTotal : 0);
+        setEditSplitVodafone(initialMethod === 'vodafone_cash' ? pTotal : 0);
+        setEditSplitInstapay(initialMethod === 'instapay' ? pTotal : 0);
+      }
+
+      const cloned = (fullInv.items || []).map(it => {
+        const bd = store.getProductBranchData(it.productId, fullInv.branchId);
+        const pr = Number(it.unitPrice);
+        const q = Number(it.quantity);
+        return {
+          physicalItemId: it.physicalItemId,
+          productId: it.productId,
+          productName: it.productName || store.getProduct(it.productId)?.nameAr || 'منتج',
+          unitPrice: isNaN(pr) ? 0 : pr,
+          unitCost: Number((it as any).unitCost !== undefined ? (it as any).unitCost : (bd?.cost || 0)),
+          quantity: isNaN(q) || q <= 0 ? 1 : q,
+          originalQuantity: isNaN(q) || q <= 0 ? 1 : q,
+        };
+      });
+      setEditItems(cloned);
+    } catch (err) {
+      console.error('Error opening edit invoice modal:', err);
+      toast.error('حدث خطأ أثناء تحميل بيانات الفاتورة');
+    } finally {
+      setOpeningInvoiceId(null);
     }
-
-    setEditingInvoice(fullInv);
-    setEditCustomerName(fullInv.customerName || '');
-    setEditCustomerPhone(fullInv.customerPhone || '');
-    const initialMethod = (fullInv.paymentSubMethod || fullInv.paymentMethod || 'cash') as any;
-    setEditPaymentMethod(initialMethod);
-    setEditVodafoneNumber(fullInv.vodafoneNumber || VODAFONE_CASH_NUMBERS[0]);
-
-    // 3 distinct payment statuses: paid, partial, deferred
-    let initialStatus: 'paid' | 'partial' | 'deferred' = 'paid';
-    if (fullInv.paymentStatus === 'deferred' || (!fullInv.paidAmount && fullInv.remainingAmount && fullInv.remainingAmount >= fullInv.total && fullInv.total > 0)) {
-      initialStatus = 'deferred';
-    } else if (fullInv.paymentStatus === 'partial' || (fullInv.remainingAmount && fullInv.remainingAmount > 0)) {
-      initialStatus = 'partial';
-    }
-    setEditPaymentStatus(initialStatus);
-
-    if (initialStatus === 'paid') {
-      setEditPaidAmount(fullInv.total);
-    } else if (initialStatus === 'deferred') {
-      setEditPaidAmount(0);
-    } else {
-      setEditPaidAmount(fullInv.paidAmount !== undefined ? fullInv.paidAmount : fullInv.total);
-    }
-
-    setEditDiscount(fullInv.discount || 0);
-
-    // Populate split payments
-    if (fullInv.splitPayments) {
-      setEditSplitCash(Number(fullInv.splitPayments.cash || 0));
-      setEditSplitVodafone(Number(fullInv.splitPayments.vodafone_cash || 0));
-      setEditSplitInstapay(Number(fullInv.splitPayments.instapay || 0));
-    } else {
-      const pTotal = initialStatus === 'paid' ? fullInv.total : (fullInv.paidAmount || 0);
-      setEditSplitCash(initialMethod === 'cash' ? pTotal : 0);
-      setEditSplitVodafone(initialMethod === 'vodafone_cash' ? pTotal : 0);
-      setEditSplitInstapay(initialMethod === 'instapay' ? pTotal : 0);
-    }
-
-    const cloned = (fullInv.items || []).map(it => {
-      const bd = store.getProductBranchData(it.productId, fullInv.branchId);
-      const pr = Number(it.unitPrice);
-      const q = Number(it.quantity);
-      return {
-        physicalItemId: it.physicalItemId,
-        productId: it.productId,
-        productName: it.productName || store.getProduct(it.productId)?.nameAr || 'منتج',
-        unitPrice: isNaN(pr) ? 0 : pr,
-        unitCost: Number((it as any).unitCost !== undefined ? (it as any).unitCost : (bd?.cost || 0)),
-        quantity: isNaN(q) || q <= 0 ? 1 : q,
-        originalQuantity: isNaN(q) || q <= 0 ? 1 : q,
-      };
-    });
-    setEditItems(cloned);
-    setOpeningInvoiceId(null);
   };
 
   const handleRemoveEditItem = (idx: number) => {
@@ -1860,11 +1884,11 @@ Salla Bola & Mina`;
                         {isAdmin && (
                           <button
                             onClick={() => handleOpenEditModal(inv)}
-                            disabled={openingInvoiceId === inv.id}
+                            disabled={openingInvoiceId === (inv.id || inv.invoiceNumber)}
                             className="h-8 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
                             title="تعديل الفاتورة وإرجاع المنتجات"
                           >
-                            {openingInvoiceId === inv.id ? (
+                            {openingInvoiceId === (inv.id || inv.invoiceNumber) ? (
                               <>
                                 <RotateCcw className="animate-spin" size={13} />
                                 <span>جاري الفتح...</span>
@@ -2075,11 +2099,11 @@ Salla Bola & Mina`;
                         {isAdmin && (
                           <button
                             onClick={() => handleOpenEditModal(inv)}
-                            disabled={openingInvoiceId === inv.id}
+                            disabled={openingInvoiceId === (inv.id || inv.invoiceNumber)}
                             className="h-9 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-500 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
                             title="تعديل الفاتورة وإرجاع المنتجات"
                           >
-                            {openingInvoiceId === inv.id ? (
+                            {openingInvoiceId === (inv.id || inv.invoiceNumber) ? (
                               <>
                                 <RotateCcw className="animate-spin" size={14} />
                                 <span>جاري الفتح...</span>
@@ -2416,6 +2440,71 @@ Salla Bola & Mina`;
               <span>💡</span>
               <span>سيتم خصم وتغطية الديون تلقائياً من الفواتير القديمة أولاً ثم الأحدث بالترتيب.</span>
             </div>
+          </div>
+
+          {/* Payment Method Selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground block">
+              طريقة تحصيل وتوريد المبلغ بالدرج
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDebtPayMethod('cash')}
+                className={`h-10 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                  debtPayMethod === 'cash'
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/60 shadow-xs'
+                    : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                }`}
+              >
+                <span>💵</span>
+                <span>كاش (نقداً)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebtPayMethod('vodafone_cash')}
+                className={`h-10 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                  debtPayMethod === 'vodafone_cash'
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/60 shadow-xs'
+                    : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                }`}
+              >
+                <span>📱</span>
+                <span>فودافون</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebtPayMethod('instapay')}
+                className={`h-10 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                  debtPayMethod === 'instapay'
+                    ? 'bg-purple-500/20 text-purple-400 border-purple-500/60 shadow-xs'
+                    : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                }`}
+              >
+                <span>⚡</span>
+                <span>إنستاباي</span>
+              </button>
+            </div>
+
+            {/* Vodafone Number Selector */}
+            {debtPayMethod === 'vodafone_cash' && (
+              <div className="pt-1.5 flex gap-1.5">
+                {VODAFONE_CASH_NUMBERS.map(num => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setDebtVodafoneNumber(num)}
+                    className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-mono font-bold border transition-all ${
+                      debtVodafoneNumber === num
+                        ? 'bg-rose-600 text-white border-rose-500 shadow-xs'
+                        : 'bg-background/80 text-muted-foreground border-border hover:border-rose-500/50'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Input Field */}

@@ -10,6 +10,7 @@ import { memoryCache } from '../common/cache/cache.service';
 import { AppDataSource } from '../config/data-source';
 import { invoiceService, getCustomerIdentityConditions, getCairoDateParts, InvoiceService } from '../modules/invoices/invoice.service';
 import { InvoiceEntity } from '../modules/invoices/invoice.entity';
+import { customerDebtPaymentService } from '../modules/customers/customer-debt-payment.service';
 import { ProductService, MAX_LIST_LIMIT } from '../modules/products/product.service';
 import { egressMonitor } from '../common/middleware/egress-monitor.middleware';
 
@@ -1191,6 +1192,8 @@ async function runSecurityTests() {
     await test('9. Name-only statement uses exact match and summaries avoid ambiguous walk-in merging', async () => {
       const originalRepo = (invoiceService as any).invoiceRepo;
       const originalIsInit = AppDataSource.isInitialized;
+      const originalGetDebt = customerDebtPaymentService.getDebtPayments.bind(customerDebtPaymentService);
+      customerDebtPaymentService.getDebtPayments = (async () => []) as any;
       (AppDataSource as any).isInitialized = true;
 
       let capturedNameWhere = '';
@@ -1210,6 +1213,7 @@ async function runSecurityTests() {
       } finally {
         (invoiceService as any).invoiceRepo = originalRepo;
         (AppDataSource as any).isInitialized = originalIsInit;
+        customerDebtPaymentService.getDebtPayments = originalGetDebt;
       }
     });
 
@@ -1295,6 +1299,8 @@ async function runSecurityTests() {
 
     // Test 2: getReportsSummary handles both 1-based (1..12) and 0-based (0..11) month options
     await test('2. getReportsSummary normalizes both 1-based and 0-based month parameters', async () => {
+      const origGetDebt = customerDebtPaymentService.getDebtPayments.bind(customerDebtPaymentService);
+      customerDebtPaymentService.getDebtPayments = (async () => []) as any;
       const sampleInvoices = [
         {
           id: 'inv_oct_1',
@@ -1381,6 +1387,52 @@ async function runSecurityTests() {
       } finally {
         (invoiceService as any).invoiceRepo = originalRepo;
         (AppDataSource as any).isInitialized = originalIsInit;
+        customerDebtPaymentService.getDebtPayments = origGetDebt;
+        memoryCache.clear();
+      }
+    });
+
+    // Test 3: Customer debt collections are properly integrated into revenue, cash drawer, and daily metrics
+    await test('3. getReportsSummary integrates customer debt collections into revenue, cash drawer, and daily metrics', async () => {
+      const originalRepo = (invoiceService as any).invoiceRepo;
+      const originalGetDebt = customerDebtPaymentService.getDebtPayments.bind(customerDebtPaymentService);
+      (invoiceService as any).invoiceRepo = {
+        createQueryBuilder: () => ({
+          select() { return this; },
+          andWhere() { return this; },
+          getMany: async () => [],
+        }),
+      };
+
+      customerDebtPaymentService.getDebtPayments = (async () => [
+        {
+          id: 'cdp_test_1',
+          branchId: 'b_main',
+          amount: 250,
+          paymentMethod: 'cash',
+          date: '2026-10-15T10:00:00.000Z',
+        },
+        {
+          id: 'cdp_test_2',
+          branchId: 'b_main',
+          amount: 150,
+          paymentMethod: 'vodafone_cash',
+          date: '2026-10-15T11:00:00.000Z',
+        },
+      ]) as any;
+
+      try {
+        memoryCache.clear();
+        const res = await invoiceService.getReportsSummary({ year: 2026, month: 10, branchId: 'b_main' });
+        assert.strictEqual(res.overall.revenue, 400, 'Debt payments must be added to overall revenue');
+        assert.strictEqual(res.dailyMetrics.length, 1, 'Day 15 must have metrics');
+        assert.strictEqual(res.dailyMetrics[0].dayNum, 15);
+        assert.strictEqual(res.dailyMetrics[0].cash, 250, 'Cash drawer must receive 250 cash payment');
+        assert.strictEqual(res.dailyMetrics[0].vodafone, 150, 'Vodafone bucket must receive 150 payment');
+        assert.strictEqual(res.dailyMetrics[0].revenue, 400, 'Day revenue must be 400');
+      } finally {
+        (invoiceService as any).invoiceRepo = originalRepo;
+        customerDebtPaymentService.getDebtPayments = originalGetDebt;
         memoryCache.clear();
       }
     });

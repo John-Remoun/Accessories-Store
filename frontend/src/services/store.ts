@@ -1,5 +1,5 @@
 import { mockBranches, mockCategories, mockCustomers, mockPhysicalItems, mockInvoices, mockProducts, mockUsers, mockProductBranchData } from '../mock/data';
-import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, SalaryWithdrawal, ProductComposition, SupplierPurchase, SupplierPaymentRecord } from '../types';
+import { Branch, Category, Customer, PhysicalItem, Invoice, Product, User, ProductBranchData, FixedExpense, SalaryWithdrawal, ProductComposition, SupplierPurchase, SupplierPaymentRecord, CustomerDebtPayment } from '../types';
 import { api } from './api';
 
 const STORE_KEY = 'accessories_store_data_v14';
@@ -17,6 +17,7 @@ export interface AppState {
   salaryWithdrawals?: SalaryWithdrawal[];
   compositions: ProductComposition[];
   suppliers: SupplierPurchase[];
+  customerDebtPayments?: CustomerDebtPayment[];
 }
 
 class StoreService {
@@ -1176,10 +1177,10 @@ class StoreService {
     }
   }
 
-  public async payInvoice(id: string, amount: number) {
+  public async payInvoice(id: string, amount: number, paymentMethod?: string, vodafoneNumber?: string) {
     if (amount <= 0) return;
     try {
-      const res = await api.payInvoice(id, amount);
+      const res = await api.payInvoice(id, amount, paymentMethod, vodafoneNumber);
       const inv = (this.state.invoices || []).find(i => i?.id === id);
       if (inv) {
         const currentRemaining = inv.remainingAmount !== undefined ? inv.remainingAmount : (inv.total - (inv.paidAmount || 0));
@@ -1200,11 +1201,11 @@ class StoreService {
     }
   }
 
-  public async payCustomerDebt(customerPhoneOrId: string, amount: number, branchId?: string) {
+  public async payCustomerDebt(customerPhoneOrId: string, amount: number, branchId?: string, paymentMethod?: string, vodafoneNumber?: string) {
     if (amount <= 0) return;
     const term = customerPhoneOrId.trim();
     try {
-      const res = await api.payCustomerDebt(term, amount, branchId);
+      const res = await api.payCustomerDebt(term, amount, branchId, paymentMethod, vodafoneNumber);
       return res;
     } catch (err) {
       console.warn('DB sync warning (payCustomerDebt):', err);
@@ -1431,6 +1432,25 @@ class StoreService {
     } catch (err) {
       console.warn('DB sync warning (createSalaryWithdrawal):', err);
     }
+  }
+
+
+  public getCustomerDebtPayments(branchId?: string): CustomerDebtPayment[] {
+    const list = this.state.customerDebtPayments || [];
+    if (!branchId || branchId === 'all') return list;
+    return list.filter(p => p?.branchId === branchId);
+  }
+
+  public async addCustomerDebtPayment(payment: CustomerDebtPayment) {
+    if (!this.state.customerDebtPayments) this.state.customerDebtPayments = [];
+    const normalized: CustomerDebtPayment = {
+      ...payment,
+      amount: Number(payment.amount) || 0,
+    };
+    this.state.customerDebtPayments = this.state.customerDebtPayments.filter(p => p.id !== payment.id);
+    this.state.customerDebtPayments.unshift(normalized);
+    this.saveState(true);
+    this.notifyListeners();
   }
 
   public async removeSalaryWithdrawal(id: string) {
