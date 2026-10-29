@@ -1662,7 +1662,7 @@ export const Branches = () => {
 
       {/* YEAR PERFORMANCE DETAILS MODAL */}
       <Dialog open={isYearModalOpen} onOpenChange={setIsYearModalOpen}>
-        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl bg-card border-border rounded-3xl p-3 sm:p-5 space-y-2 sm:space-y-3.5 shadow-2xl overflow-hidden" dir="rtl">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-3 sm:p-5 space-y-2 sm:space-y-3.5 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-2">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Layers size={18} className="text-purple-500 shrink-0" />

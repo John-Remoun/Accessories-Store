@@ -1256,7 +1256,7 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
       {/* DAY PERFORMANCE DETAILS MODAL */}
       <Dialog open={selectedDayModalData !== null} onOpenChange={(open) => !open && setSelectedDayModalData(null)}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
           {selectedDayModalData && (
             <>
               <DialogHeader className="border-b border-border/60 pb-2.5">
@@ -1475,7 +1475,7 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
       {/* MONTH PERFORMANCE DETAILS MODAL */}
       <Dialog open={isMonthModalOpen} onOpenChange={setIsMonthModalOpen}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-4 sm:p-6 space-y-3.5 sm:space-y-4 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-2.5">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Calendar size={18} className="text-cyan-500 shrink-0" />
@@ -1629,7 +1629,7 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
 
       {/* YEAR PERFORMANCE DETAILS MODAL */}
       <Dialog open={isYearModalOpen} onOpenChange={setIsYearModalOpen}>
-        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl bg-card border-border rounded-3xl p-3 sm:p-5 space-y-2 sm:space-y-3.5 shadow-2xl overflow-hidden" dir="rtl">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-full max-w-3xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto bg-card border-border rounded-3xl p-3 sm:p-5 space-y-2 sm:space-y-3.5 shadow-2xl" dir="rtl">
           <DialogHeader className="border-b border-border/60 pb-2">
             <DialogTitle className="font-serif text-base sm:text-lg font-bold flex items-center gap-2 text-foreground">
               <Layers size={18} className="text-purple-500 shrink-0" />
