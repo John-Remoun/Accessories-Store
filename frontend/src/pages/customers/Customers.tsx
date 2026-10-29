@@ -461,7 +461,6 @@ export const Customers = () => {
         <td style="padding: 10px; text-align: center; font-family: monospace; font-weight: bold; font-size: 13px;">${c.phone || 'غير محدد'}</td>
         <td style="padding: 10px; text-align: center;">${c.isFavorite ? 'عميل مفضل' : 'عادي'}</td>
         <td style="padding: 10px; text-align: center; font-weight: bold;">${c.invoiceCount}</td>
-        <td style="padding: 10px; text-align: left; font-family: monospace; font-weight: bold; color: #059669;">${c.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })} EGP</td>
         <td style="padding: 10px; text-align: center; font-size: 11px; color: #64748b;">${new Date(c.lastVisit).toLocaleDateString('ar-EG')}</td>
       </tr>
     `).join('');
@@ -516,12 +515,11 @@ export const Customers = () => {
               <th>رقم التليفون</th>
               <th>النوع</th>
               <th>عدد الفواتير</th>
-              <th style="text-align: left;">إجمالي التعاملات</th>
               <th>آخر معاملة</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml.length > 0 ? rowsHtml : '<tr><td colSpan="7" style="text-align:center; padding: 20px;">لا يوجد عملاء مسجلين</td></tr>'}
+            ${rowsHtml.length > 0 ? rowsHtml : '<tr><td colSpan="6" style="text-align:center; padding: 20px;">لا يوجد عملاء مسجلين</td></tr>'}
           </tbody>
         </table>
 
@@ -676,7 +674,6 @@ export const Customers = () => {
                 <TableHead className="text-xs font-bold text-center">رقم التليفون</TableHead>
                 <TableHead className="text-xs font-bold text-center">الحالة</TableHead>
                 <TableHead className="text-xs font-bold text-center">عدد الفواتير</TableHead>
-                <TableHead className="text-xs font-bold text-left">إجمالي المشتريات</TableHead>
                 <TableHead className="text-xs font-bold text-center">تاريخ آخر معاملة</TableHead>
                 <TableHead className="text-xs font-bold text-center">تواصل</TableHead>
                 <TableHead className="text-xs font-bold text-center">حذف</TableHead>
@@ -685,7 +682,7 @@ export const Customers = () => {
             <TableBody>
               {filteredCustomers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-10 text-muted-foreground text-xs">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-xs">
                     لا يوجد عملاء مطبقين لنتائج البحث في {currentBranchName}.
                   </TableCell>
                 </TableRow>
@@ -727,12 +724,7 @@ export const Customers = () => {
                         {c.invoiceCount}
                       </TableCell>
 
-                      {/* 5. Total Spent */}
-                      <TableCell className="text-left py-3 font-mono font-bold text-xs text-amber-500" dir="ltr">
-                        {c.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })} EGP
-                      </TableCell>
-
-                      {/* 6. Last Visit Date */}
+                      {/* 5. Last Visit Date */}
                       <TableCell className="text-center py-3 text-xs text-muted-foreground font-mono">
                         <div className="font-bold text-foreground">{new Date(c.lastVisit).toLocaleDateString('ar-EG')}</div>
                         <div className="text-[10px] text-muted-foreground/80">
