@@ -1051,8 +1051,9 @@ export const Branches = () => {
         </div>
       </div>
 
-      {/* 3.1 SALARY ADVANCES & WITHDRAWALS SECTION */}
-      <div className="space-y-4 pt-4 mt-8">
+      {/* 3.1 SALARY ADVANCES & WITHDRAWALS SECTION (Visible ONLY to branch employees, NOT Super Admin) */}
+      {!isAdmin && (
+        <div className="space-y-4 pt-4 mt-8">
         
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-border/60 pb-2">
@@ -1257,6 +1258,7 @@ export const Branches = () => {
 
         </div>
       </div>
+      )}
 
       {/* 4. CALENDAR & PERFORMANCE TRACKING SECTION (Admin Only) */}
       {isAdmin && (

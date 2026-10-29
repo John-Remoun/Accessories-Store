@@ -620,12 +620,9 @@ export const MasterDashboard = () => {
       const empBranch = branches.find(b => b.id === emp.branchId);
 
       const baseSalary = Number(emp.salary) || 0;
-      const now = new Date();
-      const currYear = now.getFullYear();
-      const currMonth = now.getMonth();
       const empWithdrawals = store.getSalaryWithdrawalsByUser(emp.id).filter(w => {
         const d = new Date(w.date);
-        return d.getFullYear() === currYear && d.getMonth() === currMonth;
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
       });
       const totalWithdrawn = empWithdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
       const netSalary = baseSalary - totalWithdrawn;
@@ -642,7 +639,7 @@ export const MasterDashboard = () => {
     });
 
     return ranked.sort((a, b) => b.totalSalesAmount - a.totalSalesAmount);
-  }, [allUsers, allInvoices, branches, serverSummary]);
+  }, [allUsers, allInvoices, branches, serverSummary, currentYear, currentMonth]);
 
   // Chart Data
   const chartData = useMemo(() => {
@@ -1788,8 +1785,8 @@ ${invDiscount > 0 ? `💰 *المجموع قبل الخصم:* ${invSubtotal.toFi
                 <TableHead className="text-center">عدد الفواتير</TableHead>
                 <TableHead className="text-right">إجمالي مبلغ المبيعات</TableHead>
                 <TableHead className="text-right">المرتب الأساسي</TableHead>
-                <TableHead className="text-right">المسحوبات (هذا الشهر)</TableHead>
-                <TableHead className="text-right">صافي المرتب المستحق</TableHead>
+                <TableHead className="text-right">المسحوبات ({MONTH_NAMES_AR[currentMonth]})</TableHead>
+                <TableHead className="text-right">صافي المرتب المستحق ({MONTH_NAMES_AR[currentMonth]})</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
